@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EcommerceAgent - Administrador</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=Syne:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/admin.css">
+</head>
+<body>
+
+  <!-- NAVBAR -->
+  <header class="adm-navbar">
+    <div class="adm-navbar-inner">
+      <div class="adm-brand-wrap">
+        <span class="adm-brand">EcommerceAgent</span>
+        <span class="adm-brand-sep"></span>
+        <span class="adm-brand-tag">Panel de Administrador</span>
+      </div>
+      <div class="adm-navbar-right">
+        <span class="adm-navbar-badge">Admin</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- TABS BAR -->
+  <nav class="adm-tabs-bar" role="tablist" aria-label="Secciones de administracion">
+    <button class="adm-tab-btn active" id="adm-tab-btn-inventario" role="tab" aria-selected="true"
+      onclick="switchAdminTab('inventario')">Inventario</button>
+    <button class="adm-tab-btn" id="adm-tab-btn-catalogo" role="tab" aria-selected="false"
+      onclick="switchAdminTab('catalogo')">Catalogo</button>
+    <button class="adm-tab-btn" id="adm-tab-btn-paginas" role="tab" aria-selected="false"
+      onclick="switchAdminTab('paginas')">Paginas de Venta</button>
+    <button class="adm-tab-btn" id="adm-tab-btn-usuarios" role="tab" aria-selected="false"
+      onclick="switchAdminTab('usuarios')">Usuarios</button>
+    <button class="adm-tab-btn" id="adm-tab-btn-cuentas" role="tab" aria-selected="false"
+      onclick="switchAdminTab('cuentas')">Cuentas</button>
+    <button class="adm-tab-btn" id="adm-tab-btn-pedidos" role="tab" aria-selected="false"
+      onclick="switchAdminTab('pedidos')">Pedidos</button>
+  </nav>
+
+  <!-- MAIN CONTENT -->
+  <main class="adm-main">
+
+    <!-- ===== 1. INVENTARIO ===== -->
+    <!-- TODO: cargar datos reales desde Supabase/backend -->
+    <section id="adm-panel-inventario" class="adm-panel active" role="tabpanel">
+      <div class="adm-panel-header">
+        <h2 class="adm-panel-title">Inventario</h2>
+        <p class="adm-panel-desc">Stock de todos los productos. Agrega, edita cantidades, pausa o elimina productos.</p>
+      </div>
+      <div class="adm-summary-row" id="inv-summary-row"></div>
+
+      <div class="adm-section">
+        <div class="adm-section-toolbar">
+          <h3 class="adm-section-title">Productos</h3>
+          <div class="adm-toolbar-actions">
+            <button type="button" class="adm-btn adm-btn--outline" onclick="invToggleForm()">
+              <span id="inv-form-toggle-txt">Agregar producto</span>
+            </button>
+            <button type="button" class="adm-btn adm-btn--primary" onclick="invGuardarCambios()">Guardar cambios</button>
+          </div>
+        </div>
+        <p id="inv-save-ok" class="adm-save-ok" hidden>Cambios de stock guardados.</p>
+
+        <!-- Formulario -->
+        <div id="inv-form-wrap" class="adm-form-wrap" hidden>
+          <div class="adm-form-grid">
+            <div class="adm-form-group adm-form-group--full">
+              <label class="adm-form-label" for="inv-f-nombre">Nombre del producto</label>
+              <input type="text" id="inv-f-nombre" class="adm-form-input" placeholder="Nombre del producto">
+            </div>
+            <div class="adm-form-group adm-form-group--full">
+              <!-- TODO: en produccion las imagenes van a Cloudflare R2 / Supabase Storage, no localStorage -->
+              <div class="adm-imgs-header">
+                <label class="adm-form-label">Imagenes del producto (hasta 5)</label>
+                <span id="inv-imgs-count" class="adm-imgs-count">0 / 5</span>
+              </div>
+              <div id="inv-imgs-grid" class="adm-imgs-grid"></div>
+              <input type="file" id="inv-f-imagenes" accept="image/*" multiple
+                onchange="invAgregarImagenes(this)" hidden>
+              <p class="adm-form-hint">Minimo 1 imagen requerida &middot; Las demas imagenes estaran disponibles para que los vendedores descarguen y usen en su contenido.</p>
+            </div>
+            <div class="adm-form-group">
+              <label class="adm-form-label" for="inv-f-categoria">Categoria</label>
+              <select id="inv-f-categoria" class="adm-form-select">
+                <option value="Belleza">Belleza</option>
+                <option value="Tecnologia">Tecnologia</option>
+                <option value="Hogar">Hogar</option>
+                <option value="Alimentacion">Alimentacion</option>
+                <option value="Otro">Otro</option>
+              </select>
+            </div>
+            <div class="adm-form-group">
+              <label class="adm-form-label" for="inv-f-precio">Precio de venta ($)</label>
+              <input type="number" id="inv-f-precio" class="adm-form-input" placeholder="0.00" min="0" step="0.01"
+                oninput="invCalcGanancia()">
+            </div>
+            <div class="adm-form-group">
+              <label class="adm-form-label" for="inv-f-utilidad">Utilidad del vendedor (%)</label>
+              <input type="number" id="inv-f-utilidad" class="adm-form-input" placeholder="30" min="0" max="100" step="1"
+                oninput="invCalcGanancia()">
+            </div>
+            <div class="adm-form-group">
+              <label class="adm-form-label" for="inv-f-stock">Stock actual</label>
+              <input type="number" id="inv-f-stock" class="adm-form-input" placeholder="0" min="0" step="1">
+            </div>
+            <div class="adm-form-group adm-form-group--full">
+              <p id="inv-ganancia-preview" class="adm-ganancia-preview">Ganancia por venta: $0.00</p>
+            </div>
+          </div>
+          <div class="adm-form-footer">
+            <button type="button" class="adm-btn adm-btn--primary" onclick="invGuardarProducto()">Guardar producto</button>
+            <p id="inv-form-error" class="adm-form-error" hidden></p>
+          </div>
+        </div>
+
+        <!-- Tabla 50 filas fijas -->
+        <div class="adm-table-wrap" id="inv-table-wrap"></div>
+      </div>
+    </section>
+
+    <!-- ===== 2. CATALOGO ===== -->
+    <!-- TODO: cargar datos reales desde Supabase/backend (ventas + vistas de paginas de venta) -->
+    <section id="adm-panel-catalogo" class="adm-panel" role="tabpanel" hidden>
+      <div class="adm-panel-header">
+        <h2 class="adm-panel-title">Estadisticas de ventas</h2>
+        <p class="adm-panel-desc">Rendimiento de productos: ventas, vistas y conversion.</p>
+      </div>
+      <div class="adm-summary-row" id="cat-summary-row"></div>
+
+      <!-- Dos rankings lado a lado -->
+      <div class="adm-dual-grid">
+        <div class="adm-section">
+          <h3 class="adm-section-title">Mas vendidos</h3>
+          <p class="adm-section-desc">Productos por mayor numero de unidades vendidas.</p>
+          <div class="adm-table-wrap" id="cat-ranking-ventas"></div>
+        </div>
+        <div class="adm-section">
+          <h3 class="adm-section-title">Mas vistos</h3>
+          <p class="adm-section-desc">Productos por mayor numero de vistas en paginas de venta.</p>
+          <!-- TODO: cargar datos reales desde Supabase (incrementar contador al abrir pagina de venta) -->
+          <div class="adm-table-wrap" id="cat-ranking-vistas"></div>
+        </div>
+      </div>
+
+      <!-- Insights cruzados -->
+      <div class="adm-section" id="cat-insights-section">
+        <h3 class="adm-section-title">Insights</h3>
+        <p class="adm-section-desc">Cruce entre vistas y ventas para detectar oportunidades.</p>
+        <div id="cat-insights-body"></div>
+      </div>
+    </section>
+
+    <!-- ===== 3. PAGINAS DE VENTA ===== -->
+    <!-- TODO: cargar datos reales desde Supabase/backend -->
+    <section id="adm-panel-paginas" class="adm-panel" role="tabpanel" hidden>
+      <div class="adm-panel-header">
+        <h2 class="adm-panel-title">Paginas de Venta</h2>
+        <p class="adm-panel-desc">Crea y gestiona paginas de venta para tus productos.</p>
+      </div>
+      <div class="adm-summary-row" id="pag-summary-row"></div>
+
+      <!-- Sub-tabs internos -->
+      <nav class="adm-inner-tabs">
+        <button class="adm-inner-tab-btn active" id="pag-subtab-btn-crear"
+          onclick="pagSwitchSubTab('crear')">Crear pagina</button>
+        <button class="adm-inner-tab-btn" id="pag-subtab-btn-activas"
+          onclick="pagSwitchSubTab('activas')">Paginas activas</button>
+      </nav>
+
+      <!-- Sub-panel: CREAR PAGINA (solo HTML) -->
+      <!-- TODO: en produccion el HTML se sirve como pagina publica via GET /p/:slug + inyeccion de ea-checkout.js -->
+      <div id="pag-subpanel-crear">
+        <div class="adm-section">
+          <h3 class="adm-section-title">Nueva pagina de venta</h3>
+          <p class="adm-section-desc">Pega el HTML de tu pagina de venta (hecha en Claude u otro editor). El sistema la publica con un link unico y conecta el boton de compra al checkout automaticamente.</p>
+
+          <!-- Nota sobre btn-comprar-ea -->
+          <div class="adm-checkout-note">
+            <strong>Importante:</strong> El boton de comprar de tu pagina debe tener
+            <code>class="btn-comprar-ea"</code> para conectarse al checkout.<br>
+            Ejemplo: <code>&lt;button class="btn-comprar-ea"&gt;Comprar ahora&lt;/button&gt;</code>
+          </div>
+
+          <div class="adm-form-grid">
+            <div class="adm-form-group adm-form-group--full">
+              <label class="adm-form-label" for="pag-html-nombre">Nombre / identificador de la pagina</label>
+              <input type="text" id="pag-html-nombre" class="adm-form-input"
+                placeholder="Ej. Landing Rizador Nova v2">
+            </div>
+            <div class="adm-form-group adm-form-group--full">
+              <div class="adm-html-label-row">
+                <label class="adm-form-label" for="pag-html-code">Codigo HTML de la pagina</label>
+                <button type="button" class="adm-btn adm-btn--sm adm-btn--outline"
+                  onclick="pagUsarPlantilla()">Usar plantilla base</button>
+              </div>
+              <textarea id="pag-html-code" class="adm-html-editor"
+                placeholder="Pega aqui el codigo HTML de tu pagina de venta..."></textarea>
+            </div>
+          </div>
+
+          <div class="adm-form-footer">
+            <button type="button" class="adm-btn adm-btn--outline" onclick="pagPrevisualizar()">Previsualizar</button>
+            <button type="button" class="adm-btn adm-btn--primary" onclick="pagCrearHtml()">Crear pagina</button>
+            <p id="pag-html-error" class="adm-form-error" hidden></p>
+          </div>
+
+          <!-- iframe de preview -->
+          <div id="pag-preview-wrap" class="adm-iframe-wrap" hidden>
+            <div class="adm-iframe-header">
+              <span class="adm-iframe-title">Vista previa</span>
+              <button type="button" class="adm-copy-mini"
+                onclick="document.getElementById('pag-preview-wrap').hidden=true">Cerrar</button>
+            </div>
+            <iframe id="pag-preview-iframe" class="adm-preview-iframe"
+              sandbox="allow-scripts allow-same-origin"></iframe>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Sub-panel: PAGINAS ACTIVAS -->
+      <div id="pag-subpanel-activas" hidden>
+        <div class="adm-section">
+          <h3 class="adm-section-title">Paginas creadas</h3>
+          <div id="pag-activas-wrap"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 4. USUARIOS ===== -->
+    <!-- TODO: usuarios reales desde Supabase -->
+    <section id="adm-panel-usuarios" class="adm-panel" role="tabpanel" hidden>
+      <div class="adm-panel-header">
+        <h2 class="adm-panel-title">Usuarios</h2>
+        <p class="adm-panel-desc">Gestion de usuarios registrados y sus ventas globales.</p>
+      </div>
+      <div class="adm-summary-row" id="usr-summary-row"></div>
+      <div class="adm-section">
+        <h3 class="adm-section-title">Usuarios registrados</h3>
+        <div class="adm-table-wrap" id="usr-table-wrap"></div>
+      </div>
+      <div class="adm-section">
+        <h3 class="adm-section-title">Ventas globales (todos los usuarios)</h3>
+        <p class="adm-section-desc">Todas las ventas registradas en la plataforma.</p>
+        <div class="adm-table-wrap" id="usr-ventas-wrap"></div>
+      </div>
+    </section>
+
+    <!-- ===== 5. CUENTAS ===== -->
+    <!-- TODO: datos reales desde Supabase (ventas, utilidades, solicitudes de pago) -->
+    <section id="adm-panel-cuentas" class="adm-panel" role="tabpanel" hidden>
+      <div class="adm-panel-header">
+        <h2 class="adm-panel-title">Cuentas</h2>
+        <p class="adm-panel-desc">Vision financiera del negocio: ventas generadas, utilidades y gestion de pagos a vendedores.</p>
+      </div>
+
+      <!-- Sub-tabs internos -->
+      <nav class="adm-inner-tabs">
+        <button class="adm-inner-tab-btn active" id="cuentas-subtab-btn-utilidad"
+          onclick="cuentasSwitchSubTab('utilidad')">Utilidad y Ventas</button>
+        <button class="adm-inner-tab-btn" id="cuentas-subtab-btn-pagos"
+          onclick="cuentasSwitchSubTab('pagos')">Pagos</button>
+      </nav>
+
+      <!-- SUB-TAB: UTILIDAD Y VENTAS -->
+      <div id="cuentas-subpanel-utilidad">
+        <!-- TODO: datos reales desde Supabase tabla `ventas` con join a `usuarios` e `inventario` -->
+        <div class="adm-summary-row" id="cuentas-util-summary"></div>
+        <div class="adm-section">
+          <div class="adm-section-toolbar">
+            <h3 class="adm-section-title">Todas las ventas</h3>
+          </div>
+          <div id="cuentas-ventas-wrap"></div>
+        </div>
+      </div>
+
+      <!-- SUB-TAB: PAGOS -->
+      <div id="cuentas-subpanel-pagos" hidden>
+        <!-- Cards de resumen -->
+        <div class="adm-summary-row" id="pag-summary-row"></div>
+        <!-- Solicitudes pendientes -->
+        <div class="adm-section">
+          <div class="adm-section-toolbar">
+            <h3 class="adm-section-title">Solicitudes de pago</h3>
+          </div>
+          <div id="pag-solicitudes-wrap"></div>
+        </div>
+        <!-- Historial por quincena -->
+        <div class="adm-section">
+          <div class="adm-section-toolbar">
+            <h3 class="adm-section-title">Historial por quincena</h3>
+          </div>
+          <div id="pag-historial-wrap"></div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ===== 6. PEDIDOS ===== -->
+    <!-- TODO: en produccion los pedidos llegan via webhook de Stripe (checkout.session.completed)
+         y se guardan en Supabase tabla `pedidos`. El boton "Marcar como procesado" notifica
+         al cliente y al vendedor (ref) que el pedido fue despachado. -->
+    <section id="adm-panel-pedidos" class="adm-panel" role="tabpanel" hidden>
+      <div class="adm-panel-header">
+        <h2 class="adm-panel-title">Pedidos</h2>
+        <p class="adm-panel-desc">Compras recibidas listas para despachar. Cada pedido incluye producto, datos del comprador, direccion de envio y el vendedor que genero la venta.</p>
+      </div>
+
+      <!-- Cards de resumen -->
+      <div class="adm-summary-row" id="ped-summary-row"></div>
+
+      <!-- Filtro de estado -->
+      <div class="adm-section">
+        <div class="adm-section-toolbar" style="justify-content:space-between;flex-wrap:wrap;gap:10px">
+          <h3 class="adm-section-title">Pedidos</h3>
+          <div class="ped-filtro-pills" id="ped-filtro-pills">
+            <button type="button" class="ped-filtro-btn active" data-filtro="todos" onclick="pedFiltrar('todos')">Todos</button>
+            <button type="button" class="ped-filtro-btn" data-filtro="Pendiente" onclick="pedFiltrar('Pendiente')">Pendientes</button>
+            <button type="button" class="ped-filtro-btn" data-filtro="Procesado" onclick="pedFiltrar('Procesado')">Procesados</button>
+          </div>
+        </div>
+        <div id="ped-tabla-wrap"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Modal generico -->
+  <div id="adm-modal" class="adm-modal-overlay" hidden>
+    <div class="adm-modal">
+      <div class="adm-modal-header">
+        <h3 class="adm-modal-title" id="adm-modal-title"></h3>
+        <button type="button" class="adm-modal-close" onclick="admCerrarModal()">X</button>
+      </div>
+      <div class="adm-modal-body" id="adm-modal-body"></div>
+    </div>
+  </div>
+
+  <script src="assets/js/admin.js"></script>
+</body>
+</html>

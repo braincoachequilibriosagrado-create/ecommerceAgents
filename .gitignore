@@ -1,0 +1,62 @@
+# ============================================================
+# SECRETOS Y CLAVES — NUNCA subir al repositorio
+# ============================================================
+
+# Variables de entorno del motor (Anthropic + Groq API keys)
+motor/.env
+.env
+.env.*
+.env.local
+.env.production
+.env.development
+
+# Configuracion de claves del frontend
+ecommerceAgent/assets/js/config.js
+
+# Sesion de WhatsApp (credenciales de Baileys)
+motor/baileys-auth/
+
+# Config de ventas con tokens de Telegram (si existe)
+motor/ventas-config.json
+
+# ============================================================
+# DEPENDENCIAS NODE
+# ============================================================
+node_modules/
+motor/node_modules/
+
+# ============================================================
+# ARCHIVOS TEMPORALES DEL MOTOR
+# ============================================================
+
+# Frames de video, audio y uploads temporales
+motor/temp/*
+!motor/temp/.gitkeep
+
+# Videos procesados (se sirven y se borran automaticamente)
+motor/outputs/*
+!motor/outputs/.gitkeep
+
+# ============================================================
+# LOGS Y CACHÉS
+# ============================================================
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+
+# ============================================================
+# SISTEMA OPERATIVO
+# ============================================================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ============================================================
+# EDITORES
+# ============================================================
+.vscode/
+.idea/
+*.swp
+*.swo

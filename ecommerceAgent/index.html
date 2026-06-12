@@ -1,0 +1,1728 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>EcommerceAgent — Elite Commerce Network</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,300;1,400&family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- PAGE 1: LANDING PÚBLICA (home)                          -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div id="page-home" class="page active">
+  <div class="landing-bg"></div>
+  <div class="grid-overlay"></div>
+
+  <header class="landing-nav">
+    <a href="#landing-top" class="landing-nav-logo" onclick="event.preventDefault(); document.getElementById('landing-top').scrollIntoView({behavior:'smooth',block:'start'});"><span class="landing-nav-e">Ecommerce</span><span class="landing-nav-a">Agent</span></a>
+    <nav class="landing-nav-links" aria-label="Principal">
+      <button type="button" class="landing-nav-secondary" onclick="window.open('https://wa.me/573001234567', '_blank')">Contáctanos</button>
+      <button type="button" class="landing-nav-cta" onclick="showPage('page-token')">Acceder</button>
+    </nav>
+  </header>
+
+  <div class="corner-decoration tl"></div>
+  <div class="corner-decoration tr"></div>
+  <div class="corner-decoration bl"></div>
+  <div class="corner-decoration br"></div>
+
+  <section class="landing-hero" id="landing-top">
+    <div class="landing-hero-inner">
+      <div class="landing-hero-copy">
+        <div class="landing-badge"><span>Elite Commerce Network</span></div>
+        <h1 class="landing-title">Ecommerce<br><span>Agent</span></h1>
+        <div class="landing-subtitle-line"></div>
+        <p class="landing-tagline">
+          La red de comercio que conecta talento colombiano<br>con el mercado más grande del mundo.
+        </p>
+        <p class="landing-desc">Dropshipping · Estados Unidos · Red de Agentes</p>
+        <button type="button" class="landing-cta" onclick="showPage('page-token')">
+          Ingresar a la Plataforma
+          <span class="landing-cta-arrow">→</span>
+        </button>
+      </div>
+
+      <div class="landing-hero-visual" aria-hidden="true">
+        <div class="landing-deco-shapes">
+          <span class="deco-sq deco-a"></span>
+          <span class="deco-sq deco-b"></span>
+          <span class="deco-sq deco-c"></span>
+        </div>
+        <div class="mock-stack mock-stack--float">
+          <div class="mock-premium-frame">
+            <img
+              src="assets/img/mis-ventas-premium.png?v=4"
+              alt="Catálogo y Mis ventas"
+              class="mock-premium-img"
+              loading="lazy"
+              decoding="async"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="landing-stats">
+    <div class="stat-item">
+      <div class="stat-num">500+</div>
+      <div class="stat-label">Productos</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">50+</div>
+      <div class="stat-label">Agentes</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">US</div>
+      <div class="stat-label">Mercado</div>
+    </div>
+  </div>
+
+  <section class="landing-section landing-section--alt" id="informacion" aria-labelledby="informacion-title">
+    <div class="landing-section-inner">
+      <h2 class="landing-section-title landing-section-title--plain" id="informacion-title">Información</h2>
+      <div class="landing-info-grid">
+        <article class="landing-info-card">
+          <span class="landing-info-emoji" aria-hidden="true">📋</span>
+          <h3 class="landing-info-card-title">Términos y Condiciones</h3>
+          <p class="landing-info-card-text">Conoce las reglas, comisiones y políticas de nuestra red de agentes antes de unirte.</p>
+          <button type="button" class="landing-info-btn landing-info-btn--outline" onclick="alert('Aquí van los términos y condiciones.')">Leer términos →</button>
+        </article>
+        <article class="landing-info-card">
+          <span class="landing-info-emoji" aria-hidden="true">💬</span>
+          <h3 class="landing-info-card-title">Contáctanos</h3>
+          <p class="landing-info-card-text">¿Tienes preguntas? Escríbenos directamente por WhatsApp y te respondemos en minutos.</p>
+          <button type="button" class="landing-info-btn landing-info-btn--gold" onclick="window.open('https://wa.me/573001234567', '_blank')">Escribir por WhatsApp →</button>
+        </article>
+        <article class="landing-info-card">
+          <span class="landing-info-emoji" aria-hidden="true">🏢</span>
+          <h3 class="landing-info-card-title">Quiénes Somos</h3>
+          <p class="landing-info-card-text">Somos una red de comercio que conecta talento colombiano con el mercado americano a través del dropshipping inteligente.</p>
+          <button type="button" class="landing-info-btn landing-info-btn--outline" onclick="alert('Aquí va la información de quiénes somos.')">Conocer más →</button>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="landing-section" id="productos-landing" aria-labelledby="productos-landing-title">
+    <div class="landing-section-inner">
+      <h2 class="landing-section-title" id="productos-landing-title">Productos <span>destacados</span></h2>
+      <p class="landing-section-lead">Ejemplos reales del catálogo disponible para tu negocio.</p>
+      <div class="landing-product-grid">
+        <article class="landing-product-card">
+          <div class="landing-product-img-wrap">
+            <img src="assets/img/products/rizador-nova.png" alt="" width="800" height="600" loading="lazy" decoding="async" />
+          </div>
+          <h3 class="landing-product-name">Rizador Pinza Ondulador Espiral Nova</h3>
+          <p class="landing-product-meta">Belleza · Stock alto</p>
+        </article>
+        <article class="landing-product-card">
+          <div class="landing-product-img-wrap">
+            <img src="assets/img/products/airpods-pantalla.png" alt="" width="800" height="600" loading="lazy" decoding="async" />
+          </div>
+          <h3 class="landing-product-name">Airpods Segunda Generación Con Pantalla</h3>
+          <p class="landing-product-meta">Tecnología · Demanda fuerte</p>
+        </article>
+        <article class="landing-product-card">
+          <div class="landing-product-img-wrap">
+            <img src="assets/img/products/combo-bioaqua.png" alt="" width="800" height="600" loading="lazy" decoding="async" />
+          </div>
+          <h3 class="landing-product-name">Combo Hidratación Intensiva Bioaqu</h3>
+          <p class="landing-product-meta">Belleza · Catálogo vivo</p>
+        </article>
+      </div>
+      <button type="button" class="landing-cta landing-cta--section" onclick="showPage('page-token')">Ver catálogo completo en la plataforma <span class="landing-cta-arrow">→</span></button>
+    </div>
+  </section>
+
+  <section class="landing-section landing-section--alt" id="beneficios" aria-labelledby="beneficios-title">
+    <div class="landing-section-inner">
+      <h2 class="landing-section-title" id="beneficios-title"><span>Beneficios</span> para ti</h2>
+      <p class="landing-section-lead">Todo lo que necesitas para operar sin inventario propio.</p>
+      <div class="landing-benefits">
+        <div class="landing-benefit">
+          <span class="landing-benefit-icon" aria-hidden="true">◈</span>
+          <h3 class="landing-benefit-title">Sin stock</h3>
+          <p class="landing-benefit-text">Dropshipping hacia EE. UU.: tú vendes, la red cumple.</p>
+        </div>
+        <div class="landing-benefit">
+          <span class="landing-benefit-icon" aria-hidden="true">◎</span>
+          <h3 class="landing-benefit-title">Red de agentes</h3>
+          <p class="landing-benefit-text">Afiliados y comisiones claras desde un solo panel.</p>
+        </div>
+        <div class="landing-benefit">
+          <span class="landing-benefit-icon" aria-hidden="true">◫</span>
+          <h3 class="landing-benefit-title">Catálogo curado</h3>
+          <p class="landing-benefit-text">Productos con márgenes y datos listos para vender.</p>
+        </div>
+        <div class="landing-benefit">
+          <span class="landing-benefit-icon" aria-hidden="true">$</span>
+          <h3 class="landing-benefit-title">Balance y retiros</h3>
+          <p class="landing-benefit-text">Seguimiento de ventas, comisiones y movimientos.</p>
+        </div>
+      </div>
+      <button type="button" class="landing-cta landing-cta--section" onclick="showPage('page-token')">Quiero empezar <span class="landing-cta-arrow">→</span></button>
+    </div>
+  </section>
+
+  <section class="landing-cta-band" aria-label="Llamado a la acción">
+    <div class="landing-cta-band-inner">
+      <h2 class="landing-cta-band-title">¿Listo para ganar en dólares?</h2>
+      <p class="landing-cta-band-text">Solicita tu token y accede al catálogo, links con ref y tu balance de comisiones.</p>
+      <button type="button" class="landing-cta landing-cta--on-dark" onclick="showPage('page-token')">Comenzar ahora <span class="landing-cta-arrow">→</span></button>
+    </div>
+  </section>
+
+  <footer class="landing-footer" id="contacto">
+    <div class="landing-footer-inner">
+      <div class="landing-footer-brand">
+        <div class="landing-footer-logo">Ecommerce<span>Agent</span></div>
+        <p class="landing-footer-tag">Elite Commerce Network</p>
+      </div>
+      <div class="landing-footer-block">
+        <h3 class="landing-footer-heading">Contacto</h3>
+        <p class="landing-footer-line"><a href="mailto:hola@ecommerceagent.com" class="landing-footer-link">hola@ecommerceagent.com</a></p>
+        <p class="landing-footer-line muted">Horario: Lun — Vie · 9:00 — 18:00 (COL)</p>
+      </div>
+    </div>
+    <p class="landing-footer-copy">© EcommerceAgent. Plataforma de comercio para agentes.</p>
+  </footer>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- PAGE 2: TOKEN ENTRY                                    -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div id="page-token" class="page">
+  <div class="landing-bg"></div>
+  <div class="token-card">
+    <div class="token-logo">Ecommerce<span>Agent</span></div>
+    <div class="token-divider"></div>
+    <h2 class="token-heading">Acceso con Token</h2>
+    <p class="token-subtext">
+      Ingresa el token de activación que te fue proporcionado<br>
+      para crear tu cuenta en la plataforma.
+    </p>
+
+    <div id="token-alert" class="alert error">Token inválido. Contacta al administrador.</div>
+
+    <div class="form-group">
+      <label class="form-label">Token de Activación</label>
+      <input type="text" class="form-input" id="token-input"
+             placeholder="XXXX-XXXX-XXXX-XXXX"
+             style="text-transform:uppercase; letter-spacing: 3px;" />
+    </div>
+
+    <button class="btn-primary" onclick="validateToken()">Validar Token</button>
+    <button class="btn-secondary" onclick="showPage('page-login')">Ya tengo cuenta — Iniciar sesión</button>
+
+    <div class="token-footer">
+      ← <span onclick="showPage('page-home')" style="cursor:pointer; text-decoration:underline;">Volver al inicio</span>
+      &nbsp;·&nbsp; Plataforma segura · TLS 1.3
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- PAGE 3: REGISTER                                       -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div id="page-register" class="page">
+  <div class="landing-bg"></div>
+  <div class="token-card" style="max-width:520px;">
+    <div class="token-logo">Ecommerce<span>Agent</span></div>
+    <div class="token-divider"></div>
+    <h2 class="token-heading">Crear Cuenta</h2>
+    <p class="token-subtext">Token verificado. Completa tu registro para acceder al catálogo.</p>
+
+    <div class="form-group">
+      <label class="form-label">Nombre Completo</label>
+      <input type="text" class="form-input" id="register-name" name="name" required autocomplete="name" placeholder="Tu nombre completo" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Correo Electrónico</label>
+      <input type="email" class="form-input" placeholder="correo@ejemplo.com" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Contraseña</label>
+      <input type="password" class="form-input" placeholder="Mínimo 8 caracteres" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Confirmar Contraseña</label>
+      <input type="password" class="form-input" placeholder="Repite tu contraseña" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Pixel ID de Facebook (opcional)</label>
+      <input type="text" class="form-input" id="register-pixel" name="pixel" autocomplete="off" placeholder="Ej: 1234567890123" style="font-family: var(--font-mono);" />
+      <p style="margin: 10px 0 0; font-size: 10px; line-height: 1.6; color: var(--muted); font-family: var(--font-ui);">Lo encuentras en tu Meta Business Manager → Píxeles. Lo puedes agregar después si no lo tienes aún.</p>
+    </div>
+
+    <button class="btn-primary" onclick="goToDashboard('agent')">Crear Cuenta y Entrar</button>
+
+    <div class="token-footer">
+      Al registrarte aceptas los términos y condiciones de EcommerceAgent
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- PAGE 4: LOGIN                                          -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div id="page-login" class="page">
+  <div class="landing-bg"></div>
+  <div class="token-card">
+    <div class="token-logo">Ecommerce<span>Agent</span></div>
+    <div class="token-divider"></div>
+    <h2 class="token-heading">Iniciar Sesión</h2>
+    <p class="token-subtext">Accede con tu usuario y contraseña registrados.</p>
+
+    <div class="form-group">
+      <label class="form-label">Tu nombre</label>
+      <input type="text" class="form-input" id="login-name" name="given-name" autocomplete="given-name" placeholder="Cómo te llamamos" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Correo Electrónico</label>
+      <input type="email" class="form-input" id="login-email" placeholder="correo@ejemplo.com" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Contraseña</label>
+      <input type="password" class="form-input" id="login-pass" placeholder="••••••••" />
+    </div>
+
+    <button class="btn-primary" onclick="goToDashboard('agent')" style="margin-bottom:10px;">Ingresar como Agente</button>
+    <button class="btn-secondary" onclick="goToDashboard('admin')">Ingresar como Admin</button>
+
+    <div class="token-footer">
+      ← <span onclick="showPage('page-token')" style="cursor:pointer; text-decoration:underline;">Registrarme con token</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- PAGE 5: DASHBOARD                                      -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div id="page-dashboard" class="page">
+
+  <div id="agent-dashboard-shell" class="agent-dashboard-shell">
+    <header class="agent-topbar">
+      <div class="agent-dashboard-inner agent-topbar-inner">
+        <div class="agent-topbar-side agent-topbar-side--left" aria-hidden="true"></div>
+        <div class="agent-topbar-logo">
+          <div class="logo-text">Ecommerce<span>Agent</span></div>
+          <div class="logo-sub">No es automatizacion. Es evolucion.</div>
+        </div>
+        <div class="agent-topbar-side agent-topbar-side--right">
+          <button type="button" class="agent-topbar-logout" onclick="showPage('page-home')">Cerrar Sesion</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="agent-dashboard-body">
+      <div class="agent-dashboard-inner">
+      <div class="welcome-banner agent-welcome">
+        <div class="welcome-content">
+          <div class="welcome-greeting">Bienvenido de vuelta</div>
+          <h2 class="welcome-title" id="welcome-name">Hola, <span>Agente</span></h2>
+          <p class="welcome-sub">Gestiona tu catalogo, monetizacion, contenido con IA, ventas por WhatsApp y el resumen de tu cuenta desde un solo panel.</p>
+        </div>
+      </div>
+
+      <div class="agent-tabs-wrap">
+      <nav class="agent-tabs agent-tabs--seven" role="tablist" aria-label="Secciones del dashboard">
+        <button type="button" class="agent-tab active" id="agent-tab-btn-catalogo" role="tab" aria-selected="true" aria-controls="agent-tab-catalogo" onclick="switchAgentTab('catalogo')">Catalogo</button>
+        <button type="button" class="agent-tab" id="agent-tab-btn-mis-productos" role="tab" aria-selected="false" aria-controls="agent-tab-mis-productos" onclick="switchAgentTab('mis-productos')">Mis Productos</button>
+        <button type="button" class="agent-tab" id="agent-tab-btn-monetizacion" role="tab" aria-selected="false" aria-controls="agent-tab-monetizacion" onclick="switchAgentTab('monetizacion')">Monetizacion</button>
+        <button type="button" class="agent-tab" id="agent-tab-btn-contenido" role="tab" aria-selected="false" aria-controls="agent-tab-contenido" onclick="switchAgentTab('contenido')">Contenido</button>
+        <button type="button" class="agent-tab" id="agent-tab-btn-ads" role="tab" aria-selected="false" aria-controls="agent-tab-ads" onclick="switchAgentTab('ads')">Agents Ads</button>
+        <button type="button" class="agent-tab" id="agent-tab-btn-ventas" role="tab" aria-selected="false" aria-controls="agent-tab-ventas" onclick="switchAgentTab('ventas')">Agents Ventas</button>
+        <button type="button" class="agent-tab" id="agent-tab-btn-cuentas" role="tab" aria-selected="false" aria-controls="agent-tab-cuentas" onclick="switchAgentTab('cuentas')">Cuentas</button>
+      </nav>
+      </div>
+
+      <div id="agent-tab-catalogo" class="agent-tab-panel active" role="tabpanel">
+        <div id="agent-grid-catalogo" class="products-grid"></div>
+      </div>
+
+      <div id="agent-tab-mis-productos" class="agent-tab-panel" role="tabpanel" hidden>
+        <p id="agent-mis-productos-empty" class="agent-empty-state" hidden>Aun no has anadido productos. Ve al Catalogo y elige los que quieras vender.</p>
+        <div id="agent-grid-mis-productos" class="products-grid"></div>
+      </div>
+
+      <div id="agent-tab-monetizacion" class="agent-tab-panel" role="tabpanel" hidden>
+        <div class="mon-wrap">
+
+          <div class="mon-credits-bar">
+            <div class="mon-credits-info">
+              <span class="mon-credits-label">Creditos disponibles:</span>
+              <span class="mon-credits-value" id="mon-credits-balance">1000</span>
+            </div>
+            <button type="button" class="mon-btn-recargar" onclick="recargarCreditosMonetizacion()">Recargar</button>
+          </div>
+          <p id="mon-credits-notice" class="mon-credits-notice" hidden></p>
+
+          <div class="mon-subtabs-wrap">
+          <nav class="mon-subtabs" role="tablist" aria-label="Herramientas de monetizacion">
+            <button type="button" class="mon-subtab active" id="mon-subtab-btn-crear-viral" role="tab" aria-selected="true" aria-controls="mon-sub-crear-viral" onclick="switchMonetizacionSubTab('crear-viral')">
+              <span class="mon-subtab-label">Crear Video Viral</span>
+            </button>
+            <button type="button" class="mon-subtab" id="mon-subtab-btn-modular" role="tab" aria-selected="false" aria-controls="mon-sub-modular" onclick="switchMonetizacionSubTab('modular')">
+              <span class="mon-subtab-label">Modular Video</span>
+            </button>
+            <button type="button" class="mon-subtab" id="mon-subtab-btn-editar" role="tab" aria-selected="false" aria-controls="mon-sub-editar" onclick="switchMonetizacionSubTab('editar')">
+              <span class="mon-subtab-label">Editar Video</span>
+            </button>
+          </nav>
+          </div>
+
+          <div id="mon-sub-crear-viral" class="mon-sub-panel active" role="tabpanel">
+            <div class="mon-form-stack">
+            <div class="mon-form-card">
+              <div class="form-group" id="mon-fg-macro-nicho">
+                <label class="form-label" for="mon-crear-macro-nicho">Macro nicho <span class="mon-required-mark" aria-hidden="true">*</span></label>
+                <input type="text" class="form-input" id="mon-crear-macro-nicho" placeholder="Ej: belleza, fitness, hogar, tecnologia" autocomplete="off" />
+                <span class="mon-field-msg" id="mon-err-macro-nicho" hidden>Este campo es obligatorio.</span>
+              </div>
+              <div class="form-group" id="mon-fg-micro-nicho">
+                <label class="form-label" for="mon-crear-micro-nicho">Micro nicho <span class="mon-required-mark" aria-hidden="true">*</span></label>
+                <input type="text" class="form-input" id="mon-crear-micro-nicho" placeholder="Ej: cuidado facial para piel grasa" autocomplete="off" />
+                <span class="mon-field-msg" id="mon-err-micro-nicho" hidden>Este campo es obligatorio.</span>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="mon-crear-duracion">Duracion del video</label>
+                <select class="form-input" id="mon-crear-duracion" onchange="selectMonDuracion(Number(this.value))">
+                  <option value="18">18 segundos — 73 creditos</option>
+                  <option value="24">24 segundos — 78 creditos</option>
+                  <option value="30" selected>30 segundos — 83 creditos</option>
+                  <option value="60">60 segundos — 108 creditos</option>
+                </select>
+              </div>
+              <div class="form-group" id="mon-fg-formato">
+                <label class="form-label" for="mon-crear-formato">Formato / red social <span class="mon-required-mark" aria-hidden="true">*</span></label>
+                <select class="form-input" id="mon-crear-formato" onchange="monLimpiarErrorCampo('mon-fg-formato','mon-err-formato')">
+                  <option value="tiktok" selected>TikTok</option>
+                  <option value="instagram-reels">Instagram Reels</option>
+                  <option value="facebook-reels">Facebook Reels</option>
+                  <option value="youtube-shorts">YouTube Shorts</option>
+                </select>
+                <span class="mon-field-msg" id="mon-err-formato" hidden>Este campo es obligatorio.</span>
+              </div>
+              <div class="form-group" id="mon-fg-relacion-aspecto">
+                <label class="form-label" for="mon-crear-relacion-aspecto">Formato de pantalla <span class="mon-required-mark" aria-hidden="true">*</span></label>
+                <select class="form-input" id="mon-crear-relacion-aspecto" onchange="monLimpiarErrorCampo('mon-fg-relacion-aspecto','mon-err-relacion-aspecto')">
+                  <option value="9:16" selected>9:16 (Vertical)</option>
+                  <option value="16:9">16:9 (Horizontal)</option>
+                </select>
+                <span class="mon-field-msg" id="mon-err-relacion-aspecto" hidden>Este campo es obligatorio.</span>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="mon-crear-idea">Idea o angulo <span class="mon-label-optional">(opcional)</span></label>
+                <textarea class="form-input mon-textarea mon-textarea--idea" id="mon-crear-idea" rows="4" placeholder="Describe tu idea, angulo o referencia (opcional)"></textarea>
+              </div>
+              <p class="mon-form-alert" id="mon-crear-alert" hidden>Completa los campos obligatorios para buscar tendencias.</p>
+              <button type="button" class="btn-primary mon-action-btn" id="mon-btn-crear-viral" onclick="handleMonetizacionCrearViral()">Buscar tendencias y generar ideas (83 creditos)</button>
+            </div>
+
+            <div id="mon-bocetos-wrap" hidden>
+              <p class="mon-bocetos-instruccion">Elige el concepto que mas encaje con tu nicho. Desarrollaremos ese video en el Paso 2.</p>
+              <div class="mon-bocetos-grid" id="mon-bocetos-grid"></div>
+              <div class="mon-paso2-wrap" id="mon-paso2-wrap" hidden>
+                <button type="button" class="btn-primary mon-paso2-btn" id="mon-btn-paso2" onclick="handleMonetizacionPaso2()">Desarrollar este video</button>
+              </div>
+            </div>
+
+            <div id="mon-crear-loading" hidden>
+              <p class="mon-loading-msg" id="mon-loading-text">Buscando tendencias...</p>
+            </div>
+
+            </div>
+          </div>
+
+          <div id="mon-sub-modular" class="mon-sub-panel" role="tabpanel" hidden>
+            <div class="mon-form-stack">
+            <div class="mon-form-card">
+
+              <div class="form-group" id="mon-mod-fg-url">
+                <label class="form-label" for="mon-modular-url">URL del video viral <span class="mon-required-mark" aria-hidden="true">*</span></label>
+                <input type="text" class="form-input" id="mon-modular-url" placeholder="https://youtube.com/... o TikTok, Instagram, etc." oninput="monModLimpiarError('mon-mod-fg-url','mon-mod-err-url')" />
+                <span class="mon-field-msg" id="mon-mod-err-url" hidden>Pega un link o sube un video.</span>
+              </div>
+
+              <p class="mon-mod-separador">O si el video es privado y no carga desde el link:</p>
+
+              <div class="form-group">
+                <label class="form-label">Subir video</label>
+                <label class="mon-mod-upload-label" for="mon-modular-video-file">
+                  <span class="mon-mod-upload-text" id="mon-mod-upload-text">Seleccionar video</span>
+                  <input type="file" class="cont-img-input" id="mon-modular-video-file" accept="video/*" onchange="monModularVideoPreview(this)" />
+                </label>
+                <div class="mon-mod-video-preview" id="mon-mod-video-preview" hidden>
+                  <span class="mon-mod-filename" id="mon-mod-filename"></span>
+                  <button type="button" class="cont-img-remove" onclick="monModularVideoRemove()">Quitar</button>
+                </div>
+              </div>
+
+              <p class="mon-mod-hint">Si pegas un link y el video es privado o no se puede leer, descarga el video desde su red social y subelo aqui con el boton de arriba.</p>
+
+              <div class="form-group" id="mon-mod-fg-macro">
+                <label class="form-label" for="mon-mod-macro-nicho">Macro nicho <span class="mon-required-mark" aria-hidden="true">*</span></label>
+                <input type="text" class="form-input" id="mon-mod-macro-nicho" placeholder="Ej: belleza, fitness, hogar, tecnologia" autocomplete="off" oninput="monModLimpiarError('mon-mod-fg-macro','mon-mod-err-macro')" />
+                <span class="mon-field-msg" id="mon-mod-err-macro" hidden>Este campo es obligatorio.</span>
+              </div>
+
+              <div class="form-group" id="mon-mod-fg-micro">
+                <label class="form-label" for="mon-mod-micro-nicho">Micro nicho <span class="mon-required-mark" aria-hidden="true">*</span></label>
+                <input type="text" class="form-input" id="mon-mod-micro-nicho" placeholder="Ej: cuidado facial para piel grasa" autocomplete="off" oninput="monModLimpiarError('mon-mod-fg-micro','mon-mod-err-micro')" />
+                <span class="mon-field-msg" id="mon-mod-err-micro" hidden>Este campo es obligatorio.</span>
+              </div>
+
+              <div class="form-group" id="mon-mod-fg-formato">
+                <label class="form-label" for="mon-mod-formato">Formato / red social <span class="mon-required-mark" aria-hidden="true">*</span></label>
+                <select class="form-input" id="mon-mod-formato" onchange="monModLimpiarError('mon-mod-fg-formato','mon-mod-err-formato')">
+                  <option value="tiktok" selected>TikTok</option>
+                  <option value="instagram-reels">Instagram Reels</option>
+                  <option value="facebook-reels">Facebook Reels</option>
+                  <option value="youtube-shorts">YouTube Shorts</option>
+                </select>
+                <span class="mon-field-msg" id="mon-mod-err-formato" hidden>Este campo es obligatorio.</span>
+              </div>
+
+              <div class="form-group" id="mon-mod-fg-aspecto">
+                <label class="form-label" for="mon-mod-relacion-aspecto">Formato de pantalla <span class="mon-required-mark" aria-hidden="true">*</span></label>
+                <select class="form-input" id="mon-mod-relacion-aspecto" onchange="monModLimpiarError('mon-mod-fg-aspecto','mon-mod-err-aspecto')">
+                  <option value="9:16" selected>9:16 (Vertical)</option>
+                  <option value="16:9">16:9 (Horizontal)</option>
+                </select>
+                <span class="mon-field-msg" id="mon-mod-err-aspecto" hidden>Este campo es obligatorio.</span>
+              </div>
+
+              <div class="form-group" id="mon-mod-fg-duracion">
+                <label class="form-label" for="mon-mod-duracion">Duracion del video original <span class="mon-required-mark" aria-hidden="true">*</span></label>
+                <select class="form-input" id="mon-mod-duracion" onchange="monModularActualizarBoton()">
+                  <option value="corto" selected>Hasta 30 segundos — 80 creditos</option>
+                  <option value="medio">30 a 60 segundos — 140 creditos</option>
+                  <option value="largo">1 a 2 minutos — 240 creditos</option>
+                </select>
+              </div>
+
+              <p class="mon-form-alert" id="mon-mod-alert" hidden>Completa los campos obligatorios.</p>
+              <button type="button" class="btn-primary mon-action-btn" id="mon-btn-modular" onclick="handleMonetizacionModularVideo()">Modular video (80 creditos)</button>
+              <p class="mon-mod-nota">El video a modular puede durar maximo 2 minutos.</p>
+
+            </div>
+            <div class="mon-result-box" id="mon-modular-result">
+              <p class="mon-result-placeholder">Aqui apareceran las escenas y prompts recreados a partir del video.</p>
+            </div>
+            </div>
+          </div>
+
+          <div id="mon-sub-editar" class="mon-sub-panel" role="tabpanel" hidden>
+            <div class="mon-form-stack">
+
+              <!-- ══ CARD 1: EDITOR DE VIDEO ══════════════════════════════════ -->
+              <div class="mon-form-card">
+                <p class="editor-card-title">Editor de Video</p>
+
+                <!-- 1. Tipo de edicion (primero, decide el resultado) -->
+                <div class="form-group">
+                  <label class="form-label">Tipo de edicion</label>
+                  <div class="editor-pills" id="editor-pills-tipo" role="group" aria-label="Tipo de edicion">
+                    <button type="button" class="editor-pill active" data-value="split-vertical" onclick="selTipoEdicion('split-vertical')">Dividido arriba / abajo</button>
+                    <button type="button" class="editor-pill" data-value="split-mitad" onclick="selTipoEdicion('split-mitad')">Dividido mitad (lado a lado)</button>
+                  </div>
+                  <p class="mon-mod-nota" id="editor-tipo-desc" style="text-align:left;margin-top:6px;">Dos videos apilados verticalmente, uno arriba y otro abajo. Formato 9:16.</p>
+                </div>
+
+                <!-- 2. Video principal -->
+                <div class="form-group">
+                  <label class="form-label" for="editor-url">Video principal <span class="mon-required-mark" aria-hidden="true">*</span></label>
+                  <input type="text" class="form-input" id="editor-url" placeholder="https://youtube.com/... o TikTok, Instagram, etc." />
+                  <div style="margin-top:8px;">
+                    <label class="mon-mod-upload-label" for="editor-file">
+                      <span class="mon-mod-upload-text" id="editor-file-text">Subir archivo de video</span>
+                      <input type="file" class="cont-img-input" id="editor-file" accept="video/*" onchange="editorFilePreview(this,'editor-file-text','editor-file-preview','editor-file-name')" />
+                    </label>
+                    <div class="mon-mod-video-preview" id="editor-file-preview" hidden>
+                      <span class="mon-mod-filename" id="editor-file-name"></span>
+                      <button type="button" class="cont-img-remove" onclick="editorFileRemove('editor-file','editor-file-text','editor-file-preview','editor-file-name')">Quitar</button>
+                    </div>
+                  </div>
+                  <p class="mon-mod-nota">Maximo 5 minutos por video. Si hay archivo subido, se ignora el link.</p>
+                </div>
+
+                <!-- 3. Segundo video (siempre visible, ambos modos lo requieren) -->
+                <div class="form-group">
+                  <label class="form-label" for="editor-url2">Segundo video <span class="mon-required-mark" aria-hidden="true">*</span></label>
+                  <input type="text" class="form-input" id="editor-url2" placeholder="https://..." />
+                  <div style="margin-top:8px;">
+                    <label class="mon-mod-upload-label" for="editor-file2">
+                      <span class="mon-mod-upload-text" id="editor-file2-text">Subir segundo video</span>
+                      <input type="file" class="cont-img-input" id="editor-file2" accept="video/*" onchange="editorFilePreview(this,'editor-file2-text','editor-file2-preview','editor-file2-name')" />
+                    </label>
+                    <div class="mon-mod-video-preview" id="editor-file2-preview" hidden>
+                      <span class="mon-mod-filename" id="editor-file2-name"></span>
+                      <button type="button" class="cont-img-remove" onclick="editorFileRemove('editor-file2','editor-file2-text','editor-file2-preview','editor-file2-name')">Quitar</button>
+                    </div>
+                  </div>
+                  <p class="mon-mod-nota">Pon el video mas largo en el primer campo; el corto se repite en bucle para igualar duracion.</p>
+                </div>
+
+                <!-- 4. Audio -->
+                <div class="form-group">
+                  <label class="form-label">Audio</label>
+                  <div class="editor-pills" id="editor-pills-audio" role="group" aria-label="Opcion de audio">
+                    <button type="button" class="editor-pill active" data-value="original" onclick="selAudioEditor('original')">Audio original</button>
+                    <button type="button" class="editor-pill" data-value="sin" onclick="selAudioEditor('sin')">Sin audio</button>
+                    <button type="button" class="editor-pill" data-value="arriba" onclick="selAudioEditor('arriba')">Solo audio video 1</button>
+                    <button type="button" class="editor-pill" data-value="abajo" onclick="selAudioEditor('abajo')">Solo audio video 2</button>
+                  </div>
+                </div>
+
+                <!-- 5. Red social para copy -->
+                <div class="form-group">
+                  <label class="form-label">Red social <span class="editor-label-hint">(para generar el copy)</span></label>
+                  <div class="editor-pills" id="editor-pills-red" role="group" aria-label="Red social">
+                    <button type="button" class="editor-pill active" data-value="TikTok" onclick="selRedSocialEditor('TikTok')">TikTok</button>
+                    <button type="button" class="editor-pill" data-value="Instagram Reels" onclick="selRedSocialEditor('Instagram Reels')">Instagram Reels</button>
+                    <button type="button" class="editor-pill" data-value="Facebook Reels" onclick="selRedSocialEditor('Facebook Reels')">Facebook Reels</button>
+                    <button type="button" class="editor-pill" data-value="YouTube Shorts" onclick="selRedSocialEditor('YouTube Shorts')">YouTube Shorts</button>
+                  </div>
+                </div>
+
+                <p class="mon-form-alert" id="editor-alert" hidden></p>
+                <button type="button" class="btn-primary mon-action-btn" id="editor-btn-procesar" onclick="procesarVideoEditor()">Procesar video</button>
+              </div>
+
+              <!-- Resultado Card 1 -->
+              <div class="mon-result-box" id="editor-result">
+                <p class="mon-result-placeholder">El video procesado aparecera aqui con preview y boton de descarga.</p>
+              </div>
+
+              <!-- ══ CARD 2: VIDEO REACCION ════════════════════════════════════ -->
+              <div class="mon-form-card" style="margin-top:28px;">
+                <p class="editor-card-title">Video Reaccion <span class="editor-card-subtitle">overlay green screen</span></p>
+
+                <!-- Video principal (solo link) -->
+                <div class="form-group">
+                  <label class="form-label" for="reaccion-url">Video principal <span class="mon-required-mark" aria-hidden="true">*</span></label>
+                  <input type="text" class="form-input" id="reaccion-url" placeholder="https://youtube.com/... o TikTok, Instagram, etc." />
+                </div>
+
+                <!-- Meme / reaccion green screen -->
+                <div class="form-group">
+                  <label class="form-label" for="reaccion-gif-url">Meme / reaccion green screen <span class="mon-required-mark" aria-hidden="true">*</span></label>
+                  <input type="text" class="form-input" id="reaccion-gif-url" placeholder="https://... (link del video green screen)" />
+                  <div style="margin-top:8px;">
+                    <label class="mon-mod-upload-label" for="reaccion-meme-file">
+                      <span class="mon-mod-upload-text" id="reaccion-meme-file-text">O subir archivo green screen</span>
+                      <input type="file" class="cont-img-input" id="reaccion-meme-file" accept="video/*" onchange="editorFilePreview(this,'reaccion-meme-file-text','reaccion-meme-preview','reaccion-meme-name')" />
+                    </label>
+                    <div class="mon-mod-video-preview" id="reaccion-meme-preview" hidden>
+                      <span class="mon-mod-filename" id="reaccion-meme-name"></span>
+                      <button type="button" class="cont-img-remove" onclick="editorFileRemove('reaccion-meme-file','reaccion-meme-file-text','reaccion-meme-preview','reaccion-meme-name')">Quitar</button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Posicion -->
+                <div class="form-group">
+                  <label class="form-label">Posicion del meme</label>
+                  <div class="editor-pills" id="reaccion-pills-pos" role="group" aria-label="Posicion del meme">
+                    <button type="button" class="editor-pill active" data-value="bottomright" onclick="selPosReaccion('bottomright')">Abajo derecha</button>
+                    <button type="button" class="editor-pill" data-value="bottomleft" onclick="selPosReaccion('bottomleft')">Abajo izquierda</button>
+                    <button type="button" class="editor-pill" data-value="topright" onclick="selPosReaccion('topright')">Arriba derecha</button>
+                  </div>
+                </div>
+
+                <!-- Tamano -->
+                <div class="form-group">
+                  <label class="form-label">Tamano del meme</label>
+                  <div class="editor-pills" id="reaccion-pills-tamano" role="group" aria-label="Tamano del meme">
+                    <button type="button" class="editor-pill" data-value="35" onclick="selTamanoReaccion('35')">Pequeno (35%)</button>
+                    <button type="button" class="editor-pill active" data-value="55" onclick="selTamanoReaccion('55')">Mediano (55%)</button>
+                    <button type="button" class="editor-pill" data-value="70" onclick="selTamanoReaccion('70')">Grande (70%)</button>
+                  </div>
+                </div>
+
+                <p class="mon-mod-nota" style="text-align:left;margin-bottom:16px;">Si tu video principal es vertical, el meme green screen debe ser vertical.</p>
+
+                <!-- Audio reaccion -->
+                <div class="form-group">
+                  <label class="form-label">Audio</label>
+                  <div class="editor-pills" id="reaccion-pills-audio" role="group" aria-label="Opcion de audio reaccion">
+                    <button type="button" class="editor-pill active" data-value="principal" onclick="selAudioReaccion('principal')">Audio del video principal</button>
+                    <button type="button" class="editor-pill" data-value="reaccion" onclick="selAudioReaccion('reaccion')">Audio de la reaccion</button>
+                    <button type="button" class="editor-pill" data-value="ambos" onclick="selAudioReaccion('ambos')">Ambos audios</button>
+                    <button type="button" class="editor-pill" data-value="sin" onclick="selAudioReaccion('sin')">Sin audio</button>
+                  </div>
+                </div>
+
+                <!-- Red social para copy -->
+                <div class="form-group">
+                  <label class="form-label">Red social <span class="editor-label-hint">(para generar el copy)</span></label>
+                  <div class="editor-pills" id="reaccion-pills-red" role="group" aria-label="Red social reaccion">
+                    <button type="button" class="editor-pill active" data-value="TikTok" onclick="selRedSocialReaccion('TikTok')">TikTok</button>
+                    <button type="button" class="editor-pill" data-value="Instagram Reels" onclick="selRedSocialReaccion('Instagram Reels')">Instagram Reels</button>
+                    <button type="button" class="editor-pill" data-value="Facebook Reels" onclick="selRedSocialReaccion('Facebook Reels')">Facebook Reels</button>
+                    <button type="button" class="editor-pill" data-value="YouTube Shorts" onclick="selRedSocialReaccion('YouTube Shorts')">YouTube Shorts</button>
+                  </div>
+                </div>
+
+                <p class="mon-form-alert" id="reaccion-alert" hidden></p>
+                <button type="button" class="btn-primary mon-action-btn" id="reaccion-btn-procesar" onclick="procesarReaccionEditor()">Crear video reaccion</button>
+              </div>
+
+              <!-- Resultado Card 2 -->
+              <div class="mon-result-box" id="reaccion-result">
+                <p class="mon-result-placeholder">El video reaccion con overlay aparecera aqui.</p>
+              </div>
+
+              <!-- Elemento legacy (compatibilidad con handler anterior) -->
+              <div id="mon-editar-result" hidden></div>
+
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div id="agent-tab-contenido" class="agent-tab-panel" role="tabpanel" hidden>
+        <div class="cont-wrap">
+
+          <div class="mon-subtabs-wrap">
+            <nav class="mon-subtabs" role="tablist" aria-label="Tipo de contenido">
+              <button type="button" class="mon-subtab active" id="cont-subtab-btn-organico" role="tab" aria-selected="true" aria-controls="cont-sub-organico" onclick="switchContenidoSubTab('organico')">
+                <span class="mon-subtab-label">Contenido Organico</span>
+              </button>
+              <button type="button" class="mon-subtab" id="cont-subtab-btn-anuncios" role="tab" aria-selected="false" aria-controls="cont-sub-anuncios" onclick="switchContenidoSubTab('anuncios')">
+                <span class="mon-subtab-label">Anuncios</span>
+              </button>
+            </nav>
+          </div>
+
+          <div id="cont-sub-organico" class="mon-sub-panel active" role="tabpanel">
+            <div class="mon-form-stack">
+              <div class="mon-form-card">
+                <div class="form-group" id="cont-org-fg-producto">
+                  <label class="form-label" for="cont-org-producto">Producto <span class="mon-required-mark" aria-hidden="true">*</span></label>
+                  <select class="form-input" id="cont-org-producto" onchange="contLimpiarError('cont-org-fg-producto','cont-org-err-producto')" hidden></select>
+                  <p id="cont-org-producto-empty" class="mon-product-empty" hidden>Anade un producto primero desde el Catalogo.</p>
+                  <span class="mon-field-msg" id="cont-org-err-producto" hidden>Este campo es obligatorio.</span>
+                </div>
+                <div class="form-group" id="cont-org-fg-tipo">
+                  <span class="form-label" id="cont-org-tipo-label">Tipo de contenido <span class="mon-required-mark" aria-hidden="true">*</span></span>
+                  <div class="cont-tipo-pills" role="radiogroup" aria-labelledby="cont-org-tipo-label">
+                    <button type="button" class="cont-tipo-pill" data-val="imagen" onclick="selectContTipo('org','imagen')">Imagen</button>
+                    <button type="button" class="cont-tipo-pill" data-val="video"  onclick="selectContTipo('org','video')">Video</button>
+                    <button type="button" class="cont-tipo-pill" data-val="avatar" onclick="selectContTipo('org','avatar')">Video Avatar (UGC)</button>
+                  </div>
+                  <span class="mon-field-msg" id="cont-org-err-tipo" hidden>Este campo es obligatorio.</span>
+                </div>
+
+                <!-- Bloque Avatar: visible cuando tipo = avatar -->
+                <div id="cont-org-avatar-block" hidden>
+                  <div class="form-group">
+                    <span class="form-label">Fotos requeridas <span class="mon-required-mark" aria-hidden="true">*</span></span>
+                    <div class="cont-tipo-pills">
+                      <label class="cont-tipo-pill cont-av-upload-pill" id="cont-org-av-lbl-avatar" for="cont-org-av-foto-avatar">
+                        <span id="cont-org-av-foto-avatar-text">Foto del avatar</span>
+                        <input type="file" class="cont-img-input" id="cont-org-av-foto-avatar" accept="image/*"
+                               onchange="avatarFotoPreview(this,'cont-org-av-foto-avatar-preview','cont-org-av-foto-avatar-thumb','cont-org-av-foto-avatar-text','cont-org-av-lbl-avatar')" />
+                      </label>
+                      <label class="cont-tipo-pill cont-av-upload-pill" id="cont-org-av-lbl-producto" for="cont-org-av-foto-producto">
+                        <span id="cont-org-av-foto-producto-text">Foto del producto</span>
+                        <input type="file" class="cont-img-input" id="cont-org-av-foto-producto" accept="image/*"
+                               onchange="avatarFotoPreview(this,'cont-org-av-foto-producto-preview','cont-org-av-foto-producto-thumb','cont-org-av-foto-producto-text','cont-org-av-lbl-producto')" />
+                      </label>
+                    </div>
+                    <div class="cont-av-previews-row">
+                      <div class="cont-av-preview-cell" id="cont-org-av-foto-avatar-preview" hidden>
+                        <img class="cont-av-thumb" id="cont-org-av-foto-avatar-thumb" src="" alt="" />
+                        <button type="button" class="cont-av-quitar"
+                                onclick="avatarFotoRemove('cont-org-av-foto-avatar','cont-org-av-foto-avatar-preview','cont-org-av-foto-avatar-thumb','cont-org-av-foto-avatar-text','Foto del avatar','cont-org-av-lbl-avatar')">Quitar</button>
+                      </div>
+                      <div class="cont-av-preview-cell" id="cont-org-av-foto-producto-preview" hidden>
+                        <img class="cont-av-thumb" id="cont-org-av-foto-producto-thumb" src="" alt="" />
+                        <button type="button" class="cont-av-quitar"
+                                onclick="avatarFotoRemove('cont-org-av-foto-producto','cont-org-av-foto-producto-preview','cont-org-av-foto-producto-thumb','cont-org-av-foto-producto-text','Foto del producto','cont-org-av-lbl-producto')">Quitar</button>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <span class="form-label">Duracion <span class="mon-required-mark" aria-hidden="true">*</span></span>
+                    <div class="cont-tipo-pills" id="cont-org-av-dur-pills" role="radiogroup">
+                      <button type="button" class="cont-tipo-pill active" data-val="10" onclick="selectContAvatarDuracion('org','10')">10 segundos</button>
+                      <button type="button" class="cont-tipo-pill"        data-val="20" onclick="selectContAvatarDuracion('org','20')">20 segundos</button>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <span class="form-label">Formato de pantalla <span class="mon-required-mark" aria-hidden="true">*</span></span>
+                    <div class="cont-tipo-pills" id="cont-org-av-fmt-pills" role="radiogroup">
+                      <button type="button" class="cont-tipo-pill active" data-val="9:16" onclick="selectContAvatarFormato('org','9:16')">9:16 Vertical</button>
+                      <button type="button" class="cont-tipo-pill"        data-val="16:9" onclick="selectContAvatarFormato('org','16:9')">16:9 Horizontal</button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Grupo imagen: formato de imagen (solo tipo=imagen) -->
+                <div id="cont-org-grp-imagen" hidden style="display:none">
+                  <div class="form-group">
+                    <span class="form-label">Formato de imagen <span class="mon-required-mark" aria-hidden="true">*</span></span>
+                    <div class="cont-tipo-pills" id="cont-org-img-fmt-pills" role="radiogroup">
+                      <button type="button" class="cont-tipo-pill active" data-val="9:16"  onclick="selectContImagenFormato('org','9:16')">9:16 Vertical</button>
+                      <button type="button" class="cont-tipo-pill"        data-val="16:9"  onclick="selectContImagenFormato('org','16:9')">16:9 Horizontal</button>
+                      <button type="button" class="cont-tipo-pill"        data-val="1:1"   onclick="selectContImagenFormato('org','1:1')">1:1 Cuadrado</button>
+                    </div>
+                  </div>
+                </div>
+                <!-- Grupo video: duracion + formato de pantalla (solo tipo=video) -->
+                <div id="cont-org-grp-video" hidden style="display:none">
+                  <div class="form-group">
+                    <span class="form-label">Duracion del video</span>
+                    <div class="cont-tipo-pills" id="cont-org-vid-dur-pills" role="radiogroup">
+                      <button type="button" class="cont-tipo-pill"        data-val="12" onclick="selectContVideoDuracion('org','12')">12 segundos</button>
+                      <button type="button" class="cont-tipo-pill active" data-val="18" onclick="selectContVideoDuracion('org','18')">18 segundos</button>
+                      <button type="button" class="cont-tipo-pill"        data-val="24" onclick="selectContVideoDuracion('org','24')">24 segundos</button>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <span class="form-label">Formato de pantalla</span>
+                    <div class="cont-tipo-pills" id="cont-org-vid-fmt-pills" role="radiogroup">
+                      <button type="button" class="cont-tipo-pill active" data-val="9:16" onclick="selectContVideoFormato('org','9:16')">9:16 Vertical</button>
+                      <button type="button" class="cont-tipo-pill"        data-val="16:9" onclick="selectContVideoFormato('org','16:9')">16:9 Horizontal</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <span class="form-label" id="cont-org-enfoque-label">Enfoque de contenido <span class="mon-required-mark" aria-hidden="true">*</span></span>
+                  <div class="cont-tipo-pills" id="cont-org-enfoque-pills" role="radiogroup" aria-labelledby="cont-org-enfoque-label">
+                    <button type="button" class="cont-tipo-pill active" data-val="emocional" onclick="selectContEnfoque('org','emocional')">Emocional</button>
+                    <button type="button" class="cont-tipo-pill" data-val="controversia" onclick="selectContEnfoque('org','controversia')">Controversia</button>
+                    <button type="button" class="cont-tipo-pill" data-val="viral" onclick="selectContEnfoque('org','viral')">Viral</button>
+                  </div>
+                </div>
+                <div class="form-group" id="cont-org-fg-red">
+                  <label class="form-label" for="cont-org-red">Red social <span class="mon-required-mark" aria-hidden="true">*</span></label>
+                  <select class="form-input" id="cont-org-red" onchange="contLimpiarError('cont-org-fg-red','cont-org-err-red')">
+                    <option value="" disabled selected>Selecciona una red social</option>
+                    <option value="instagram">Instagram</option>
+                    <option value="tiktok">TikTok</option>
+                    <option value="facebook">Facebook</option>
+                    <option value="whatsapp-estados">WhatsApp Estados</option>
+                  </select>
+                  <span class="mon-field-msg" id="cont-org-err-red" hidden>Este campo es obligatorio.</span>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="cont-org-tono">Tono <span class="mon-label-optional">(opcional)</span></label>
+                  <select class="form-input" id="cont-org-tono">
+                    <option value="" selected>Sin preferencia</option>
+                    <option value="cercano">Cercano</option>
+                    <option value="profesional">Profesional</option>
+                    <option value="divertido">Divertido</option>
+                    <option value="persuasivo">Persuasivo</option>
+                  </select>
+                </div>
+                <!-- Grupo foto-prod: imagen del producto opcional (imagen y video, no avatar) -->
+                <div id="cont-org-grp-foto-prod" hidden style="display:none">
+                  <div class="form-group cont-img-group">
+                    <label class="form-label" for="cont-org-img">Imagen del producto <span class="mon-label-optional">(opcional)</span></label>
+                    <p class="cont-img-hint">Sube una foto y el agente la analiza para crear mejor el contenido.</p>
+                    <label class="cont-img-upload-label" for="cont-org-img">
+                      <span class="cont-img-upload-text" id="cont-org-img-text">Seleccionar imagen</span>
+                      <input type="file" class="cont-img-input" id="cont-org-img" accept="image/*" onchange="contImgPreview('org', this)" />
+                    </label>
+                    <div class="cont-img-preview-wrap" id="cont-org-img-preview" hidden>
+                      <img class="cont-img-thumb" id="cont-org-img-thumb" src="" alt="Preview" />
+                      <button type="button" class="cont-img-remove" onclick="contImgRemove('org')" aria-label="Quitar imagen">Quitar imagen</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="cont-org-idea">Idea o angulo <span class="mon-label-optional">(opcional)</span></label>
+                  <textarea class="form-input mon-textarea mon-textarea--idea" id="cont-org-idea" rows="4" placeholder="Describe tu idea o el angulo que quieres usar"></textarea>
+                </div>
+                <p class="mon-form-alert" id="cont-org-alert" hidden>Completa los campos obligatorios para generar contenido.</p>
+                <button type="button" class="btn-primary mon-action-btn" id="cont-btn-organico" onclick="handleContenidoOrganico()">Generar contenido organico (5 creditos)</button>
+              </div>
+              <div class="mon-result-box" id="cont-org-result">
+                <p class="mon-result-placeholder">Aqui aparecera el copy y los posts listos para publicar.</p>
+              </div>
+            </div>
+          </div>
+
+          <div id="cont-sub-anuncios" class="mon-sub-panel" role="tabpanel" hidden>
+            <div class="mon-form-stack">
+              <div class="mon-form-card">
+                <div class="form-group" id="cont-anun-fg-producto">
+                  <label class="form-label" for="cont-anun-producto">Producto <span class="mon-required-mark" aria-hidden="true">*</span></label>
+                  <select class="form-input" id="cont-anun-producto" onchange="contLimpiarError('cont-anun-fg-producto','cont-anun-err-producto')" hidden></select>
+                  <p id="cont-anun-producto-empty" class="mon-product-empty" hidden>Anade un producto primero desde el Catalogo.</p>
+                  <span class="mon-field-msg" id="cont-anun-err-producto" hidden>Este campo es obligatorio.</span>
+                </div>
+                <div class="form-group" id="cont-anun-fg-tipo">
+                  <span class="form-label" id="cont-anun-tipo-label">Tipo de contenido <span class="mon-required-mark" aria-hidden="true">*</span></span>
+                  <div class="cont-tipo-pills" role="radiogroup" aria-labelledby="cont-anun-tipo-label">
+                    <button type="button" class="cont-tipo-pill" data-val="imagen" onclick="selectContTipo('anun','imagen')">Imagen</button>
+                    <button type="button" class="cont-tipo-pill" data-val="video"  onclick="selectContTipo('anun','video')">Video</button>
+                    <button type="button" class="cont-tipo-pill" data-val="avatar" onclick="selectContTipo('anun','avatar')">Video Avatar (UGC)</button>
+                  </div>
+                  <span class="mon-field-msg" id="cont-anun-err-tipo" hidden>Este campo es obligatorio.</span>
+                </div>
+
+                <!-- Bloque Avatar: visible cuando tipo = avatar -->
+                <div id="cont-anun-avatar-block" hidden>
+                  <div class="form-group">
+                    <span class="form-label">Fotos requeridas <span class="mon-required-mark" aria-hidden="true">*</span></span>
+                    <div class="cont-tipo-pills">
+                      <label class="cont-tipo-pill cont-av-upload-pill" id="cont-anun-av-lbl-avatar" for="cont-anun-av-foto-avatar">
+                        <span id="cont-anun-av-foto-avatar-text">Foto del avatar</span>
+                        <input type="file" class="cont-img-input" id="cont-anun-av-foto-avatar" accept="image/*"
+                               onchange="avatarFotoPreview(this,'cont-anun-av-foto-avatar-preview','cont-anun-av-foto-avatar-thumb','cont-anun-av-foto-avatar-text','cont-anun-av-lbl-avatar')" />
+                      </label>
+                      <label class="cont-tipo-pill cont-av-upload-pill" id="cont-anun-av-lbl-producto" for="cont-anun-av-foto-producto">
+                        <span id="cont-anun-av-foto-producto-text">Foto del producto</span>
+                        <input type="file" class="cont-img-input" id="cont-anun-av-foto-producto" accept="image/*"
+                               onchange="avatarFotoPreview(this,'cont-anun-av-foto-producto-preview','cont-anun-av-foto-producto-thumb','cont-anun-av-foto-producto-text','cont-anun-av-lbl-producto')" />
+                      </label>
+                    </div>
+                    <div class="cont-av-previews-row">
+                      <div class="cont-av-preview-cell" id="cont-anun-av-foto-avatar-preview" hidden>
+                        <img class="cont-av-thumb" id="cont-anun-av-foto-avatar-thumb" src="" alt="" />
+                        <button type="button" class="cont-av-quitar"
+                                onclick="avatarFotoRemove('cont-anun-av-foto-avatar','cont-anun-av-foto-avatar-preview','cont-anun-av-foto-avatar-thumb','cont-anun-av-foto-avatar-text','Foto del avatar','cont-anun-av-lbl-avatar')">Quitar</button>
+                      </div>
+                      <div class="cont-av-preview-cell" id="cont-anun-av-foto-producto-preview" hidden>
+                        <img class="cont-av-thumb" id="cont-anun-av-foto-producto-thumb" src="" alt="" />
+                        <button type="button" class="cont-av-quitar"
+                                onclick="avatarFotoRemove('cont-anun-av-foto-producto','cont-anun-av-foto-producto-preview','cont-anun-av-foto-producto-thumb','cont-anun-av-foto-producto-text','Foto del producto','cont-anun-av-lbl-producto')">Quitar</button>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <span class="form-label">Duracion <span class="mon-required-mark" aria-hidden="true">*</span></span>
+                    <div class="cont-tipo-pills" id="cont-anun-av-dur-pills" role="radiogroup">
+                      <button type="button" class="cont-tipo-pill active" data-val="10" onclick="selectContAvatarDuracion('anun','10')">10 segundos</button>
+                      <button type="button" class="cont-tipo-pill"        data-val="20" onclick="selectContAvatarDuracion('anun','20')">20 segundos</button>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <span class="form-label">Formato de pantalla <span class="mon-required-mark" aria-hidden="true">*</span></span>
+                    <div class="cont-tipo-pills" id="cont-anun-av-fmt-pills" role="radiogroup">
+                      <button type="button" class="cont-tipo-pill active" data-val="9:16" onclick="selectContAvatarFormato('anun','9:16')">9:16 Vertical</button>
+                      <button type="button" class="cont-tipo-pill"        data-val="16:9" onclick="selectContAvatarFormato('anun','16:9')">16:9 Horizontal</button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Grupo imagen: formato de imagen (solo tipo=imagen) -->
+                <div id="cont-anun-grp-imagen" hidden style="display:none">
+                  <div class="form-group">
+                    <span class="form-label">Formato de imagen <span class="mon-required-mark" aria-hidden="true">*</span></span>
+                    <div class="cont-tipo-pills" id="cont-anun-img-fmt-pills" role="radiogroup">
+                      <button type="button" class="cont-tipo-pill active" data-val="9:16"  onclick="selectContImagenFormato('anun','9:16')">9:16 Vertical</button>
+                      <button type="button" class="cont-tipo-pill"        data-val="16:9"  onclick="selectContImagenFormato('anun','16:9')">16:9 Horizontal</button>
+                      <button type="button" class="cont-tipo-pill"        data-val="1:1"   onclick="selectContImagenFormato('anun','1:1')">1:1 Cuadrado</button>
+                    </div>
+                  </div>
+                </div>
+                <!-- Grupo video: duracion + formato de pantalla (solo tipo=video) -->
+                <div id="cont-anun-grp-video" hidden style="display:none">
+                  <div class="form-group">
+                    <span class="form-label">Duracion del video</span>
+                    <div class="cont-tipo-pills" id="cont-anun-vid-dur-pills" role="radiogroup">
+                      <button type="button" class="cont-tipo-pill"        data-val="12" onclick="selectContVideoDuracion('anun','12')">12 segundos</button>
+                      <button type="button" class="cont-tipo-pill active" data-val="18" onclick="selectContVideoDuracion('anun','18')">18 segundos</button>
+                      <button type="button" class="cont-tipo-pill"        data-val="24" onclick="selectContVideoDuracion('anun','24')">24 segundos</button>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <span class="form-label">Formato de pantalla</span>
+                    <div class="cont-tipo-pills" id="cont-anun-vid-fmt-pills" role="radiogroup">
+                      <button type="button" class="cont-tipo-pill active" data-val="9:16" onclick="selectContVideoFormato('anun','9:16')">9:16 Vertical</button>
+                      <button type="button" class="cont-tipo-pill"        data-val="16:9" onclick="selectContVideoFormato('anun','16:9')">16:9 Horizontal</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <span class="form-label" id="cont-anun-enfoque-label">Enfoque de contenido <span class="mon-required-mark" aria-hidden="true">*</span></span>
+                  <div class="cont-tipo-pills" id="cont-anun-enfoque-pills" role="radiogroup" aria-labelledby="cont-anun-enfoque-label">
+                    <button type="button" class="cont-tipo-pill active" data-val="emocional" onclick="selectContEnfoque('anun','emocional')">Emocional</button>
+                    <button type="button" class="cont-tipo-pill" data-val="controversia" onclick="selectContEnfoque('anun','controversia')">Controversia</button>
+                    <button type="button" class="cont-tipo-pill" data-val="viral" onclick="selectContEnfoque('anun','viral')">Viral</button>
+                  </div>
+                </div>
+                <div class="form-group" id="cont-anun-fg-plataforma">
+                  <label class="form-label" for="cont-anun-plataforma">Plataforma <span class="mon-required-mark" aria-hidden="true">*</span></label>
+                  <select class="form-input" id="cont-anun-plataforma" onchange="contLimpiarError('cont-anun-fg-plataforma','cont-anun-err-plataforma')">
+                    <option value="" disabled selected>Selecciona una plataforma</option>
+                    <option value="facebook-ads">Facebook Ads</option>
+                    <option value="instagram-ads">Instagram Ads</option>
+                    <option value="tiktok-ads">TikTok Ads</option>
+                  </select>
+                  <span class="mon-field-msg" id="cont-anun-err-plataforma" hidden>Este campo es obligatorio.</span>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="cont-anun-objetivo">Objetivo <span class="mon-label-optional">(opcional)</span></label>
+                  <select class="form-input" id="cont-anun-objetivo">
+                    <option value="" selected>Sin preferencia</option>
+                    <option value="ventas">Ventas directas</option>
+                    <option value="mensajes">Mensajes / WhatsApp</option>
+                    <option value="trafico">Trafico</option>
+                  </select>
+                </div>
+                <!-- Grupo foto-prod: imagen del producto opcional (imagen y video, no avatar) -->
+                <div id="cont-anun-grp-foto-prod" hidden style="display:none">
+                  <div class="form-group cont-img-group">
+                    <label class="form-label" for="cont-anun-img">Imagen del producto <span class="mon-label-optional">(opcional)</span></label>
+                    <p class="cont-img-hint">Sube una foto y el agente la analiza para crear mejor el contenido.</p>
+                    <label class="cont-img-upload-label" for="cont-anun-img">
+                      <span class="cont-img-upload-text" id="cont-anun-img-text">Seleccionar imagen</span>
+                      <input type="file" class="cont-img-input" id="cont-anun-img" accept="image/*" onchange="contImgPreview('anun', this)" />
+                    </label>
+                    <div class="cont-img-preview-wrap" id="cont-anun-img-preview" hidden>
+                      <img class="cont-img-thumb" id="cont-anun-img-thumb" src="" alt="Preview" />
+                      <button type="button" class="cont-img-remove" onclick="contImgRemove('anun')" aria-label="Quitar imagen">Quitar imagen</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="cont-anun-idea">Idea o angulo <span class="mon-label-optional">(opcional)</span></label>
+                  <textarea class="form-input mon-textarea mon-textarea--idea" id="cont-anun-idea" rows="4" placeholder="Describe tu idea o el angulo del anuncio"></textarea>
+                </div>
+                <p class="mon-form-alert" id="cont-anun-alert" hidden>Completa los campos obligatorios para generar el anuncio.</p>
+                <button type="button" class="btn-primary mon-action-btn" id="cont-btn-anuncio" onclick="handleContenidoAnuncio()">Generar anuncio (8 creditos)</button>
+              </div>
+              <div class="mon-result-box" id="cont-anun-result">
+                <p class="mon-result-placeholder">Aqui apareceran el titular, el cuerpo del anuncio y el llamado a la accion.</p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div id="agent-tab-ads" class="agent-tab-panel" role="tabpanel" hidden>
+        <div class="agent-panel-center agent-panel-center--wide">
+          <div class="ads-wrap">
+            <div class="ads-header">
+              <h2 class="ads-title">Agents <span>Ads</span></h2>
+              <p class="ads-lead">Conecta tus cuentas de publicidad para que el agente gestione tus campanas en Facebook y TikTok.</p>
+            </div>
+            <div class="ads-cards-grid">
+              <div class="ads-platform-card" id="ads-card-facebook">
+                <div class="ads-platform-name">Facebook Ads</div>
+                <div class="ads-platform-status" id="ads-status-facebook">No conectado</div>
+                <button type="button" class="btn-primary ads-connect-btn" id="ads-btn-facebook" onclick="handleAdsConectar('facebook')">Conectar Facebook Ads</button>
+                <p class="ads-platform-note">Necesario para publicar y gestionar campanas pagadas.</p>
+              </div>
+              <div class="ads-platform-card" id="ads-card-tiktok">
+                <div class="ads-platform-name">TikTok Ads</div>
+                <div class="ads-platform-status" id="ads-status-tiktok">No conectado</div>
+                <button type="button" class="btn-primary ads-connect-btn" id="ads-btn-tiktok" onclick="handleAdsConectar('tiktok')">Conectar TikTok Ads</button>
+                <p class="ads-platform-note">Necesario para publicar y gestionar campanas pagadas.</p>
+              </div>
+            </div>
+            <p class="ads-msg" id="ads-msg" hidden></p>
+          </div>
+        </div>
+      </div>
+
+      <div id="agent-tab-ventas" class="agent-tab-panel" role="tabpanel" hidden>
+        <div class="av-wrap">
+
+          <!-- 1. CONECTAR WHATSAPP -->
+          <section class="av-section">
+            <div class="av-section-header">
+              <h2 class="av-section-title">Conectar <span>WhatsApp</span></h2>
+              <p class="av-section-lead">Escanea el codigo QR con tu WhatsApp para activar el agente de ventas 24/7.</p>
+            </div>
+            <div class="av-card">
+              <div class="av-wa-actions">
+                <button type="button" class="btn-primary" id="ventas-wa-connect-btn" onclick="ventasConectarWhatsApp()">Conectar WhatsApp</button>
+                <button type="button" class="btn-secondary" id="ventas-wa-disconnect-btn" onclick="ventasDesconectarWhatsApp()" disabled>Desconectar</button>
+              </div>
+              <div id="ventas-status-wrap" style="display:none;">
+                <span class="av-status-badge av-status-badge--desconectado" id="ventas-status-badge">
+                  <span class="av-status-dot"></span>
+                  <span id="ventas-status-text">Desconectado</span>
+                </span>
+              </div>
+              <div id="ventas-qr-area" class="av-qr-area" style="display:none;">
+                <img id="ventas-qr-img" class="av-qr-img" src="" alt="QR WhatsApp" />
+                <p class="av-qr-hint">Abre WhatsApp &gt; Dispositivos vinculados &gt; Vincular dispositivo</p>
+              </div>
+              <p class="av-result-msg" id="ventas-wa-msg"></p>
+            </div>
+          </section>
+
+          <!-- 2. CONECTAR TELEGRAM -->
+          <section class="av-section">
+            <div class="av-section-header">
+              <h2 class="av-section-title">Notificaciones por <span>Telegram</span></h2>
+              <p class="av-section-lead">Recibe un aviso en Telegram cuando un cliente muestre interes en comprar.</p>
+            </div>
+
+            <!-- Guia paso a paso -->
+            <div class="tg-guide">
+              <button type="button" class="tg-guide-toggle" id="tg-guide-toggle" onclick="tgToggleGuia()" aria-expanded="false">
+                <span class="tg-guide-toggle-label">Como configurar Telegram en 4 pasos</span>
+                <span class="tg-guide-toggle-icon" id="tg-guide-icon">+</span>
+              </button>
+              <div class="tg-guide-body" id="tg-guide-body" hidden>
+
+                <div class="tg-step">
+                  <div class="tg-step-num">1</div>
+                  <div class="tg-step-content">
+                    <p class="tg-step-title">Crea tu bot</p>
+                    <p class="tg-step-desc">Abre Telegram y busca <strong class="tg-accent">@BotFather</strong> (el bot oficial de Telegram). Escribele <strong class="tg-accent">/newbot</strong> y sigue las instrucciones: te pedira un nombre y un usuario para tu bot. Al terminar, BotFather te dara un <strong class="tg-accent">TOKEN</strong> (algo como <span class="tg-mono">123456:ABC-DEF...</span>). Copialo y pegalo en el campo de abajo.</p>
+                  </div>
+                </div>
+
+                <div class="tg-step">
+                  <div class="tg-step-num">2</div>
+                  <div class="tg-step-content">
+                    <p class="tg-step-title">Obtén tu Chat ID</p>
+                    <p class="tg-step-desc">En Telegram busca <strong class="tg-accent">@userinfobot</strong> y escribele cualquier mensaje. Te respondera con tu ID (un numero). Ese es tu <strong class="tg-accent">Chat ID</strong> personal. Copialo y pegalo en el campo de abajo. Si prefieres recibir los avisos en un grupo, agrega tu bot al grupo y usa el ID del grupo (empieza con <span class="tg-mono">-100...</span>).</p>
+                  </div>
+                </div>
+
+                <div class="tg-step">
+                  <div class="tg-step-num">3</div>
+                  <div class="tg-step-content">
+                    <p class="tg-step-title">Inicia tu bot</p>
+                    <p class="tg-step-desc">Busca tu bot recien creado en Telegram por el usuario que le pusiste y pulsa <strong class="tg-accent">START</strong>. Este paso es obligatorio: si no inicias el bot, no podra enviarte mensajes aunque el token sea correcto.</p>
+                  </div>
+                </div>
+
+                <div class="tg-step tg-step--last">
+                  <div class="tg-step-num">4</div>
+                  <div class="tg-step-content">
+                    <p class="tg-step-title">Prueba la conexion</p>
+                    <p class="tg-step-desc">Pega el token y el Chat ID en los campos de abajo, guarda la configuracion del agente, y pulsa <strong class="tg-accent">Probar Telegram</strong>. Si todo esta bien, recibiras un mensaje de prueba en tu Telegram al instante.</p>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            <!-- Campos de configuracion -->
+            <div class="av-card">
+              <div class="tg-fields-grid">
+                <div class="form-group tg-form-group">
+                  <label class="form-label" for="ventas-tg-token">Token del bot de Telegram</label>
+                  <input type="text" class="form-input" id="ventas-tg-token" placeholder="123456:ABC-DEF..." autocomplete="off" spellcheck="false" />
+                  <p class="av-help-text tg-field-note">Obtenido de <strong class="tg-accent">@BotFather</strong> al crear tu bot.</p>
+                </div>
+                <div class="form-group tg-form-group">
+                  <label class="form-label" for="ventas-tg-chatid">Chat ID</label>
+                  <input type="text" class="form-input" id="ventas-tg-chatid" placeholder="-100123456789" autocomplete="off" spellcheck="false" />
+                  <p class="av-help-text tg-field-note">Tu ID personal (de <strong class="tg-accent">@userinfobot</strong>) o el ID de un grupo.</p>
+                </div>
+              </div>
+              <div class="av-footer-row">
+                <p class="av-result-msg" id="ventas-tg-msg"></p>
+                <button type="button" class="btn-primary" id="ventas-tg-test-btn" onclick="ventasProbarTelegram()">Probar Telegram</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- 3. CONFIGURACION DEL AGENTE -->
+          <section class="av-section">
+            <div class="av-section-header">
+              <h2 class="av-section-title">Configuracion del <span>agente</span></h2>
+              <p class="av-section-lead">Define la personalidad y estrategia de venta de tu agente.</p>
+            </div>
+            <div class="av-card">
+              <div class="form-group">
+                <label class="form-label" for="ventas-nombre">Nombre del agente</label>
+                <input type="text" class="form-input" id="ventas-nombre" placeholder="Ej: Laura" maxlength="40" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Tono de venta</label>
+                <div class="cont-tipo-pills" id="ventas-tono-pills">
+                  <button type="button" class="cont-tipo-pill active" data-val="cercano" onclick="ventasSelTono(this)">Cercano</button>
+                  <button type="button" class="cont-tipo-pill" data-val="profesional" onclick="ventasSelTono(this)">Profesional</button>
+                  <button type="button" class="cont-tipo-pill" data-val="divertido" onclick="ventasSelTono(this)">Divertido</button>
+                  <button type="button" class="cont-tipo-pill" data-val="persuasivo" onclick="ventasSelTono(this)">Persuasivo</button>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Estrategia de venta</label>
+                <div class="cont-tipo-pills" id="ventas-estrategia-pills">
+                  <button type="button" class="cont-tipo-pill" data-val="persuasiva" onclick="ventasSelEstrategia(this)">Persuasiva</button>
+                  <button type="button" class="cont-tipo-pill active" data-val="consultiva" onclick="ventasSelEstrategia(this)">Consultiva</button>
+                  <button type="button" class="cont-tipo-pill" data-val="cercana" onclick="ventasSelEstrategia(this)">Cercana</button>
+                  <button type="button" class="cont-tipo-pill" data-val="directa" onclick="ventasSelEstrategia(this)">Directa</button>
+                  <button type="button" class="cont-tipo-pill" data-val="emocional" onclick="ventasSelEstrategia(this)">Emocional</button>
+                </div>
+              </div>
+              <div class="form-group ventas-personalidad-group">
+                <label class="form-label" for="ventas-personalidad">Personalidad del agente</label>
+                <p class="ventas-personalidad-lead">Describe con tus palabras como es tu vendedor: su forma de ser, como habla, que le gusta, su historia, como trata al cliente. Mientras mas detalle, mejor vende.</p>
+                <textarea
+                  class="form-input ventas-personalidad-ta"
+                  id="ventas-personalidad"
+                  spellcheck="false"
+                  placeholder="Ej: Eres Laura, una asesora cercana y alegre que ama ayudar a las personas a sentirse bien. Hablas con calidez, usas un lenguaje sencillo y colombiano. Antes de vender, escuchas lo que el cliente necesita. Nunca presionas, generas confianza. Conoces a fondo cada producto y explicas con ejemplos de la vida real..."
+                ></textarea>
+              </div>
+              <div class="av-footer-row">
+                <p class="av-result-msg" id="ventas-cfg-msg"></p>
+                <button type="button" class="btn-primary" id="ventas-cfg-save-btn" onclick="ventasGuardarConfig()">Guardar configuracion</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- 4. CATALOGO DE VENTAS -->
+          <section class="av-section">
+            <div class="av-section-header">
+              <h2 class="av-section-title">Catalogo de <span>ventas</span></h2>
+              <p class="av-section-lead">Elige hasta 10 productos que vende el agente y pega el link de venta de cada uno.</p>
+            </div>
+            <div class="av-card cat-table-card">
+
+              <div class="av-productos-counter">
+                <span id="av-prod-count">0</span> / 10 productos configurados
+              </div>
+
+              <!-- Tabla fija de 10 filas -->
+              <div class="cat-table-wrap">
+                <table class="cat-table" id="cat-table">
+                  <thead>
+                    <tr>
+                      <th class="cat-th cat-th--prod">Producto</th>
+                      <th class="cat-th cat-th--link">Link de venta</th>
+                      <th class="cat-th cat-th--del"></th>
+                    </tr>
+                  </thead>
+                  <tbody id="cat-tbody">
+                    <!-- 10 rows injected by JS -->
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="av-footer-row">
+                <p class="av-result-msg" id="ventas-cat-msg"></p>
+                <button type="button" class="btn-primary" id="ventas-cat-save-btn" onclick="ventasGuardarCatalogo()">Guardar catalogo</button>
+              </div>
+
+            </div>
+          </section>
+
+        </div>
+      </div>
+
+      <div id="agent-tab-cuentas" class="agent-tab-panel" role="tabpanel" hidden>
+        <div class="agent-panel-center agent-panel-center--wide">
+
+          <!-- Sub-tab navigation -->
+          <div class="mon-subtabs-wrap">
+            <nav class="mon-subtabs" role="tablist" aria-label="Secciones de cuentas">
+              <button type="button" class="mon-subtab active" id="cuentas-subtab-btn-ventas" role="tab" aria-selected="true" aria-controls="cuentas-sub-ventas" onclick="switchCuentasSubTab('ventas')">
+                <span class="mon-subtab-label">Ventas</span>
+              </button>
+              <button type="button" class="mon-subtab" id="cuentas-subtab-btn-afiliados" role="tab" aria-selected="false" aria-controls="cuentas-sub-afiliados" onclick="switchCuentasSubTab('afiliados')">
+                <span class="mon-subtab-label">Afiliados</span>
+              </button>
+              <button type="button" class="mon-subtab" id="cuentas-subtab-btn-pagos" role="tab" aria-selected="false" aria-controls="cuentas-sub-pagos" onclick="switchCuentasSubTab('pagos')">
+                <span class="mon-subtab-label">Pagos</span>
+              </button>
+            </nav>
+          </div>
+
+          <!-- ===== VENTAS ===== -->
+          <div id="cuentas-sub-ventas" class="mon-sub-panel active" role="tabpanel">
+
+            <!-- Summary cards (rendered by JS from localStorage) -->
+            <div class="cuentas-summary-row">
+              <div class="cuentas-stat-card">
+                <div class="cuentas-stat-value" id="ventas-mes-total">$0</div>
+                <div class="cuentas-stat-label">Ventas del mes</div>
+              </div>
+              <div class="cuentas-stat-card">
+                <div class="cuentas-stat-value" id="ventas-mes-pedidos">0</div>
+                <div class="cuentas-stat-label">Pedidos del mes</div>
+              </div>
+              <div class="cuentas-stat-card">
+                <div class="cuentas-stat-value" id="ventas-mes-ticket">$0</div>
+                <div class="cuentas-stat-label">Ticket promedio</div>
+              </div>
+            </div>
+
+            <!-- Registrar venta (collapsible inline form) -->
+            <div class="ventas-registrar-wrap">
+              <button type="button" class="ventas-add-btn" id="ventas-toggle-form" onclick="eaVentasToggleForm()">Registrar venta</button>
+              <div id="ventas-form-card" class="ventas-form-card" hidden>
+                <datalist id="ventas-producto-list"></datalist>
+                <div class="ventas-form-grid">
+                  <div class="ventas-form-group">
+                    <label class="ventas-form-label" for="ventas-form-producto">Producto</label>
+                    <input type="text" id="ventas-form-producto" class="ventas-form-input" placeholder="Nombre del producto" list="ventas-producto-list" autocomplete="off">
+                  </div>
+                  <div class="ventas-form-group">
+                    <label class="ventas-form-label" for="ventas-form-monto">Monto ($)</label>
+                    <input type="number" id="ventas-form-monto" class="ventas-form-input" placeholder="0.00" min="0" step="0.01">
+                  </div>
+                </div>
+                <div class="ventas-form-footer">
+                  <button type="button" class="ventas-save-btn" onclick="eaVentasGuardarNueva()">Guardar venta</button>
+                  <button type="button" class="ventas-cancel-btn" onclick="eaVentasToggleForm()">Cancelar</button>
+                </div>
+                <p id="ventas-form-error" class="ventas-form-error" hidden></p>
+              </div>
+            </div>
+
+            <!-- Sales table (rendered by JS) -->
+            <!-- TODO: en el futuro las ventas entran automaticamente desde el agente de WhatsApp o el checkout -->
+            <div class="cuentas-section">
+              <h4 class="cuentas-section-title">Historial del mes</h4>
+              <div id="ventas-tabla-wrap"></div>
+            </div>
+
+          </div>
+
+          <!-- ===== AFILIADOS ===== -->
+          <!--
+            TODO (produccion): el arbol de afiliados, el calculo de comisiones por nivel y los
+            pagos se manejan en backend con base de datos (Supabase o similar). Esto NO va en
+            localStorage por ser dinero real y multiusuario. Aqui es solo UI/estructura visual
+            con datos de ejemplo.
+          -->
+          <div id="cuentas-sub-afiliados" class="mon-sub-panel" role="tabpanel" hidden>
+
+            <!-- 1. NIVEL / RANGO -->
+            <div class="afil-nivel-card">
+              <div class="afil-nivel-header">
+                <div class="afil-nivel-info">
+                  <div class="afil-nivel-label">Tu nivel actual</div>
+                  <div class="afil-nivel-nombre" id="afil-nivel-nombre">Lider</div>
+                </div>
+                <span class="afil-nivel-badge afil-nivel-badge--lider" id="afil-nivel-badge">Lider</span>
+              </div>
+              <p class="afil-nivel-desc">Vende productos y gana. Trae mas personas a tu red y gana comision sobre lo que ellas vendan. Las ganancias se generan por ventas reales, nunca solo por reclutar.</p>
+              <div class="afil-progreso-wrap">
+                <div class="afil-progreso-labels">
+                  <span>Progreso hacia Estrella</span>
+                  <span id="afil-progreso-txt">$1,840 / $3,000 en ventas de red</span>
+                </div>
+                <div class="afil-progreso-bar">
+                  <div class="afil-progreso-fill" id="afil-progreso-fill" style="width: 61%"></div>
+                </div>
+                <p class="afil-progreso-nota" id="afil-progreso-nota">Te faltan $1,160 en ventas de tu red para subir a Estrella.</p>
+              </div>
+            </div>
+
+            <!-- 2. LINK DE AFILIADO -->
+            <div class="cuentas-afiliado-link-wrap">
+              <div class="cuentas-section-title cuentas-section-title--inline">Tu link de afiliado</div>
+              <div class="cuentas-link-row">
+                <input type="text" id="cuentas-afiliado-link" class="cuentas-link-input" value="https://ecommerceagent.com/ref/dev-brayan" readonly>
+                <button type="button" class="cuentas-copy-btn" id="cuentas-copy-btn" onclick="cuentasCopiarLink()">Copiar</button>
+              </div>
+              <p class="cuentas-note">Comparte tu link. Cuando alguien se une y vende, tu ganas comision sobre sus ventas de producto.</p>
+            </div>
+
+            <!-- 3. CARDS RESUMEN -->
+            <div class="cuentas-summary-row cuentas-summary-row--4">
+              <div class="cuentas-stat-card">
+                <div class="cuentas-stat-value">7</div>
+                <div class="cuentas-stat-label">Afiliados directos</div>
+              </div>
+              <div class="cuentas-stat-card">
+                <div class="cuentas-stat-value">$1,840</div>
+                <div class="cuentas-stat-label">Ventas de tu red (mes)</div>
+              </div>
+              <div class="cuentas-stat-card">
+                <div class="cuentas-stat-value">$184</div>
+                <div class="cuentas-stat-label">Comision ganada</div>
+              </div>
+              <div class="cuentas-stat-card">
+                <div class="cuentas-stat-value">$96</div>
+                <div class="cuentas-stat-label">Pendiente de pago</div>
+              </div>
+            </div>
+
+            <!-- 4. ESTRUCTURA DE COMISIONES -->
+            <div class="cuentas-section">
+              <h4 class="cuentas-section-title">Estructura de comisiones</h4>
+              <p class="afil-comision-intro">La comision se calcula sobre las ventas de producto de tu red, no por reclutar personas.</p>
+              <div class="cuentas-table-wrap">
+                <table class="cuentas-table">
+                  <thead>
+                    <tr>
+                      <th>Nivel</th>
+                      <th>Quienes son</th>
+                      <th>Tu comision sobre sus ventas</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td><span class="cuentas-badge cuentas-badge--ok">Nivel 1</span></td>
+                      <td>Tus afiliados directos</td>
+                      <td id="afil-pct-n1">10%</td>
+                    </tr>
+                    <tr>
+                      <td><span class="cuentas-badge cuentas-badge--enviado">Nivel 2</span></td>
+                      <td>Afiliados de tus afiliados</td>
+                      <td id="afil-pct-n2">5%</td>
+                    </tr>
+                    <tr>
+                      <td><span class="cuentas-badge cuentas-badge--pending">Bono</span></td>
+                      <td>Primera venta de un nuevo afiliado</td>
+                      <td id="afil-bono">$15 por afiliado</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- 5. TU RED (arbol 2 niveles, renderizado por JS) -->
+            <div class="cuentas-section">
+              <h4 class="cuentas-section-title">Tu red</h4>
+              <div class="afil-arbol" id="afil-arbol">
+                <!-- Renderizado por JS desde AFIL_RED_DEMO -->
+              </div>
+            </div>
+
+            <!-- 6. MOVIMIENTOS DE COMISION -->
+            <div class="cuentas-section">
+              <h4 class="cuentas-section-title">Movimientos de comision</h4>
+              <!-- TODO: datos reales desde backend -->
+              <div class="cuentas-table-wrap">
+                <table class="cuentas-table">
+                  <thead>
+                    <tr>
+                      <th>Fecha</th>
+                      <th>Afiliado</th>
+                      <th>Concepto</th>
+                      <th>Monto</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td class="ventas-td-fecha">10 Jun 2026</td>
+                      <td>@maria_lp</td>
+                      <td>Venta de producto (Nivel 1)</td>
+                      <td>$18</td>
+                    </tr>
+                    <tr>
+                      <td class="ventas-td-fecha">09 Jun 2026</td>
+                      <td>@carlos_m</td>
+                      <td>Venta de producto (Nivel 1)</td>
+                      <td>$22</td>
+                    </tr>
+                    <tr>
+                      <td class="ventas-td-fecha">08 Jun 2026</td>
+                      <td>@laura_b</td>
+                      <td>Primera venta — bono de bienvenida</td>
+                      <td>$15</td>
+                    </tr>
+                    <tr>
+                      <td class="ventas-td-fecha">07 Jun 2026</td>
+                      <td>@pedro_n (via @carlos_m)</td>
+                      <td>Venta de producto (Nivel 2)</td>
+                      <td>$8</td>
+                    </tr>
+                    <tr>
+                      <td class="ventas-td-fecha">05 Jun 2026</td>
+                      <td>@sofia_r</td>
+                      <td>Venta de producto (Nivel 1)</td>
+                      <td>$14</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Aviso legal -->
+            <p class="afil-legal-note">El modelo se basa en la venta de productos. Las comisiones se generan sobre ventas reales de tu red.</p>
+
+          </div>
+
+          <!-- ===== PAGOS ===== -->
+          <!--
+            TODO (produccion): balance real, aprobacion de pagos y desembolso en backend.
+            Aqui es la UI con regla quincenal (15 dias) en localStorage. ea_solicitudes_pago / ea_ultima_solicitud_pago.
+          -->
+          <div id="cuentas-sub-pagos" class="mon-sub-panel" role="tabpanel" hidden>
+
+            <!-- 1. BALANCE HERO -->
+            <div class="pagos-balance-hero">
+              <div class="pagos-balance-label">Balance disponible</div>
+              <div class="pagos-balance-value" id="pagos-balance-value">$0</div>
+            </div>
+
+            <!-- CARDS RESUMEN -->
+            <div class="cuentas-summary-row">
+              <div class="cuentas-stat-card">
+                <div class="cuentas-stat-value" id="pagos-total-ganado">$0</div>
+                <div class="cuentas-stat-label">Total ganado</div>
+              </div>
+              <div class="cuentas-stat-card">
+                <div class="cuentas-stat-value" id="pagos-total-retirado">$0</div>
+                <div class="cuentas-stat-label">Total retirado</div>
+              </div>
+            </div>
+
+            <!-- 2. SOLICITUD DE PAGO -->
+            <div class="pagos-solicitar-card">
+              <div class="pagos-solicitar-header">
+                <h4 class="pagos-solicitar-title">Solicitar pago</h4>
+                <p class="pagos-solicitar-desc">Puedes solicitar tu pago una vez cada 15 dias. Tu solicitud entra en el siguiente ciclo quincenal (dia 15 o dia 30 del mes).</p>
+              </div>
+              <div class="pagos-solicitar-body">
+                <button type="button" class="pagos-solicitar-btn" id="pagos-solicitar-btn" onclick="pagosSolicitar()" disabled>Solicitar pago</button>
+                <p class="pagos-solicitar-status" id="pagos-solicitar-status">Calculando...</p>
+              </div>
+              <p id="pagos-solicitar-exito" class="pagos-exito-msg" hidden>Solicitud registrada. Tu pago sera procesado en el proximo ciclo quincenal.</p>
+            </div>
+
+            <!-- 3. COMO FUNCIONAN LOS PAGOS -->
+            <div class="cuentas-section">
+              <h4 class="cuentas-section-title">Como funcionan los pagos</h4>
+              <div class="pagos-info-grid">
+                <div class="pagos-info-item">
+                  <div class="pagos-info-label">Frecuencia</div>
+                  <div class="pagos-info-value">Quincenal</div>
+                  <div class="pagos-info-desc">Los pagos se procesan cada 15 dias (quincenal). Solicita tu pago y se desembolsa en el siguiente ciclo. Acumular tus ventas durante la quincena te ayuda a ganar mas.</div>
+                </div>
+                <div class="pagos-info-item">
+                  <div class="pagos-info-label">Solicitud</div>
+                  <div class="pagos-info-value">Cada 15 dias</div>
+                  <div class="pagos-info-desc">Puedes solicitar una vez por quincena. Acumula tus ventas durante la quincena para ganar mas. Tu solicitud entra al siguiente ciclo.</div>
+                </div>
+                <div class="pagos-info-item">
+                  <div class="pagos-info-label">Proximos pagos del mes</div>
+                  <div class="pagos-info-value" id="pagos-proximas-fechas">—</div>
+                  <div class="pagos-info-desc">Fechas tentativas de pago del mes actual.</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 4. METODO DE PAGO -->
+            <div class="cuentas-section">
+              <h4 class="cuentas-section-title">Metodo de pago</h4>
+              <!-- TODO: integrar metodo de pago real / Stripe en produccion -->
+              <div class="pagos-metodo-wrap">
+                <div class="ventas-form-group" style="max-width:520px;">
+                  <label class="ventas-form-label" for="pagos-metodo-input">Donde quieres recibir tu pago</label>
+                  <input type="text" id="pagos-metodo-input" class="ventas-form-input" placeholder="Ej. Nequi 3001234567, PayPal tu@correo.com, cuenta bancaria..." autocomplete="off">
+                </div>
+                <button type="button" class="ventas-save-btn pagos-metodo-save-btn" onclick="pagosGuardarMetodo()">Guardar</button>
+                <p id="pagos-metodo-ok" class="pagos-metodo-ok" hidden>Guardado correctamente.</p>
+              </div>
+              <p class="cuentas-placeholder-text pagos-metodo-nota">Proximamente: integracion directa con Nequi, Daviplata, PayPal y Stripe Connect.</p>
+            </div>
+
+            <!-- 5. HISTORIAL DE SOLICITUDES -->
+            <div class="cuentas-section">
+              <h4 class="cuentas-section-title">Historial de solicitudes</h4>
+              <div id="pagos-historial-wrap"></div>
+            </div>
+
+          </div>
+
+        </div>
+      </div>
+      </div>
+    </main>
+
+    <div id="agent-aria-overlay" class="agent-aria-overlay" hidden>
+      <div class="agent-aria-overlay-inner view-aria">
+        <header class="view-aria-header">
+          <div class="view-aria-header-left">
+            <img src="assets/images/aria-beige.gif" alt="" class="view-aria-orb" width="48" height="48" />
+            <div>
+              <h1 class="view-aria-brand">ARIA</h1>
+              <p class="view-aria-tagline">Generador de contenido</p>
+            </div>
+          </div>
+          <button type="button" class="view-aria-back" onclick="closeAgentAria()">Volver al panel</button>
+        </header>
+        <div class="view-aria-body">
+          <div class="view-aria-col view-aria-col--left">
+            <p class="view-aria-welcome">Describe tu producto y genera campana completa: imagen, copy, guion y plan.</p>
+            <div class="view-aria-product-block">
+              <h2 class="view-aria-block-title">Tu producto</h2>
+              <div class="form-group">
+                <label class="form-label" for="ai-product-name">Nombre</label>
+                <input type="text" class="form-input" id="ai-product-name" placeholder="Nombre del producto" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="ai-product-desc">Descripcion</label>
+                <textarea class="form-input" id="ai-product-desc" rows="3" placeholder="Beneficios y caracteristicas"></textarea>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="ai-product-price">Precio (USD)</label>
+                <input type="text" class="form-input" id="ai-product-price" placeholder="59" />
+              </div>
+              <div class="view-aria-photo-block" id="ai-image-drop-area" onclick="document.getElementById('ai-product-image-input').click()">
+                <input type="file" id="ai-product-image-input" accept="image/*" hidden onchange="previewProductImage()" />
+                <span class="ai-image-drop-icon" aria-hidden="true">+</span>
+                <p class="ai-image-drop-line">Arrastra tu foto aqui</p>
+                <p class="ai-image-drop-sub">o haz clic para seleccionar</p>
+              </div>
+            </div>
+            <div class="ai-gen-grid view-aria-gen-grid">
+              <button type="button" class="ai-btn-gen" onclick="generateProductImage()">Generar imagen</button>
+              <button type="button" class="ai-btn-gen" onclick="generateCopy()">Generar copy</button>
+              <button type="button" class="ai-btn-gen" onclick="generateScript()">Generar guion</button>
+              <button type="button" class="ai-btn-gen" onclick="generateCampaignPlan()">Plan de campana</button>
+              <button type="button" class="ai-btn-generate-all" onclick="generateAll()">Generar todo</button>
+            </div>
+          </div>
+          <div class="view-aria-col view-aria-col--right">
+            <div id="aria-empty-state">
+              <p class="aria-empty-text">Los resultados apareceran aqui.</p>
+            </div>
+            <div id="aria-results-accordion" hidden>
+              <div class="aria-result-block"><h3>Imagen</h3><div id="ai-result-image"></div></div>
+              <div class="aria-result-block"><h3>Copy</h3><div id="ai-result-copy"></div><button type="button" class="btn-secondary btn-sm" onclick="copyResult('copy')">Copiar</button></div>
+              <div class="aria-result-block"><h3>Guion</h3><div id="ai-result-script"></div><button type="button" class="btn-secondary btn-sm" onclick="copyResult('script')">Copiar</button></div>
+              <div class="aria-result-block"><h3>Plan</h3><div id="ai-result-plan"></div><button type="button" class="btn-secondary btn-sm" onclick="copyResult('plan')">Copiar</button></div>
+            </div>
+            <input type="hidden" id="ai-image-style" value="" />
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="admin-dashboard-shell" class="admin-dashboard-shell" hidden>
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        <div class="logo-text">Ecommerce<span>Agent</span></div>
+        <div class="logo-sub">Elite Commerce Network</div>
+      </div>
+      <div class="sidebar-user sidebar-profile">
+        <div class="user-avatar" id="sidebar-avatar">A</div>
+        <div class="user-info">
+          <div class="user-name" id="sidebar-name">Administrador</div>
+          <div class="user-role" id="sidebar-role">Admin</div>
+        </div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-section-label">Gestión</div>
+        <div class="nav-item active" id="nav-home" onclick="switchView('view-home', this)">
+          <span class="nav-icon">⌂</span> Inicio
+        </div>
+        <div class="nav-item" id="nav-admin-panel" onclick="switchView('view-admin', this)">
+          <span class="nav-icon">⚙</span> Panel Admin
+        </div>
+        <div class="nav-item" id="nav-admin-catalog" onclick="switchView('view-catalog', this)">
+          <span class="nav-icon">◫</span> Catálogo
+        </div>
+      </nav>
+      <div class="sidebar-bottom">
+        <button class="btn-logout" onclick="showPage('page-home')">Cerrar Sesión</button>
+      </div>
+    </aside>
+    <main class="dashboard-main" id="dashboard-main">
+      <div class="topbar" id="dashboard-topbar">
+        <div class="topbar-title" id="topbar-title">Panel de <span>Inicio</span></div>
+        <div class="topbar-right"><div class="topbar-status">Sistema Activo</div></div>
+      </div>
+      <div class="content-area">
+        <div id="view-home" class="dash-view active">
+          <div class="welcome-banner">
+            <div class="welcome-content">
+              <div class="welcome-greeting">Panel de Control</div>
+              <h2 class="welcome-title">Visión general de toda la red EcommerceAgent</h2>
+            </div>
+          </div>
+          <div class="cards-grid">
+            <div class="stat-card" onclick="switchViewFromAdminHome()"><div class="card-icon">◎</div><div class="card-label">Total Agentes Activos</div><div class="card-value">12</div><div class="card-delta up">Red completa</div><div class="card-arrow">→</div></div>
+            <div class="stat-card" onclick="switchViewFromAdminHome()"><div class="card-icon">$</div><div class="card-label">Ventas Totales del Mes</div><div class="card-value">$8,420</div><div class="card-delta up">Consolidado</div><div class="card-arrow">→</div></div>
+            <div class="stat-card" onclick="switchViewFromAdminHome()"><div class="card-icon">◫</div><div class="card-label">Productos en Catálogo</div><div class="card-value">9</div><div class="card-delta neutral">Catálogo global</div><div class="card-arrow">→</div></div>
+            <div class="stat-card" onclick="switchViewFromAdminHome()"><div class="card-icon">◈</div><div class="card-label">Comisiones Pagadas</div><div class="card-value">$1,240</div><div class="card-delta up">Este mes</div><div class="card-arrow">→</div></div>
+          </div>
+          <div class="section-header"><h3 class="section-title">Actividad <span>Reciente de Agentes</span></h3></div>
+          <table class="data-table">
+            <thead><tr><th>Agente</th><th>Ventas del Mes</th><th>Comisión</th><th>Estado</th></tr></thead>
+            <tbody>
+              <tr><td>María López</td><td>$2,180</td><td style="color:var(--gold);">$261</td><td><span class="badge badge-active">Activo</span></td></tr>
+              <tr><td>Carlos Ríos</td><td>$1,540</td><td style="color:var(--gold);">$185</td><td><span class="badge badge-active">Activo</span></td></tr>
+              <tr><td>Ana Velásquez</td><td>$890</td><td style="color:var(--gold);">$107</td><td><span class="badge badge-pending">Pendiente</span></td></tr>
+              <tr><td>Luis Méndez</td><td>$3,210</td><td style="color:var(--gold);">$385</td><td><span class="badge badge-active">Activo</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div id="view-catalog" class="dash-view">
+          <div class="section-header">
+            <h3 class="section-title">Catálogo <span>Completo</span></h3>
+            <span class="section-action" id="admin-catalog-count">9 productos disponibles</span>
+          </div>
+          <div id="admin-grid-catalogo" class="products-grid"></div>
+        </div>
+        <div id="view-admin" class="dash-view">
+          <div class="section-header">
+            <h3 class="section-title">Panel de <span>Administración</span></h3>
+            <span class="section-action">Sincronizar AutoDS →</span>
+          </div>
+          <div class="admin-grid">
+            <div class="admin-panel">
+              <div class="admin-panel-title">◈ Importar desde AutoDS</div>
+              <div class="autods-product-row"><div class="autods-thumb">🎧</div><div class="autods-info"><div class="autods-name">Rizador Pinza Ondulador Espiral Nova</div><div class="autods-sku">SKU: AUT-00124 · $59</div></div><button class="btn-add-product added">Agregado</button></div>
+              <div class="autods-product-row"><div class="autods-thumb">⌚</div><div class="autods-info"><div class="autods-name">Airpods Segunda Generacion Con Pantalla</div><div class="autods-sku">SKU: AUT-00201 · $139</div></div><button class="btn-add-product added">Agregado</button></div>
+            </div>
+            <div class="admin-panel admin-panel--manual-product">
+              <div class="admin-panel-title">◈ Agregar Producto Manual</div>
+              <form id="admin-manual-product-form" onsubmit="event.preventDefault(); publishManualProduct();">
+                <div class="form-group" style="margin-bottom:12px;"><label class="form-label" for="admin-manual-name">Nombre del producto</label><input type="text" class="form-input" id="admin-manual-name" placeholder="Ej: Auriculares Pro Wireless" style="font-size:12px;padding:10px 14px;" /></div>
+                <button type="submit" class="btn-primary" style="width:100%;font-size:11px;padding:14px;letter-spacing:2px;">Publicar en Catálogo</button>
+              </form>
+            </div>
+            <div class="admin-panel admin-panel--agents-sidebar">
+              <div class="admin-panel-title">◎ Gestión de Agentes</div>
+              <div class="form-group" style="margin-bottom:12px;"><label class="form-label">Nombre del Agente</label><input type="text" class="form-input" id="new-agent-name" placeholder="Nombre completo" style="font-size:12px;padding:10px 14px;" /></div>
+              <div class="form-group" style="margin-bottom:12px;"><label class="form-label">Pixel ID de Facebook</label><input type="text" class="form-input" id="new-agent-pixel" placeholder="Ej: 1234567890123" style="font-family:var(--font-mono);font-size:12px;padding:10px 14px;" /></div>
+              <button class="btn-primary" style="font-size:10px;padding:12px;" onclick="generateToken()">+ Generar Token y Registrar Agente</button>
+              <div id="token-generated" class="alert success" style="margin-top:12px;margin-bottom:0;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+</div>
+
+<script src="assets/js/config.js"></script>
+<script src="assets/js/app.js"></script>
+
+<!-- ALBUM DE IMAGENES DEL PRODUCTO -->
+<div id="album-modal" class="album-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="album-nombre">
+
+  <div class="album-box">
+    <!-- Cabecera -->
+    <div class="album-header">
+      <div>
+        <div id="album-nombre" class="album-title"></div>
+        <div id="album-count" class="album-count"></div>
+      </div>
+      <button type="button" class="album-close" onclick="cerrarAlbumProducto()" aria-label="Cerrar">&times;</button>
+    </div>
+
+    <!-- Imagen principal -->
+    <div class="album-main-wrap">
+      <button type="button" id="album-nav-prev" class="album-nav album-nav--prev" onclick="albumNavegar(-1)" hidden aria-label="Anterior">&#8249;</button>
+      <img id="album-main-img" class="album-main-img" src="" alt="Foto del producto">
+      <button type="button" id="album-nav-next" class="album-nav album-nav--next" onclick="albumNavegar(1)" hidden aria-label="Siguiente">&#8250;</button>
+      <button type="button" class="album-dl-btn" onclick="descargarImgAlbum()">Descargar esta imagen</button>
+    </div>
+
+    <!-- Miniaturas -->
+    <div id="album-thumbs" class="album-thumbs" hidden></div>
+
+    <!-- Pie -->
+    <div class="album-footer">Haz clic en una miniatura para seleccionarla &middot; Descarga la imagen que necesites para crear tu contenido</div>
+  </div>
+
+  <!-- Cerrar al hacer clic fuera -->
+  <div class="album-backdrop" onclick="cerrarAlbumProducto()"></div>
+</div>
+<!-- FIN ALBUM -->
+
+</body>
+</html>
