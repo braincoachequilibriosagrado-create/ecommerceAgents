@@ -82,9 +82,10 @@ function cargarDatosEnEstrategia() {
 // AGENTE IA — Gemini / Groq (sustituye las keys por las tuyas)
 // ══════════════════════════════════════════════════════
 
-// Las claves vienen de assets/js/config.js (gitignoreado, ver config.example.js)
-// Si GEMINI_API_KEY o GROQ_API_KEY no estan definidas, las funciones de IA mostraran error.
-const GROQ_MODEL = 'llama-3.3-70b-versatile';
+// Dirección del motor backend. Cambiar aquí para apuntar a otro entorno.
+// TODO: cuando el dominio esté listo, cambiar por: https://motor.ecommerceagents.store
+const MOTOR_URL    = 'http://104.248.61.107:3002';
+const MOTOR_IA_URL = MOTOR_URL; // alias para compatibilidad con llamadas de IA
 
 function getProductData() {
   return {
@@ -239,39 +240,25 @@ async function sendAriaChat() {
     'mejorar colores para hacerlo más llamativo.';
 
   try {
-    const response = await fetch(
-      'https://generativelanguage.googleapis.com' +
-      '/v1beta/models/gemini-2.5-flash' +
-      ':generateContent?key=' + GEMINI_API_KEY,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          system_instruction: {
-            parts: [{ text: systemContext }]
-          },
-          contents: ariaChatHistory,
-          generationConfig: {
-            maxOutputTokens: 1000,
-            temperature: 0.9
-          }
-        })
-      }
-    );
+    const response = await fetch(MOTOR_IA_URL + '/api/ia/gemini-vision', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-usuario-id': _getUsuarioId() || '' },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: systemContext }] },
+        contents: ariaChatHistory,
+        generationConfig: { maxOutputTokens: 1000, temperature: 0.9 }
+      })
+    });
 
     const data = await response.json();
-    if (data.error) {
+    if (!data.ok) {
       loadMsg.textContent =
-        'Error: ' + (data.error.message || 'Intenta de nuevo');
+        'Error: ' + (data.error || 'Intenta de nuevo');
       ariaChatHistory.pop();
       return;
     }
 
-    const reply =
-      data.candidates?.[0]?.content?.parts?.[0]?.text ||
-      'Error, intenta de nuevo';
+    const reply = data.texto || 'Error, intenta de nuevo';
 
     loadMsg.textContent = reply;
 
@@ -381,51 +368,41 @@ async function analyzeProduct() {
   if (btn) btn.textContent = 'Analizando...';
 
   try {
-    const response = await fetch(
-      'https://generativelanguage.googleapis.com' +
-      '/v1beta/models/gemini-2.5-flash' +
-      ':generateContent?key=' + GEMINI_API_KEY,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              {
-                inline_data: {
-                  mime_type: window.productImageType,
-                  data: window.productImageBase64
-                }
-              },
-              {
-                text: 'Analiza esta imagen del producto ' +
-                'y descríbelo con el máximo detalle posible. ' +
-                'Incluye OBLIGATORIAMENTE:\n' +
-                '1. Forma general del producto\n' +
-                '2. Cada componente y su forma exacta\n' +
-                '3. Cómo están conectados los componentes\n' +
-                '4. Proporciones (qué parte es más grande)\n' +
-                '5. Texturas y materiales visibles\n' +
-                '6. Colores exactos de cada parte\n' +
-                'Sé extremadamente detallado como si ' +
-                'le describieras el producto a alguien ' +
-                'que nunca lo ha visto y debe dibujarlo ' +
-                'exactamente igual.'
+    const response = await fetch(MOTOR_IA_URL + '/api/ia/gemini-vision', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-usuario-id': _getUsuarioId() || '' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            {
+              inline_data: {
+                mime_type: window.productImageType,
+                data: window.productImageBase64
               }
-            ]
-          }],
-          generationConfig: {
-            maxOutputTokens: 400
-          }
-        })
-      }
-    );
+            },
+            {
+              text: 'Analiza esta imagen del producto ' +
+              'y descríbelo con el máximo detalle posible. ' +
+              'Incluye OBLIGATORIAMENTE:\n' +
+              '1. Forma general del producto\n' +
+              '2. Cada componente y su forma exacta\n' +
+              '3. Cómo están conectados los componentes\n' +
+              '4. Proporciones (qué parte es más grande)\n' +
+              '5. Texturas y materiales visibles\n' +
+              '6. Colores exactos de cada parte\n' +
+              'Sé extremadamente detallado como si ' +
+              'le describieras el producto a alguien ' +
+              'que nunca lo ha visto y debe dibujarlo ' +
+              'exactamente igual.'
+            }
+          ]
+        }],
+        generationConfig: { maxOutputTokens: 400 }
+      })
+    });
 
     const data = await response.json();
-    const description = data.candidates?.[0]
-      ?.content?.parts?.[0]?.text;
+    const description = data.texto;
 
     if (description) {
       window.productDescription = description;
@@ -471,81 +448,18 @@ async function analyzeProduct() {
 }
 
 async function tryGenerateImage(prompt) {
-  const models = [
-    {
-      url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=' + GEMINI_API_KEY,
-      type: 'gemini',
-      body: {
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          responseModalities: ['TEXT', 'IMAGE']
-        }
-      }
-    },
-    {
-      url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=' + GEMINI_API_KEY,
-      type: 'gemini',
-      body: {
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          responseModalities: ['TEXT', 'IMAGE']
-        }
-      }
-    },
-    {
-      url: 'https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=' + GEMINI_API_KEY,
-      type: 'imagen',
-      body: {
-        instances: [{ prompt: prompt }],
-        parameters: {
-          sampleCount: 1,
-          aspectRatio: '1:1',
-          addWatermark: false
-        }
-      }
-    }
-  ];
-
-  for (const model of models) {
-    try {
-      const response = await fetch(model.url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(model.body)
-      });
-
-      if (response.status === 429 ||
-          response.status === 503) {
-        continue;
-      }
-
-      const data = await response.json();
-
-      if (data.error) continue;
-
-      if (model.type === 'imagen' &&
-          data.predictions?.[0]?.bytesBase64Encoded) {
-        return 'data:image/png;base64,' +
-          data.predictions[0].bytesBase64Encoded;
-      }
-
-      if (model.type === 'gemini') {
-        const parts = data.candidates?.[0]
-          ?.content?.parts;
-        const imagePart = parts?.find(
-          p => p.inlineData);
-        if (imagePart) {
-          return 'data:' +
-            imagePart.inlineData.mimeType +
-            ';base64,' +
-            imagePart.inlineData.data;
-        }
-      }
-    } catch(e) {
-      continue;
-    }
+  try {
+    const response = await fetch(MOTOR_IA_URL + '/api/ia/gemini-imagen', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-usuario-id': _getUsuarioId() || '' },
+      body: JSON.stringify({ prompt })
+    });
+    const data = await response.json();
+    if (data.ok && data.imagen) return data.imagen;
+    return null;
+  } catch (e) {
+    return null;
   }
-  return null;
 }
 
 async function generateProductImage() {
@@ -689,27 +603,20 @@ El copy debe incluir:
 Escribir en español latino, tono cercano y emocionante. Formato limpio con etiquetas.`;
 
   try {
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    const response = await fetch(MOTOR_IA_URL + '/api/ia/groq', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + GROQ_API_KEY
-      },
+      headers: { 'Content-Type': 'application/json', 'x-usuario-id': _getUsuarioId() || '' },
       body: JSON.stringify({
-        model: GROQ_MODEL,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userPrompt }],
         max_tokens: 1000,
         temperature: 0.8
       })
     });
     const data = await response.json();
-    const result = data.choices[0].message.content;
-    showAiResult('copy', result);
+    showAiResult('copy', data.texto || 'Error al generar el copy.');
   } catch (error) {
-    showAiResult('copy', 'Error al conectar con la IA. Verifica tu API key de Groq.');
+    showAiResult('copy', 'Error al conectar con la IA. Verifica que el motor este encendido.');
   }
 }
 
@@ -743,27 +650,20 @@ Para cada parte indicar:
 En español latino, dinámico y conversacional.`;
 
   try {
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    const response = await fetch(MOTOR_IA_URL + '/api/ia/groq', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + GROQ_API_KEY
-      },
+      headers: { 'Content-Type': 'application/json', 'x-usuario-id': _getUsuarioId() || '' },
       body: JSON.stringify({
-        model: GROQ_MODEL,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userPrompt }],
         max_tokens: 1000,
         temperature: 0.8
       })
     });
     const data = await response.json();
-    const result = data.choices[0].message.content;
-    showAiResult('script', result);
+    showAiResult('script', data.texto || 'Error al generar el guion.');
   } catch (error) {
-    showAiResult('script', 'Error al conectar con la IA. Verifica tu API key de Groq.');
+    showAiResult('script', 'Error al conectar con la IA. Verifica que el motor este encendido.');
   }
 }
 
@@ -819,27 +719,20 @@ Ser específico con números y acciones concretas.
 En español, formato claro con secciones.`;
 
   try {
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    const response = await fetch(MOTOR_IA_URL + '/api/ia/groq', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + GROQ_API_KEY
-      },
+      headers: { 'Content-Type': 'application/json', 'x-usuario-id': _getUsuarioId() || '' },
       body: JSON.stringify({
-        model: GROQ_MODEL,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userPrompt }],
         max_tokens: 1000,
         temperature: 0.8
       })
     });
     const data = await response.json();
-    const result = data.choices[0].message.content;
-    showAiResult('plan', result);
+    showAiResult('plan', data.texto || 'Error al generar el plan.');
   } catch (error) {
-    showAiResult('plan', 'Error al conectar con la IA. Verifica tu API key de Groq.');
+    showAiResult('plan', 'Error al conectar con la IA. Verifica que el motor este encendido.');
   }
 }
 
@@ -857,30 +750,16 @@ async function generateAll() {
 
 async function callGroq(prompt) {
   try {
-    const response = await fetch(
-      'https://api.groq.com/openai/v1/chat/completions',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: 'Bearer ' + GROQ_API_KEY
-        },
-        body: JSON.stringify({
-          model: GROQ_MODEL,
-          messages: [{ role: 'user', content: prompt }],
-          max_tokens: 1500,
-          temperature: 0.8
-        })
-      }
-    );
+    const response = await fetch(MOTOR_IA_URL + '/api/ia/groq', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-usuario-id': _getUsuarioId() || '' },
+      body: JSON.stringify({ prompt, max_tokens: 1500, temperature: 0.8 })
+    });
     const data = await response.json();
-    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-      const err = data.error && data.error.message ? data.error.message : 'Respuesta inválida de Groq.';
-      return 'Error: ' + err;
-    }
-    return data.choices[0].message.content;
+    if (!data.ok) return 'Error: ' + (data.error || 'Respuesta invalida.');
+    return data.texto;
   } catch (error) {
-    return 'Error al conectar con la IA. Verifica tu API key de Groq.';
+    return 'Error al conectar con la IA. Verifica que el motor este encendido.';
   }
 }
 
@@ -1001,18 +880,21 @@ function copyResult(section) {
 
 // URL base de tu tienda WooCommerce (cambiar cuando esté lista)
 const STORE_URL = 'https://tutienda.com';
-// TODO: en produccion este es el dominio real donde se sirven las paginas de venta
-const VENTA_BASE_URL = 'https://ecommerceagent.com/p';
+const VENTA_BASE_URL = MOTOR_URL; // URL base del motor (misma que MOTOR_URL)
 
-// Tokens válidos de demo (en producción esto viene de Supabase)
-const VALID_TOKENS = ['DEMO-1234-ABCD-5678', 'EA-2025-BETA-0001'];
+// El registro por token ya no está activo — los usuarios los crea el admin directamente.
 
 // Datos del agente actual (en producción viene de Supabase)
 let currentAgent = {
-  role: 'agent',
-  name: 'Agente',
-  refCode: 'AGENTE01',
-  pixelId: ''
+  role:            'agent',
+  name:            'Agente',
+  refCode:         'AGENTE01',
+  pixelId:         '',
+  // campos desde Supabase (se llenan al hacer login)
+  id:              null,
+  codigo:          '',
+  creditos_ia:     0,
+  saldo_productos: 0
 };
 
 const EA_DISPLAY_NAME_KEY  = 'ea_display_name';
@@ -1021,10 +903,47 @@ const EA_MIS_PRODUCTOS_KEY = 'ea_mis_productos';
 // Links personales de venta guardados por slug: { slug: "url" }
 const EA_MIS_LINKS_KEY     = 'ea_mis_productos_links';
 
-const DEV_MODE = true; // TEMPORAL: poner en false para reactivar token/login
+const EA_SESION_KEY = 'ea_sesion'; // sessionStorage key para la sesion activa
 
-// Catálogo central — fuente única para grids del agente y admin
-// TODO: en produccion, estos datos (precio, utilidad, imagenes) vienen del inventario del admin via Supabase/R2
+// Cache de productos reales traidos de Supabase via motor
+// null = aun no cargado; [] = cargado pero vacio; [...] = productos reales
+var _catalogoSupa = null;
+
+// Convierte un producto de Supabase al formato que espera buildProductCardHtml
+function _normalizarProductoSupa(p) {
+  var stock  = p.stock || 0;
+  var estado = stock === 0 ? 'Agotado' : stock <= 15 ? 'Limitado' : 'Disponible';
+  return {
+    id:        p.id,
+    slug:      p.slug,
+    nombre:    p.nombre,
+    categoria: p.categoria || 'General',
+    precio:    p.precio    || 0,
+    utilidad:  p.utilidad  || 0,
+    stock:     stock,
+    estado:    estado,
+    imagenes:  Array.isArray(p.imagenes) ? p.imagenes : [],
+    imagen:    (Array.isArray(p.imagenes) && p.imagenes[0]) || ''
+  };
+}
+
+// Carga el catalogo desde Supabase; llama callback(err, productos[])
+function _cargarCatalogoSupa(callback) {
+  fetch(MOTOR_URL + '/api/catalogo')
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (!data.ok) throw new Error(data.error || 'Error del servidor.');
+      _catalogoSupa = (data.productos || []).map(_normalizarProductoSupa);
+      if (callback) callback(null, _catalogoSupa);
+    })
+    .catch(function (e) {
+      _catalogoSupa = [];
+      if (callback) callback(e, []);
+    });
+}
+
+// Catálogo hardcodeado — SOLO se usa en la portada (initLandingCarousel).
+// El catalogo del dashboard lee de Supabase via _catalogoSupa.
 const CATALOGO_PRODUCTOS = [
   {
     slug: 'rizador-pinza-ondulador-espiral-nova',
@@ -1222,8 +1141,21 @@ function setWelcomeHeading(displayName) {
 // ══════════════════════════════════════════════════════
 
 function showPage(id) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
+  // Ocultar TODAS las páginas explícitamente (display:none en inline style)
+  document.querySelectorAll('.page').forEach(function(p) {
+    p.classList.remove('active');
+    p.style.display = 'none';
+  });
+  // Mostrar SOLO la página destino
+  const target = document.getElementById(id);
+  if (target) {
+    target.classList.add('active');
+    target.style.display = 'flex';   // mismo valor que .page.active en el CSS
+    target.scrollTop = 0;
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }
 }
 
 /** Contacto en la landing: asegura vista landing + scroll a la franja #contacto */
@@ -1243,15 +1175,12 @@ function goToContacto(event) {
 // ══════════════════════════════════════════════════════
 
 function validateToken() {
-  const val = document.getElementById('token-input').value.trim().toUpperCase();
-  const alert = document.getElementById('token-alert');
-
-  if (VALID_TOKENS.includes(val) || val.length >= 8) {
-    alert.classList.remove('show');
-    showPage('page-register');
-  } else {
-    alert.textContent = 'Token inválido. Contacta al administrador.';
-    alert.className = 'alert error show';
+  // El registro por token está desactivado.
+  // Los accesos los crea el administrador directamente desde el panel de administración.
+  const alertEl = document.getElementById('token-alert');
+  if (alertEl) {
+    alertEl.textContent = 'El registro por token no está disponible. Contacta al administrador para obtener tu acceso.';
+    alertEl.className = 'alert error show';
   }
 }
 
@@ -1287,6 +1216,10 @@ function isProductoEnMisProductos(slug) {
 }
 
 function getProductoBySlug(slug) {
+  if (_catalogoSupa && _catalogoSupa.length) {
+    var found = _catalogoSupa.find(function (p) { return p.slug === slug; });
+    if (found) return found;
+  }
   return CATALOGO_PRODUCTOS.find(function (p) { return p.slug === slug; }) || null;
 }
 
@@ -1296,11 +1229,12 @@ function getMisProductos() {
 }
 
 function productSellPanelHtml(slug) {
+  var s = _esc(slug);
   return (
     '<div class="product-sell-panel" hidden>' +
     '<div class="product-sell-hint">Tu link de venta:</div>' +
     '<div class="product-sell-url"></div>' +
-    '<button type="button" class="btn-product-copy" onclick="copyLink(\'' + slug + '\', this)">Copiar link</button>' +
+    '<button type="button" class="btn-product-copy" onclick="copyLink(&#39;' + s + '&#39;, this)">Copiar link</button>' +
     '</div>'
   );
 }
@@ -1309,6 +1243,7 @@ function buildProductCardHtml(p, mode) {
   const cardMode = mode || 'catalogo';
   const tagClass = productTagClass(p.estado);
   const slug = p.slug;
+  const slugE = _esc(slug); // slug escapado para atributos HTML / onclick
   const added = isProductoEnMisProductos(slug);
   // TODO: en produccion imagenes[], precio y utilidad vienen del inventario del admin via Supabase/R2
   var imgs = (p.imagenes && p.imagenes.length) ? p.imagenes : [p.imagen];
@@ -1325,24 +1260,25 @@ function buildProductCardHtml(p, mode) {
   let actionHtml = '';
 
   if (cardMode === 'mis-productos') {
-    // Link personal siempre visible
-    var links      = getMisProductosLinks();
-    var linkVenta  = links[slug] || generarLinkVenta(slug);
-    actionHtml =
-      '<div class="product-link-personal">' +
-        '<div class="product-link-label">Tu link de venta</div>' +
+    // Link personal: viene de Supabase vía cache local
+    var links     = getMisProductosLinks();
+    var linkVenta = links[slug] || null;
+    var linkHtml  = linkVenta
+      ? '<div class="product-link-label">Tu link de venta</div>' +
         '<div class="product-link-row">' +
-          '<span class="product-link-url">' + linkVenta + '</span>' +
-          '<button type="button" class="btn-copy-link-personal" onclick="copiarLinkVenta(\'' + slug + '\')">Copiar</button>' +
-        '</div>' +
-      '</div>' +
-      '<button type="button" class="btn-product-link" onclick="abrirAlbumProducto(\'' + slug + '\')">' +
+          '<span class="product-link-url">' + _esc(linkVenta) + '</span>' +
+          '<button type="button" class="btn-copy-link-personal" onclick="copiarLinkVenta(&#39;' + slugE + '&#39;)">Copiar</button>' +
+        '</div>'
+      : '<div class="product-link-pending">Sin pagina de venta asignada aun. Contacta al administrador.</div>';
+    actionHtml =
+      '<div class="product-link-personal">' + linkHtml + '</div>' +
+      '<button type="button" class="btn-product-link" onclick="abrirAlbumProducto(&#39;' + slugE + '&#39;)">' +
         (tieneVarias ? 'Descargar imagenes (' + imgs.length + ')' : 'Descargar imagen') +
       '</button>' +
-      '<button type="button" class="btn-product-remove" onclick="quitarProductoDeMisProductos(\'' + slug + '\')">Quitar</button>';
+      '<button type="button" class="btn-product-remove" onclick="quitarProductoDeMisProductos(&#39;' + slugE + '&#39;)">Quitar</button>';
   } else if (cardMode === 'admin') {
     actionHtml =
-      '<button type="button" class="btn-product-add" onclick="toggleProductSellPanel(this, \'' + slug + '\')">+ Anadir para vender</button>' +
+      '<button type="button" class="btn-product-add" onclick="toggleProductSellPanel(this, &#39;' + slugE + '&#39;)">+ Anadir para vender</button>' +
       productSellPanelHtml(slug);
   } else if (added) {
     // catalogo — producto ya anadido: solo badge Anadido, sin link (el link esta en Mis Productos)
@@ -1351,26 +1287,26 @@ function buildProductCardHtml(p, mode) {
   } else {
     // catalogo — no anadido: solo boton anadir, sin panel de link
     actionHtml =
-      '<button type="button" class="btn-product-add" onclick="anadirProductoAMisProductos(\'' + slug + '\')">+ Anadir para vender</button>';
+      '<button type="button" class="btn-product-add" onclick="anadirProductoAMisProductos(&#39;' + slugE + '&#39;)">+ Anadir para vender</button>';
   }
 
   return (
-    '<div class="product-card" data-slug="' + slug + '">' +
-    '<div class="product-img product-img--clickable" onclick="abrirAlbumProducto(\'' + slug + '\')">' +
-    '<img src="' + mainImg + '" alt="' + p.nombre + '" loading="lazy" decoding="async" width="800" height="600" />' +
+    '<div class="product-card" data-slug="' + slugE + '">' +
+    '<div class="product-img product-img--clickable" onclick="abrirAlbumProducto(&#39;' + slugE + '&#39;)">' +
+    '<img src="' + _esc(mainImg) + '" alt="' + _esc(p.nombre) + '" loading="lazy" decoding="async" width="800" height="600" />' +
     '<div class="product-img-overlay"></div>' +
     '<span class="product-img-hint">' + (tieneVarias ? 'Ver ' + imgs.length + ' fotos' : 'Ver foto') + '</span>' +
     '</div>' +
     '<div class="product-info">' +
     '<div class="product-meta-top">' +
-    '<span class="product-cat">' + p.categoria + '</span>' +
-    '<span class="product-stock product-stock--ok">Stock: ' + p.stock + '</span></div>' +
-    '<div class="product-name">' + p.nombre + '</div>' +
+    (p.categoria ? '<span class="product-cat">' + _esc(p.categoria) + '</span>' : '') +
+    '<span class="product-stock product-stock--ok">Stock: ' + Number(p.stock || 0) + '</span></div>' +
+    '<div class="product-name">' + _esc(p.nombre) + '</div>' +
     '<div class="product-prices">' +
-    '<div class="product-price-line product-price-line--sale">Precio de venta: <span>$' + precio + '</span></div>' +
-    '<div class="product-price-line product-price-line--utilidad">Margen de utilidad: <span>' + utilidad + '%</span></div>' +
+    '<div class="product-price-line product-price-line--sale">Precio de venta: <span>$' + Number(precio) + '</span></div>' +
+    '<div class="product-price-line product-price-line--utilidad">Margen de utilidad: <span>' + Number(utilidad) + '%</span></div>' +
     '</div>' +
-    '<div class="product-tags-row"><span class="product-tag ' + tagClass + '">' + p.estado + '</span></div>' +
+    '<div class="product-tags-row"><span class="product-tag ' + tagClass + '">' + _esc(p.estado) + '</span></div>' +
     actionHtml +
     '</div></div>'
   );
@@ -1385,25 +1321,132 @@ function renderProductGrid(containerId, productos, mode) {
 }
 
 function renderCatalogoGrid() {
-  renderProductGrid('agent-grid-catalogo', getCatalogoOrdenado(), 'catalogo');
+  var gridEl = document.getElementById('agent-grid-catalogo');
+
+  // Si ya tenemos datos en cache, re-renderizar directamente (ej. tras anadir/quitar producto)
+  if (_catalogoSupa !== null) {
+    if (!_catalogoSupa.length) {
+      if (gridEl) gridEl.innerHTML =
+        '<p style="padding:40px 24px;color:#888;text-align:center;font-style:italic;">Aun no hay productos disponibles en el catalogo.</p>';
+      return;
+    }
+    renderProductGrid('agent-grid-catalogo', _catalogoSupa, 'catalogo');
+    return;
+  }
+
+  // Primera carga: mostrar spinner y traer de Supabase
+  if (gridEl) {
+    gridEl.innerHTML = '<p style="padding:32px;color:#999;font-style:italic;">Cargando catalogo...</p>';
+    gridEl.hidden = false;
+  }
+
+  _cargarCatalogoSupa(function (err, productos) {
+    if (err) {
+      if (gridEl) gridEl.innerHTML =
+        '<div style="padding:32px 24px;text-align:center;">' +
+        '<p style="color:#c0392b;font-weight:600;margin-bottom:8px;">No se pudo conectar al servidor.</p>' +
+        '<p style="color:#888;font-size:13px;">Verifica que el motor este encendido en el puerto 3002.</p>' +
+        '<button onclick="_catalogoSupa=null;renderCatalogoGrid();" style="margin-top:12px;padding:6px 16px;border:1px solid #b8973a;background:none;color:#b8973a;cursor:pointer;border-radius:3px;">Reintentar</button>' +
+        '</div>';
+      return;
+    }
+    if (!productos.length) {
+      if (gridEl) gridEl.innerHTML =
+        '<p style="padding:40px 24px;color:#888;text-align:center;font-style:italic;">Aun no hay productos disponibles en el catalogo.</p>';
+      return;
+    }
+    renderProductGrid('agent-grid-catalogo', productos, 'catalogo');
+  });
 }
 
 function renderMisProductosGrid() {
-  const productos = getMisProductos();
-  const emptyEl = document.getElementById('agent-mis-productos-empty');
-  const gridEl = document.getElementById('agent-grid-mis-productos');
+  var uid    = _getUsuarioId();
+  var emptyEl = document.getElementById('agent-mis-productos-empty');
+  var gridEl  = document.getElementById('agent-grid-mis-productos');
   if (!gridEl) return;
 
-  if (productos.length === 0) {
-    gridEl.innerHTML = '';
-    gridEl.hidden = true;
+  if (!uid) {
+    gridEl.innerHTML = ''; gridEl.hidden = true;
     if (emptyEl) emptyEl.hidden = false;
     return;
   }
 
-  if (emptyEl) emptyEl.hidden = true;
+  gridEl.innerHTML = '<p style="padding:32px;color:#999;font-style:italic;">Cargando tus productos...</p>';
   gridEl.hidden = false;
-  renderProductGrid('agent-grid-mis-productos', productos, 'mis-productos');
+  if (emptyEl) emptyEl.hidden = true;
+
+  fetch(MOTOR_URL + '/api/mis-productos/' + encodeURIComponent(uid))
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (!data.ok) throw new Error(data.error || 'Error');
+      var items = data.productos || [];
+
+      // Sincronizar cache local (para getMisProductos() en otros tabs)
+      var slugs = []; var links = {};
+      items.forEach(function (item) {
+        var p = item.productos;
+        if (p && p.slug) { slugs.push(p.slug); links[p.slug] = item.link_venta || ''; }
+      });
+      saveMisProductosSlugs(slugs);
+      saveMisProductosLinks(links);
+
+      if (!items.length) {
+        gridEl.innerHTML = ''; gridEl.hidden = true;
+        if (emptyEl) emptyEl.hidden = false;
+        return;
+      }
+
+      if (emptyEl) emptyEl.hidden = true;
+      gridEl.hidden = false;
+
+      gridEl.innerHTML = items.map(function (item) {
+        var p = item.productos;
+        if (!p) return '';
+        var imgs      = Array.isArray(p.imagenes) ? p.imagenes : [];
+        var mainImg   = imgs[0] || '';
+        var stock     = p.stock || 0;
+        var estado    = stock === 0 ? 'Agotado' : stock <= 15 ? 'Limitado' : 'Disponible';
+        var tagCls    = estado === 'Agotado' ? 'tag-sold' : estado === 'Limitado' ? 'tag-limited' : 'tag-available';
+        var multiImg  = imgs.length > 1;
+        var slug      = p.slug;
+        var link      = item.link_venta || '';
+        return '<div class="product-card" data-slug="' + slug + '">' +
+          '<div class="product-img product-img--clickable" onclick="abrirAlbumProducto(\'' + slug + '\')">' +
+          (mainImg ? '<img src="' + mainImg + '" alt="' + p.nombre + '" loading="lazy" decoding="async" width="800" height="600">' : '') +
+          '<div class="product-img-overlay"></div>' +
+          '<span class="product-img-hint">' + (multiImg ? 'Ver ' + imgs.length + ' fotos' : 'Ver foto') + '</span>' +
+          '</div>' +
+          '<div class="product-info">' +
+          '<div class="product-meta-top">' +
+          (p.categoria ? '<span class="product-cat">' + p.categoria + '</span>' : '') +
+          '<span class="product-stock product-stock--ok">Stock: ' + stock + '</span></div>' +
+          '<div class="product-name">' + (p.nombre || '') + '</div>' +
+          '<div class="product-prices">' +
+          '<div class="product-price-line product-price-line--sale">Precio de venta: <span>$' + (p.precio || 0) + '</span></div>' +
+          '<div class="product-price-line product-price-line--utilidad">Margen de utilidad: <span>' + (p.utilidad || 0) + '%</span></div>' +
+          '</div>' +
+          '<div class="product-tags-row"><span class="product-tag ' + tagCls + '">' + estado + '</span></div>' +
+          '<div class="product-link-personal">' +
+          (link
+            ? '<div class="product-link-label">Tu link de venta</div>' +
+              '<div class="product-link-row">' +
+              '<span class="product-link-url">' + link + '</span>' +
+              '<button type="button" class="btn-copy-link-personal" onclick="copiarLinkVenta(\'' + slug + '\')">Copiar</button>' +
+              '</div>'
+            : '<div class="product-link-pending">Sin pagina de venta asignada. Contacta al administrador.</div>'
+          ) +
+          '</div>' +
+          '<button type="button" class="btn-product-link" onclick="abrirAlbumProducto(\'' + slug + '\')">' +
+          (multiImg ? 'Descargar imagenes (' + imgs.length + ')' : 'Descargar imagen') +
+          '</button>' +
+          '<button type="button" class="btn-product-remove" onclick="quitarProductoDeMisProductos(\'' + slug + '\')">Quitar</button>' +
+          '</div></div>';
+      }).join('');
+    })
+    .catch(function (e) {
+      gridEl.innerHTML = '<p style="padding:32px;color:#c0392b;font-size:13px;">Error al cargar: ' + e.message + '</p>';
+      gridEl.hidden = false;
+    });
 }
 
 // ── Links personales de venta ─────────────────────────────────────────
@@ -1414,13 +1457,16 @@ function saveMisProductosLinks(links) {
   try { sessionStorage.setItem(EA_MIS_LINKS_KEY, JSON.stringify(links)); } catch (e) {}
 }
 function generarLinkVenta(slug) {
-  // TODO: en produccion el ref es el codigo real del usuario autenticado via Supabase
-  var ref = (currentAgent && currentAgent.refCode) ? currentAgent.refCode : 'REF001';
-  return VENTA_BASE_URL + '/' + slug + '?ref=' + ref;
+  // Devuelve null si no hay link guardado desde Supabase — el link real viene del motor
+  return null;
 }
 function copiarLinkVenta(slug) {
   var links = getMisProductosLinks();
-  var url   = links[slug] || generarLinkVenta(slug);
+  var url   = links[slug] || null;
+  if (!url) {
+    alert('Este producto aun no tiene pagina de venta asignada. Contacta al administrador.');
+    return;
+  }
   var btn   = document.querySelector('.product-card[data-slug="' + slug + '"] .btn-copy-link-personal');
   if (navigator.clipboard) {
     navigator.clipboard.writeText(url).then(function () { if (btn) showCopied(btn); });
@@ -1433,29 +1479,94 @@ function copiarLinkVenta(slug) {
 }
 // ─────────────────────────────────────────────────────────────────────
 
+// Obtiene el usuario_id de la sesion activa
+function _getUsuarioId() {
+  try { return (JSON.parse(sessionStorage.getItem(EA_SESION_KEY) || '{}')).id || null; }
+  catch (e) { return null; }
+}
+
+// Precarga mis_productos de Supabase al entrar al dashboard (para que otros tabs los vean)
+function _precargarMisProductos() {
+  var uid = _getUsuarioId();
+  if (!uid) return;
+  fetch(MOTOR_URL + '/api/mis-productos/' + encodeURIComponent(uid))
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (!data.ok) return;
+      var slugs = []; var links = {};
+      (data.productos || []).forEach(function (item) {
+        var p = item.productos;
+        if (p && p.slug) { slugs.push(p.slug); links[p.slug] = item.link_venta || ''; }
+      });
+      saveMisProductosSlugs(slugs);
+      saveMisProductosLinks(links);
+    })
+    .catch(function () {});
+}
+
 function anadirProductoAMisProductos(slug) {
-  const slugs = getMisProductosSlugs();
-  if (slugs.indexOf(slug) === -1) {
-    slugs.push(slug);
-    saveMisProductosSlugs(slugs);
-    // Generar y guardar link personal de venta
-    var links = getMisProductosLinks();
-    links[slug] = generarLinkVenta(slug);
-    saveMisProductosLinks(links);
+  var uid      = _getUsuarioId();
+  var producto = getProductoBySlug(slug);
+  if (!uid || !producto || !producto.id) {
+    alert('No se pudo identificar el producto o la sesion. Intenta de nuevo.');
+    return;
   }
-  renderCatalogoGrid();
-  renderMisProductosGrid();
+
+  // Feedback inmediato en el boton
+  var btn = document.querySelector('.product-card[data-slug="' + slug + '"] .btn-product-add');
+  if (btn) { btn.disabled = true; btn.textContent = 'Agregando...'; }
+
+  fetch(MOTOR_URL + '/api/mis-productos/agregar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ usuario_id: uid, producto_id: producto.id })
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (!data.ok) throw new Error(data.error || 'Error');
+      // Actualizar cache local
+      var slugs = getMisProductosSlugs();
+      if (slugs.indexOf(slug) === -1) slugs.push(slug);
+      saveMisProductosSlugs(slugs);
+      var links = getMisProductosLinks();
+      links[slug] = data.link_venta || '';
+      saveMisProductosLinks(links);
+      // Re-renderizar catálogo (actualiza boton a "Anadido") y Mis Productos
+      if (_catalogoSupa) renderProductGrid('agent-grid-catalogo', _catalogoSupa, 'catalogo');
+      renderMisProductosGrid();
+    })
+    .catch(function (e) {
+      alert('Error al agregar: ' + e.message);
+      if (btn) { btn.disabled = false; btn.textContent = '+ Anadir para vender'; }
+    });
 }
 
 function quitarProductoDeMisProductos(slug) {
-  const slugs = getMisProductosSlugs().filter(function (s) { return s !== slug; });
-  saveMisProductosSlugs(slugs);
-  // Quitar su link guardado
-  var links = getMisProductosLinks();
-  delete links[slug];
-  saveMisProductosLinks(links);
-  renderCatalogoGrid();
-  renderMisProductosGrid();
+  var uid      = _getUsuarioId();
+  var producto = getProductoBySlug(slug);
+
+  function _quitarLocal() {
+    var slugs = getMisProductosSlugs().filter(function (s) { return s !== slug; });
+    saveMisProductosSlugs(slugs);
+    var links = getMisProductosLinks(); delete links[slug];
+    saveMisProductosLinks(links);
+    if (_catalogoSupa) renderProductGrid('agent-grid-catalogo', _catalogoSupa, 'catalogo');
+    renderMisProductosGrid();
+  }
+
+  if (!uid || !producto || !producto.id) { _quitarLocal(); return; }
+
+  fetch(MOTOR_URL + '/api/mis-productos/quitar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ usuario_id: uid, producto_id: producto.id })
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (!data.ok) throw new Error(data.error || 'Error');
+      _quitarLocal();
+    })
+    .catch(function (e) { alert('Error al quitar: ' + e.message); });
 }
 
 function descargarImagenProducto(slug) {
@@ -1491,7 +1602,7 @@ var _albumProducto   = null;
 var _albumIdxActual  = 0;
 
 function abrirAlbumProducto(slug) {
-  var p = CATALOGO_PRODUCTOS.find(function (pr) { return pr.slug === slug; });
+  var p = getProductoBySlug(slug);
   if (!p) return;
   _albumProducto  = p;
   _albumIdxActual = 0;
@@ -1605,6 +1716,7 @@ function getMasVendidosOrdenado() {
 }
 
 function renderAgentProductGrids() {
+  _catalogoSupa = null; // forzar recarga fresca al entrar al dashboard
   renderCatalogoGrid();
   renderMisProductosGrid();
 }
@@ -1629,44 +1741,10 @@ function updateAgentCuentasPanel() {
 const CUENTAS_SUB_TAB_IDS = ['ventas', 'afiliados', 'pagos'];
 
 /* ============================================================
-   VENTAS — persistencia en localStorage (key: ea_ventas)
-   TODO: en el futuro sincronizar con backend
+   VENTAS — lee de Supabase vía motor (GET /api/ventas/usuario/:id)
    ============================================================ */
 
-const EA_VENTAS_KEY = 'ea_ventas';
-
-const VENTA_ESTADOS = ['Pendiente', 'Procesando', 'Enviado', 'Entregado', 'Cancelado'];
-
-const VENTA_ESTADO_CSS = {
-  'Pendiente':  'ventas-estado--pendiente',
-  'Procesando': 'ventas-estado--procesando',
-  'Enviado':    'ventas-estado--enviado',
-  'Entregado':  'ventas-estado--entregado',
-  'Cancelado':  'ventas-estado--cancelado'
-};
-
-function eaVentasLeer() {
-  try {
-    var raw = localStorage.getItem(EA_VENTAS_KEY);
-    if (!raw) return [];
-    var arr = JSON.parse(raw);
-    return Array.isArray(arr) ? arr : [];
-  } catch (e) { return []; }
-}
-
-function _eaVentasGuardar(ventas) {
-  try { localStorage.setItem(EA_VENTAS_KEY, JSON.stringify(ventas)); } catch (e) {}
-}
-
-function _eaVentasMes(ventas) {
-  var now = new Date();
-  var y = now.getFullYear();
-  var m = now.getMonth();
-  return ventas.filter(function (v) {
-    var d = new Date(v.fecha);
-    return d.getFullYear() === y && d.getMonth() === m;
-  });
-}
+var _eaVentasCache = null;
 
 function _eaFmtFecha(iso) {
   var d = new Date(iso);
@@ -1687,158 +1765,111 @@ function _eaEscHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
-function eaVentasRenderResumen() {
-  var ventas = eaVentasLeer();
-  var del_mes = _eaVentasMes(ventas);
-  var total = del_mes.reduce(function (s, v) { return s + Number(v.monto); }, 0);
-  var pedidos = del_mes.length;
-  var ticket = pedidos > 0 ? total / pedidos : 0;
-
+function eaVentasRenderResumen(r) {
+  r = r || {};
   var elTotal   = document.getElementById('ventas-mes-total');
   var elPedidos = document.getElementById('ventas-mes-pedidos');
   var elTicket  = document.getElementById('ventas-mes-ticket');
-  if (elTotal)   elTotal.textContent   = _eaFmtMonto(total);
-  if (elPedidos) elPedidos.textContent = pedidos;
-  if (elTicket)  elTicket.textContent  = _eaFmtMonto(ticket);
+  if (elTotal)   elTotal.textContent = _eaFmtMonto(r.total_comision_ganada || 0);
+  if (elPedidos) elPedidos.textContent = (r.total_ventas || 0);
+  if (elTicket)  elTicket.textContent = _eaFmtMonto(r.total_vendido || 0);
+  // Actualizar etiquetas de las tarjetas
+  var labels = document.querySelectorAll('#cuentas-sub-ventas .cuentas-stat-label');
+  if (labels[0]) labels[0].textContent = 'Comision ganada';
+  if (labels[1]) labels[1].textContent = 'Pedidos totales';
+  if (labels[2]) labels[2].textContent = 'Total vendido';
 }
 
-function eaVentasRenderTabla() {
+function eaVentasRenderTabla(ventas) {
   var wrap = document.getElementById('ventas-tabla-wrap');
   if (!wrap) return;
-  var ventas = eaVentasLeer();
-  var sorted = ventas.slice().sort(function (a, b) {
-    return new Date(b.fecha) - new Date(a.fecha);
-  });
-  if (sorted.length === 0) {
-    wrap.innerHTML = '<p class="cuentas-empty">Aun no tienes ventas registradas este mes.</p>';
+  ventas = ventas || [];
+
+  if (ventas.length === 0) {
+    wrap.innerHTML = '<p class="cuentas-empty">Aun no tienes ventas registradas.</p>';
     return;
   }
-  var rows = sorted.map(function (v) {
-    var css = VENTA_ESTADO_CSS[v.estado] || 'ventas-estado--pendiente';
-    var opts = VENTA_ESTADOS.map(function (est) {
-      return '<option value="' + est + '"' + (v.estado === est ? ' selected' : '') + '>' + est + '</option>';
-    }).join('');
+
+  var pagadas    = ventas.filter(function (v) { return v.estado_pago === 'pagado'; });
+  var pendientes = ventas.filter(function (v) { return v.estado_pago !== 'pagado'; });
+
+  function badgePago(ep) {
+    if (ep === 'pagado') return '<span class="cuentas-badge cuentas-badge--ok">Pagado</span>';
+    return '<span class="cuentas-badge cuentas-badge--pendiente">Pend. pago</span>';
+  }
+
+  function buildRow(v) {
+    var comisionCell = v.estado_pago === 'pagado'
+      ? '<span style="color:#27ae60;font-weight:600">' + _eaFmtMonto(v.utilidad_ganada) + '</span>'
+      : '<span style="color:#aaa;font-size:0.85em">—</span>';
     return (
       '<tr>' +
       '<td>' + _eaEscHtml(v.producto) + '</td>' +
       '<td class="ventas-td-fecha">' + _eaFmtFecha(v.fecha) + '</td>' +
       '<td class="ventas-td-monto">' + _eaFmtMonto(v.monto) + '</td>' +
-      '<td>' +
-        '<select class="ventas-estado-select ' + css + '" ' +
-          'onchange="eaVentasCambiarEstado(\'' + _eaEscHtml(v.id) + '\', this.value, this)">' +
-          opts +
-        '</select>' +
-      '</td>' +
+      '<td>' + comisionCell + '</td>' +
+      '<td>' + badgePago(v.estado_pago) + '</td>' +
       '</tr>'
     );
-  }).join('');
-  wrap.innerHTML = (
-    '<div class="cuentas-table-wrap">' +
-    '<table class="cuentas-table">' +
-    '<thead><tr>' +
-      '<th>Producto</th>' +
-      '<th>Fecha</th>' +
-      '<th>Monto</th>' +
-      '<th>Estado</th>' +
-    '</tr></thead>' +
-    '<tbody>' + rows + '</tbody>' +
-    '</table>' +
-    '</div>'
-  );
+  }
+
+  function buildTable(rows, titulo, colorTitulo) {
+    return (
+      '<h5 style="margin:0 0 8px;font-size:0.88em;font-weight:600;color:' + colorTitulo + '">' + titulo + '</h5>' +
+      '<div class="cuentas-table-wrap"><table class="cuentas-table">' +
+      '<thead><tr>' +
+        '<th>Producto</th><th>Fecha</th><th>Monto</th><th>Tu comision</th><th>Pago</th>' +
+      '</tr></thead>' +
+      '<tbody>' + rows.map(buildRow).join('') + '</tbody>' +
+      '</table></div>'
+    );
+  }
+
+  var html = '';
+  if (pagadas.length > 0) {
+    html += buildTable(pagadas, 'Ventas confirmadas (' + pagadas.length + ')', '#27ae60');
+  }
+  if (pendientes.length > 0) {
+    if (html) html += '<div style="margin-top:18px"></div>';
+    html += buildTable(pendientes, 'Pendientes de confirmacion de pago (' + pendientes.length + ')', '#b8934a');
+  }
+
+  wrap.innerHTML = html;
 }
 
 function eaVentasRender() {
-  eaVentasRenderResumen();
-  eaVentasRenderTabla();
-}
+  var uid = _getUsuarioId();
+  var wrap = document.getElementById('ventas-tabla-wrap');
+  var elTotal   = document.getElementById('ventas-mes-total');
+  var elPedidos = document.getElementById('ventas-mes-pedidos');
+  var elTicket  = document.getElementById('ventas-mes-ticket');
 
-function eaVentasCambiarEstado(id, nuevoEstado, selectEl) {
-  var ventas = eaVentasLeer();
-  var idx = -1;
-  for (var i = 0; i < ventas.length; i++) {
-    if (ventas[i].id === id) { idx = i; break; }
+  if (elTotal)   elTotal.textContent   = '...';
+  if (elPedidos) elPedidos.textContent = '...';
+  if (elTicket)  elTicket.textContent  = '...';
+  if (wrap)      wrap.innerHTML = '<p class="cuentas-empty">Cargando ventas...</p>';
+
+  if (!uid) {
+    if (wrap) wrap.innerHTML = '<p class="cuentas-empty">Inicia sesion para ver tus ventas.</p>';
+    return;
   }
-  if (idx === -1) return;
-  ventas[idx].estado = nuevoEstado;
-  _eaVentasGuardar(ventas);
-  // Update select CSS class without full re-render
-  if (selectEl) {
-    VENTA_ESTADOS.forEach(function (est) {
-      selectEl.classList.remove(VENTA_ESTADO_CSS[est]);
+
+  fetch(MOTOR_URL + '/api/ventas/usuario/' + encodeURIComponent(uid))
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (!data.ok) throw new Error(data.error || 'Error del servidor');
+      _eaVentasCache = data;
+      eaVentasRenderResumen(data.resumen);
+      eaVentasRenderTabla(data.ventas);
+    })
+    .catch(function () {
+      if (wrap) wrap.innerHTML = '<p class="cuentas-empty" style="color:#c0392b">Error al cargar ventas. Verifica que el motor este activo.</p>';
+      if (elTotal)   elTotal.textContent = '—';
+      if (elPedidos) elPedidos.textContent = '—';
+      if (elTicket)  elTicket.textContent = '—';
     });
-    selectEl.classList.add(VENTA_ESTADO_CSS[nuevoEstado] || 'ventas-estado--pendiente');
-  }
-  eaVentasRenderResumen();
 }
 
-function eaVentasToggleForm() {
-  var card = document.getElementById('ventas-form-card');
-  var btn  = document.getElementById('ventas-toggle-form');
-  if (!card) return;
-  var opening = card.hidden;
-  card.hidden = !opening;
-  if (btn) btn.textContent = opening ? 'Cancelar' : 'Registrar venta';
-  if (opening) {
-    var dl = document.getElementById('ventas-producto-list');
-    if (dl) {
-      var prods = getMisProductos();
-      dl.innerHTML = prods.map(function (p) {
-        return '<option value="' + _eaEscHtml(p.nombre) + '">';
-      }).join('');
-    }
-    var inp = document.getElementById('ventas-form-producto');
-    if (inp) inp.focus();
-    var err = document.getElementById('ventas-form-error');
-    if (err) err.hidden = true;
-  }
-}
-
-function eaVentasGuardarNueva() {
-  var prodEl  = document.getElementById('ventas-form-producto');
-  var montoEl = document.getElementById('ventas-form-monto');
-  var errEl   = document.getElementById('ventas-form-error');
-
-  var producto = prodEl ? prodEl.value.trim() : '';
-  var montoRaw = montoEl ? montoEl.value.trim() : '';
-  var monto    = parseFloat(montoRaw);
-
-  function mostrarError(msg) {
-    if (errEl) { errEl.textContent = msg; errEl.hidden = false; }
-  }
-
-  if (!producto) {
-    mostrarError('Ingresa el nombre del producto.');
-    if (prodEl) prodEl.focus();
-    return;
-  }
-  if (!montoRaw || isNaN(monto) || monto < 0) {
-    mostrarError('Ingresa un monto valido mayor o igual a 0.');
-    if (montoEl) montoEl.focus();
-    return;
-  }
-
-  var ventas = eaVentasLeer();
-  var nueva = {
-    id: 'v' + Date.now() + Math.random().toString(36).slice(2, 6),
-    producto: producto,
-    fecha: new Date().toISOString(),
-    monto: monto,
-    estado: 'Pendiente'
-  };
-  ventas.push(nueva);
-  _eaVentasGuardar(ventas);
-
-  if (prodEl)  prodEl.value  = '';
-  if (montoEl) montoEl.value = '';
-  if (errEl)   errEl.hidden  = true;
-
-  var card = document.getElementById('ventas-form-card');
-  if (card) card.hidden = true;
-  var btn = document.getElementById('ventas-toggle-form');
-  if (btn) btn.textContent = 'Registrar venta';
-
-  eaVentasRender();
-}
 
 function switchCuentasSubTab(subId) {
   CUENTAS_SUB_TAB_IDS.forEach(function (id) {
@@ -1860,18 +1891,16 @@ function switchCuentasSubTab(subId) {
 }
 
 /* ============================================================
-   AFILIADOS — red de venta directa (modelo basado en producto,
-   como Yanbal). Comisiones sobre VENTAS, nunca por reclutar.
-   TODO (produccion): arbol, comisiones y pagos en backend
-   (Supabase). NO usar localStorage — datos multiusuario reales.
+   AFILIADOS — red de venta directa
+   La red multinivel se implementa cuando haya datos reales de referidos.
    ============================================================ */
 
 // Constantes de comisiones (ajustables)
-const COMISION_NIVEL_1    = 10;  // % sobre ventas de afiliados directos
-const COMISION_NIVEL_2    = 5;   // % sobre ventas de nivel 2
-const BONO_PRIMERA_VENTA  = 15;  // $ bono por primera venta de un afiliado nuevo
+const COMISION_NIVEL_1    = 10;
+const COMISION_NIVEL_2    = 5;
+const BONO_PRIMERA_VENTA  = 15;
 
-// Datos de ejemplo — TODO: reemplazar con fetch al backend
+// Placeholder para compatibilidad — se reemplaza por datos reales cuando exista la tabla de referidos
 const AFIL_RED_DEMO = [
   {
     usuario: '@maria_lp',
@@ -1911,7 +1940,6 @@ const AFIL_RED_DEMO = [
 ];
 
 function afiliRenderArbol() {
-  // Actualizar tabla de comisiones
   var n1El   = document.getElementById('afil-pct-n1');
   var n2El   = document.getElementById('afil-pct-n2');
   var bonoEl = document.getElementById('afil-bono');
@@ -1919,73 +1947,9 @@ function afiliRenderArbol() {
   if (n2El)   n2El.textContent   = COMISION_NIVEL_2 + '%';
   if (bonoEl) bonoEl.textContent = '$' + BONO_PRIMERA_VENTA + ' por afiliado';
 
-  // Renderizar arbol
   var wrap = document.getElementById('afil-arbol');
   if (!wrap) return;
-
-  if (!AFIL_RED_DEMO || AFIL_RED_DEMO.length === 0) {
-    wrap.innerHTML = '<p class="cuentas-empty">Tu red esta vacia. Comparte tu link para sumar afiliados.</p>';
-    return;
-  }
-
-  var html = AFIL_RED_DEMO.map(function (af) {
-    var safeId = 'afil-n2-' + af.usuario.replace(/[^a-z0-9]/gi, '');
-    var hasN2  = af.nivel2 && af.nivel2.length > 0;
-
-    var n2Html = '';
-    if (hasN2) {
-      n2Html = '<div class="afil-nivel2-list">' +
-        af.nivel2.map(function (n2) {
-          return (
-            '<div class="afil-nodo afil-nodo--n2">' +
-              '<div class="afil-nodo-connector" aria-hidden="true"></div>' +
-              '<div class="afil-nodo-body">' +
-                '<div class="afil-nodo-top">' +
-                  '<span class="afil-nodo-usuario">' + _eaEscHtml(n2.usuario) + '</span>' +
-                  '<span class="cuentas-badge cuentas-badge--enviado">Nivel 2</span>' +
-                '</div>' +
-                '<div class="afil-nodo-meta">' +
-                  '<span>Ingreso: <strong>' + n2.ingreso + '</strong></span>' +
-                  '<span>Ventas: <strong>' + n2.ventas + '</strong></span>' +
-                  '<span>Comision para ti: <strong>' + n2.comision + '</strong></span>' +
-                '</div>' +
-              '</div>' +
-            '</div>'
-          );
-        }).join('') +
-      '</div>';
-    }
-
-    return (
-      '<div class="afil-nodo afil-nodo--n1">' +
-        '<div class="afil-nodo-body">' +
-          '<div class="afil-nodo-top">' +
-            '<span class="afil-nodo-usuario">' + _eaEscHtml(af.usuario) + '</span>' +
-            '<div class="afil-nodo-badges">' +
-              '<span class="cuentas-badge cuentas-badge--ok">Nivel 1</span>' +
-              (hasN2
-                ? '<button type="button" class="afil-expand-btn" ' +
-                    'data-target="' + safeId + '" ' +
-                    'onclick="afiliToggleN2(\'' + safeId + '\', this)">' +
-                    af.nivel2.length + ' en su red' +
-                  '</button>'
-                : '') +
-            '</div>' +
-          '</div>' +
-          '<div class="afil-nodo-meta">' +
-            '<span>Ingreso: <strong>' + af.ingreso + '</strong></span>' +
-            '<span>Ventas: <strong>' + af.ventas + '</strong></span>' +
-            '<span>Comision para ti: <strong>' + af.comision + '</strong></span>' +
-          '</div>' +
-        '</div>' +
-        (hasN2
-          ? '<div class="afil-nivel2-wrap" id="' + safeId + '" hidden>' + n2Html + '</div>'
-          : '') +
-      '</div>'
-    );
-  }).join('');
-
-  wrap.innerHTML = html;
+  wrap.innerHTML = '<p class="cuentas-empty">Aun no tienes afiliados en tu red. Comparte tu link de venta para comenzar.</p>';
 }
 
 function afiliToggleN2(id, btn) {
@@ -2247,8 +2211,19 @@ function switchAgentTab(tabId) {
     }
   });
 
+  if (tabId === 'catalogo') {
+    // Forzar recarga si aun no se ha cargado de Supabase
+    if (_catalogoSupa === null) renderCatalogoGrid();
+    else renderProductGrid('agent-grid-catalogo', _catalogoSupa, 'catalogo');
+  }
+
   if (tabId === 'mis-productos') {
-    renderMisProductosGrid();
+    // Si el catalogo aun no se cargó, cargarlo primero para que getProductoBySlug funcione
+    if (_catalogoSupa === null) {
+      _cargarCatalogoSupa(function () { renderMisProductosGrid(); });
+    } else {
+      renderMisProductosGrid();
+    }
   }
 
   if (tabId === 'monetizacion') {
@@ -2304,18 +2279,93 @@ function updateAgentProfilePanel() {
   }
 }
 
-// TODO: saldo real desde backend, nunca calcular ni descontar en frontend.
-const MONETIZACION_CREDITOS_DUMMY = 5000;
-const CREDITO_BASE_VIRAL = 8;
-const CREDITO_POR_ESCENA = 5;
-const CREDITO_BUSQUEDA = 50;
-const CREDITO_MODULAR_CORTO = 80;
-const CREDITO_MODULAR_MEDIO = 140;
-const CREDITO_MODULAR_LARGO = 240;
+// ── Costos por motor — ajustables ────────────────────────────────────────────
+const COSTO_VIRAL_TENDENCIAS    = 50;
+const COSTO_VIRAL_DESARROLLAR   =  0;  // incluido en tendencias
+const COSTO_MODULAR             = 40;
+const COSTO_EDITOR_VIDEO        = 30;
+const COSTO_EDITOR_REACCION     = 30;
+const COSTO_CONTENIDO_ORGANICO  = 20;
+const COSTO_CONTENIDO_ANUNCIO   = 20;
+const COSTO_CONTENIDO_AVATAR    = 40;
 
-function calcularCreditosViral(seg) {
-  var escenas = Math.round(seg / 6);
-  return CREDITO_BASE_VIRAL + (CREDITO_POR_ESCENA * escenas) + CREDITO_BUSQUEDA;
+// Retorna el costo de credits para mostrar en el boton del viral
+function calcularCreditosViral() { return COSTO_VIRAL_TENDENCIAS; }
+
+// ── Helpers de créditos ───────────────────────────────────────────────────────
+function _actualizarCreditosUI(n) {
+  currentAgent.creditos_ia = Number(n) || 0;
+  var el = document.getElementById('mon-credits-balance');
+  if (el) el.textContent = String(currentAgent.creditos_ia);
+}
+
+// Wrapper de fetch para todos los endpoints de motor/IA.
+// Añade x-usuario-id automáticamente y convierte 401/402 en error con .sinCreditos=true.
+function _motorFetch(url, opts) {
+  var uid = _getUsuarioId();
+  if (!uid) return Promise.reject(_mkSinSesion());
+  opts = opts || {};
+  if (!opts.headers) opts.headers = {};
+  opts.headers['x-usuario-id'] = uid;
+  return fetch(url, opts).then(function (r) {
+    if (r.status === 401 || r.status === 402) {
+      return r.json().then(function (d) {
+        var err = new Error(d.error || 'Sin creditos o no autorizado');
+        err.sinCreditos = true;
+        err.creditos_actuales = d.creditos_actuales || 0;
+        throw err;
+      });
+    }
+    return r;
+  });
+}
+
+// Descuenta créditos en el motor; devuelve Promise.
+// Si cantidad <= 0 resuelve inmediatamente (sin llamada de red).
+function _descontarCreditos(cantidad, motor, desc) {
+  var uid = _getUsuarioId();
+  if (!uid) return Promise.reject(_mkSinSesion());
+  if (!cantidad || cantidad <= 0) return Promise.resolve({ creditos_restantes: currentAgent.creditos_ia });
+  return fetch(MOTOR_URL + '/api/creditos/descontar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ usuario_id: uid, cantidad: cantidad, motor: motor, descripcion: desc })
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d.ok) {
+        var e = new Error(d.error || 'Creditos insuficientes');
+        e.sinCreditos = true;
+        e.creditos_actuales = d.creditos_actuales;
+        throw e;
+      }
+      _actualizarCreditosUI(d.creditos_restantes);
+      return d;
+    });
+}
+
+function _mkSinSesion() {
+  var e = new Error('Sin sesion activa');
+  e.sinCreditos = true;
+  e.creditos_actuales = 0;
+  return e;
+}
+
+// Carga el saldo real de créditos desde Supabase al entrar al dashboard
+function _cargarCreditosReales() {
+  var uid = _getUsuarioId();
+  if (!uid) return;
+  fetch(MOTOR_URL + '/api/creditos/' + encodeURIComponent(uid))
+    .then(function (r) { return r.json(); })
+    .then(function (d) { if (d.ok) _actualizarCreditosUI(d.creditos); })
+    .catch(function () {});
+}
+
+// Muestra mensaje de créditos insuficientes en el elemento de alerta dado
+function _mostrarSinCreditos(alertEl, err) {
+  var saldo = (err && err.creditos_actuales != null) ? err.creditos_actuales : currentAgent.creditos_ia;
+  var msg = 'No tienes creditos suficientes. Te quedan ' + saldo + ' creditos.';
+  if (alertEl) { alertEl.textContent = msg; alertEl.hidden = false; }
 }
 
 var _monDuracionSeleccionada = 30;
@@ -2324,9 +2374,8 @@ function selectMonDuracion(seg) {
   _monDuracionSeleccionada = seg;
   var select = document.getElementById('mon-crear-duracion');
   if (select && Number(select.value) !== seg) select.value = String(seg);
-  var total = calcularCreditosViral(seg);
   var btn = document.getElementById('mon-btn-crear-viral');
-  if (btn) btn.textContent = 'Buscar tendencias y generar ideas (' + total + ' creditos)';
+  if (btn) btn.textContent = 'Buscar tendencias y generar ideas (' + COSTO_VIRAL_TENDENCIAS + ' creditos)';
 }
 
 function initMonDuracionPills() {
@@ -2466,11 +2515,11 @@ function handleMonetizacionCrearViral() {
   var btnTextoOrig = btn ? btn.textContent : '';
 
   if (bocetosWrap) bocetosWrap.hidden = true;
+  if (btn) { btn.disabled = true; btn.textContent = 'Procesando...'; btn.classList.add('btn-procesando'); }
   if (loadingMsg) loadingMsg.textContent = 'Buscando tendencias reales... esto puede tardar unos segundos';
   if (loadingEl) loadingEl.hidden = false;
-  if (btn) { btn.disabled = true; btn.textContent = 'Buscando...'; btn.classList.add('btn-procesando'); }
 
-  fetch('http://localhost:3002/api/monetizacion/tendencias', {
+  _motorFetch(MOTOR_URL + '/api/monetizacion/tendencias', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ macroNicho: macroNicho, microNicho: microNicho, duracion: duracion, formato: formato, relacionDeAspecto: relacionDeAspecto, idea: idea })
@@ -2484,13 +2533,16 @@ function handleMonetizacionCrearViral() {
       return res.json();
     })
     .then(function (data) {
+      if (data.creditos_restantes != null) _actualizarCreditosUI(data.creditos_restantes);
       if (!data.bocetos || !data.bocetos.length) throw new Error('Sin bocetos en la respuesta');
       renderMonBocetos(data.bocetos);
       if (bocetosWrap) bocetosWrap.hidden = false;
     })
     .catch(function (err) {
       var alertEl = document.getElementById('mon-crear-alert');
-      if (alertEl) {
+      if (err.sinCreditos) {
+        _mostrarSinCreditos(alertEl, err);
+      } else if (alertEl) {
         alertEl.textContent = 'No se pudo conectar con el motor. Verifica que el servidor este corriendo.';
         alertEl.hidden = false;
       }
@@ -2526,21 +2578,21 @@ function handleMonetizacionPaso2() {
   var resultWrap = document.getElementById('mon-desarrollo-result');
 
   if (resultWrap) resultWrap.remove();
+  if (paso2btn) { paso2btn.disabled = true; paso2btn.textContent = 'Generando...'; paso2btn.classList.add('btn-procesando'); }
   if (loadingMsg) loadingMsg.textContent = 'Desarrollando tu video... esto puede tardar unos segundos';
   if (loadingEl)  loadingEl.hidden = false;
-  if (paso2btn)   { paso2btn.disabled = true; paso2btn.textContent = 'Generando...'; paso2btn.classList.add('btn-procesando'); }
 
-  fetch('http://localhost:3002/api/monetizacion/desarrollar', {
+  _motorFetch(MOTOR_URL + '/api/monetizacion/desarrollar', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      titular:          boceto.titular || boceto.titulo || '',
-      boceto:           boceto.boceto  || boceto.concepto || '',
-      gancho:           boceto.gancho  || '',
-      formato:          formato,
+      titular:           boceto.titular || boceto.titulo || '',
+      boceto:            boceto.boceto  || boceto.concepto || '',
+      gancho:            boceto.gancho  || '',
+      formato:           formato,
       relacionDeAspecto: relacionDeAspecto,
-      duracion:         duracion,
-      numeroEscenas:    numeroEscenas
+      duracion:          duracion,
+      numeroEscenas:     numeroEscenas
     })
   })
     .then(function (res) {
@@ -2552,11 +2604,14 @@ function handleMonetizacionPaso2() {
       return res.json();
     })
     .then(function (data) {
+      if (data.creditos_restantes != null) _actualizarCreditosUI(data.creditos_restantes);
       renderDesarrollo(data);
     })
     .catch(function (err) {
       var alertEl = document.getElementById('mon-crear-alert');
-      if (alertEl) {
+      if (err.sinCreditos) {
+        _mostrarSinCreditos(alertEl, err);
+      } else if (alertEl) {
         alertEl.textContent = 'No se pudo desarrollar el video. Verifica que el servidor este corriendo.';
         alertEl.hidden = false;
       }
@@ -2719,9 +2774,7 @@ function renderDesarrollo(data, containerEl, titulo) {
   wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-function _esc(str) {
-  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
+// _esc definida más abajo con escape completo (& " ' < >)
 const MONETIZACION_SUB_TAB_IDS = ['crear-viral', 'modular', 'editar'];
 const MONETIZACION_MOTOR_MSG = 'Motor en conexion. Proximamente.';
 
@@ -2830,9 +2883,9 @@ function _ventasStartPolling() {
   _ventasStopPolling();
   _ventasQrInterval = setInterval(async function () {
     try {
-      var r = await fetch('http://localhost:3002/api/ventas/qr');
-      var d = await r.json();
-      _ventasRenderEstado(d.estado, d.qr);
+    var r = await fetch(MOTOR_URL + '/api/ventas/qr');
+    var d = await r.json();
+        _ventasRenderEstado(d.estado, d.qr);
       if (d.estado === 'conectado') _ventasStopPolling();
     } catch (e) {}
   }, 3000);
@@ -2845,7 +2898,7 @@ async function ventasConectarWhatsApp() {
   if (msg) { msg.textContent = 'Iniciando conexion...'; msg.className = 'av-result-msg'; }
 
   try {
-    var r = await fetch('http://localhost:3002/api/ventas/conectar-whatsapp', { method: 'POST' });
+    var r = await fetch(MOTOR_URL + '/api/ventas/conectar-whatsapp', { method: 'POST' });
     var d = await r.json();
     if (!r.ok) throw new Error(d.error || 'Error al conectar');
     _ventasRenderEstado(d.estado, d.qr);
@@ -2864,7 +2917,7 @@ async function ventasDesconectarWhatsApp() {
   _ventasStopPolling();
 
   try {
-    var r = await fetch('http://localhost:3002/api/ventas/desconectar-whatsapp', { method: 'POST' });
+    var r = await fetch(MOTOR_URL + '/api/ventas/desconectar-whatsapp', { method: 'POST' });
     var d = await r.json();
     if (!r.ok) throw new Error(d.error || 'Error al desconectar');
     _ventasRenderEstado('desconectado', null);
@@ -2904,7 +2957,7 @@ async function ventasProbarTelegram() {
   if (msg) { msg.textContent = 'Enviando mensaje de prueba...'; msg.className = 'av-result-msg'; }
 
   try {
-    var r = await fetch('http://localhost:3002/api/ventas/probar-telegram', {
+    var r = await fetch(MOTOR_URL + '/api/ventas/probar-telegram', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token: token, chatId: chatId })
@@ -2927,12 +2980,20 @@ async function ventasGuardarConfig() {
   var token        = (document.getElementById('ventas-tg-token')      || {}).value || '';
   var chatId       = (document.getElementById('ventas-tg-chatid')     || {}).value || '';
   var personalidad = (document.getElementById('ventas-personalidad')  || {}).value || '';
+  var waContacto   = ((document.getElementById('ventas-wa-contacto')  || {}).value || '').trim();
+
+  // Validate WhatsApp number if provided
+  if (waContacto && !/^[+\d\s\-().]{6,20}$/.test(waContacto)) {
+    if (msg) { msg.textContent = 'Numero de WhatsApp invalido. Usa formato: +57 300 1234567'; msg.className = 'av-result-msg av-result-msg--err'; }
+    return;
+  }
 
   if (btn) btn.disabled = true;
   if (msg) { msg.textContent = 'Guardando...'; msg.className = 'av-result-msg'; }
 
   try {
-    var r = await fetch('http://localhost:3002/api/ventas/config', {
+    // 1. Save agent config (nombre, tono, personalidad, telegram, etc.)
+    var r = await fetch(MOTOR_URL + '/api/ventas/config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -2945,7 +3006,26 @@ async function ventasGuardarConfig() {
       })
     });
     var d = await r.json();
-    if (!r.ok) throw new Error(d.error || 'Error');
+    if (!r.ok) throw new Error(d.error || 'Error al guardar configuracion del agente.');
+
+    // 2. Save WhatsApp contact number to Supabase (for "Hablar con asesor" button)
+    var uid = _getUsuarioId();
+    if (uid) {
+      var rWa = await fetch(MOTOR_IA_URL + '/api/usuario/whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-usuario-id': uid },
+        body: JSON.stringify({ whatsapp: waContacto })
+      });
+      var dWa = await rWa.json();
+      if (dWa.ok) {
+        currentAgent.whatsapp = dWa.whatsapp || '';
+        try {
+          var raw = sessionStorage.getItem(EA_SESION_KEY);
+          if (raw) { var u = JSON.parse(raw); u.whatsapp = currentAgent.whatsapp; sessionStorage.setItem(EA_SESION_KEY, JSON.stringify(u)); }
+        } catch (_) {}
+      }
+    }
+
     if (msg) { msg.textContent = 'Configuracion guardada.'; msg.className = 'av-result-msg av-result-msg--ok'; }
     setTimeout(function () { if (msg) msg.textContent = ''; }, 3500);
   } catch (e) {
@@ -2964,8 +3044,15 @@ function _catSlug(nombre) {
   return (nombre || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 }
 
+// Escapa todos los caracteres especiales HTML. Usar en CUALQUIER dato de Supabase
+// que se inserte en innerHTML (texto, atributos, y valores de onclick con strings).
 function _esc(s) {
-  return String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 // Build product <option> list from Mis Productos
@@ -3077,7 +3164,7 @@ async function ventasGuardarCatalogo() {
   if (msg) { msg.textContent = 'Guardando catalogo...'; msg.className = 'av-result-msg'; }
 
   try {
-    var r = await fetch('http://localhost:3002/api/ventas/config', {
+    var r = await fetch(MOTOR_URL + '/api/ventas/config', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ catalogo: catalogo })
@@ -3097,7 +3184,7 @@ async function ventasGuardarCatalogo() {
 async function _ventasCargarConfigUI() {
   // Load WhatsApp connection state
   try {
-    var rq = await fetch('http://localhost:3002/api/ventas/qr');
+    var rq = await fetch(MOTOR_URL + '/api/ventas/qr');
     if (rq.ok) {
       var dq = await rq.json();
       _ventasRenderEstado(dq.estado, dq.qr);
@@ -3107,7 +3194,7 @@ async function _ventasCargarConfigUI() {
 
   // Load saved config and pre-fill fields
   try {
-    var rc = await fetch('http://localhost:3002/api/ventas/config');
+    var rc = await fetch(MOTOR_URL + '/api/ventas/config');
     if (!rc.ok) return;
     var cfg = await rc.json();
 
@@ -3145,6 +3232,10 @@ async function _ventasCargarConfigUI() {
       });
     }
   } catch (e) {}
+
+  // Pre-fill WhatsApp contact number from Supabase (via currentAgent loaded at login)
+  var waEl = document.getElementById('ventas-wa-contacto');
+  if (waEl && currentAgent.whatsapp) waEl.value = currentAgent.whatsapp;
 }
 
 function initAgentesVentasTab() {
@@ -3502,41 +3593,37 @@ function handleContenidoOrganico() {
   var alertEl      = document.getElementById('cont-org-alert');
   var resultEl     = document.getElementById('cont-org-result');
 
-  if (btn)     { btn.disabled = true; btn.textContent = 'Generando...'; btn.classList.add('btn-procesando'); }
+  if (btn) { btn.disabled = true; btn.textContent = 'Verificando creditos...'; btn.classList.add('btn-procesando'); }
   if (alertEl) { alertEl.hidden = true; }
-  if (resultEl) { resultEl.innerHTML = '<p class="mon-result-placeholder" style="font-style:italic;color:#888;">Analizando producto y generando contenido... puede tardar unos segundos.</p>'; }
 
-  // Obtener el nombre del producto del selector (texto visible, no el slug)
   var productoSelect = document.getElementById('cont-org-producto');
   var productoNombre = (productoSelect && productoSelect.value && productoSelect.selectedIndex >= 0)
-    ? productoSelect.options[productoSelect.selectedIndex].text
-    : '';
+    ? productoSelect.options[productoSelect.selectedIndex].text : '';
 
-  var formData = new FormData();
-  var tipoOrg = _contTipo.org || 'imagen';
-  formData.append('producto',      productoNombre);
-  formData.append('tipoContenido', tipoOrg);
-  formData.append('redSocial',     document.getElementById('cont-org-red')  ? document.getElementById('cont-org-red').value  : '');
-  formData.append('tono',          document.getElementById('cont-org-tono') ? document.getElementById('cont-org-tono').value : '');
-  formData.append('idea',          document.getElementById('cont-org-idea') ? document.getElementById('cont-org-idea').value : '');
-  formData.append('enfoque',       _contEnfoque.org || 'emocional');
+  var tipoOrg  = _contTipo.org || 'imagen';
 
+  if (btn) btn.textContent = 'Generando...';
+  if (resultEl) resultEl.innerHTML = '<p class="mon-result-placeholder" style="font-style:italic;color:#888;">Analizando producto y generando contenido... puede tardar unos segundos.</p>';
+  var formDataOrg = new FormData();
+  formDataOrg.append('producto',      productoNombre);
+  formDataOrg.append('tipoContenido', tipoOrg);
+  formDataOrg.append('redSocial',     document.getElementById('cont-org-red')  ? document.getElementById('cont-org-red').value  : '');
+  formDataOrg.append('tono',          document.getElementById('cont-org-tono') ? document.getElementById('cont-org-tono').value : '');
+  formDataOrg.append('idea',          document.getElementById('cont-org-idea') ? document.getElementById('cont-org-idea').value : '');
+  formDataOrg.append('enfoque',       _contEnfoque.org || 'emocional');
   if (tipoOrg === 'video') {
-    formData.append('duracion',          _contVideoDuracion.org  || '18');
-    formData.append('relacionDeAspecto', _contVideoFormato.org   || '9:16');
-    formData.append('relacionImagen',    _contVideoFormato.org   || '9:16');
+    formDataOrg.append('duracion',          _contVideoDuracion.org || '18');
+    formDataOrg.append('relacionDeAspecto', _contVideoFormato.org  || '9:16');
+    formDataOrg.append('relacionImagen',    _contVideoFormato.org  || '9:16');
   } else if (tipoOrg === 'imagen') {
     var imgFmt = _contImagenFormato.org || '9:16';
-    formData.append('relacionImagen',    imgFmt);
-    formData.append('relacionDeAspecto', imgFmt);
+    formDataOrg.append('relacionImagen',    imgFmt);
+    formDataOrg.append('relacionDeAspecto', imgFmt);
   }
+  var imgInputOrg = document.getElementById('cont-org-img');
+  if (imgInputOrg && imgInputOrg.files && imgInputOrg.files.length > 0) formDataOrg.append('imagen', imgInputOrg.files[0]);
 
-  var imgInput = document.getElementById('cont-org-img');
-  if (imgInput && imgInput.files && imgInput.files.length > 0) {
-    formData.append('imagen', imgInput.files[0]);
-  }
-
-  fetch('http://localhost:3002/api/contenido/organico', { method: 'POST', body: formData })
+  _motorFetch(MOTOR_URL + '/api/contenido/organico', { method: 'POST', body: formDataOrg })
     .then(function (res) {
       if (!res.ok) {
         return res.json().catch(function () { return {}; }).then(function (d) {
@@ -3547,10 +3634,16 @@ function handleContenidoOrganico() {
     })
     .then(function (data) {
       if (!data.ok) throw new Error(data.error || 'Error al generar contenido.');
+      if (data.creditos_restantes != null) _actualizarCreditosUI(data.creditos_restantes);
       renderContenidoOrganico(data, resultEl);
     })
     .catch(function (err) {
-      if (resultEl) resultEl.innerHTML = '<p class="mon-result-placeholder" style="color:#c0392b;">Error: ' + err.message + '</p>';
+      if (err.sinCreditos) {
+        _mostrarSinCreditos(alertEl, err);
+        if (resultEl) resultEl.innerHTML = '';
+      } else if (resultEl) {
+        resultEl.innerHTML = '<p class="mon-result-placeholder" style="color:#c0392b;">Error: ' + err.message + '</p>';
+      }
       console.error('[contenido/organico] Error:', err.message);
     })
     .finally(function () {
@@ -3583,40 +3676,36 @@ function handleContenidoAnuncio() {
   var alertEl      = document.getElementById('cont-anun-alert');
   var resultEl     = document.getElementById('cont-anun-result');
 
-  if (btn)     { btn.disabled = true; btn.textContent = 'Generando...'; btn.classList.add('btn-procesando'); }
+  if (btn) { btn.disabled = true; btn.textContent = 'Verificando creditos...'; btn.classList.add('btn-procesando'); }
   if (alertEl) { alertEl.hidden = true; }
-  if (resultEl) { resultEl.innerHTML = '<p class="mon-result-placeholder" style="font-style:italic;color:#888;">Analizando producto y generando anuncio... puede tardar unos segundos.</p>'; }
 
   var productoSelect = document.getElementById('cont-anun-producto');
   var productoNombre = (productoSelect && productoSelect.value && productoSelect.selectedIndex >= 0)
-    ? productoSelect.options[productoSelect.selectedIndex].text
-    : '';
+    ? productoSelect.options[productoSelect.selectedIndex].text : '';
+  var tipoAnun  = _contTipo.anun || 'imagen';
 
-  var formData = new FormData();
-  var tipoAnun = _contTipo.anun || 'imagen';
-  formData.append('producto',      productoNombre);
-  formData.append('tipoContenido', tipoAnun);
-  formData.append('plataforma',    document.getElementById('cont-anun-plataforma') ? document.getElementById('cont-anun-plataforma').value : '');
-  formData.append('objetivo',      document.getElementById('cont-anun-objetivo')   ? document.getElementById('cont-anun-objetivo').value   : '');
-  formData.append('idea',          document.getElementById('cont-anun-idea')       ? document.getElementById('cont-anun-idea').value       : '');
-  formData.append('enfoque',       _contEnfoque.anun || 'emocional');
-
+  if (btn) btn.textContent = 'Generando...';
+  if (resultEl) resultEl.innerHTML = '<p class="mon-result-placeholder" style="font-style:italic;color:#888;">Analizando producto y generando anuncio... puede tardar unos segundos.</p>';
+  var formDataAnun = new FormData();
+  formDataAnun.append('producto',      productoNombre);
+  formDataAnun.append('tipoContenido', tipoAnun);
+  formDataAnun.append('plataforma',    document.getElementById('cont-anun-plataforma') ? document.getElementById('cont-anun-plataforma').value : '');
+  formDataAnun.append('objetivo',      document.getElementById('cont-anun-objetivo')   ? document.getElementById('cont-anun-objetivo').value   : '');
+  formDataAnun.append('idea',          document.getElementById('cont-anun-idea')       ? document.getElementById('cont-anun-idea').value       : '');
+  formDataAnun.append('enfoque',       _contEnfoque.anun || 'emocional');
   if (tipoAnun === 'video') {
-    formData.append('duracion',          _contVideoDuracion.anun  || '18');
-    formData.append('relacionDeAspecto', _contVideoFormato.anun   || '9:16');
-    formData.append('relacionImagen',    _contVideoFormato.anun   || '9:16');
+    formDataAnun.append('duracion',          _contVideoDuracion.anun || '18');
+    formDataAnun.append('relacionDeAspecto', _contVideoFormato.anun  || '9:16');
+    formDataAnun.append('relacionImagen',    _contVideoFormato.anun  || '9:16');
   } else if (tipoAnun === 'imagen') {
     var imgFmt2 = _contImagenFormato.anun || '9:16';
-    formData.append('relacionImagen',    imgFmt2);
-    formData.append('relacionDeAspecto', imgFmt2);
+    formDataAnun.append('relacionImagen',    imgFmt2);
+    formDataAnun.append('relacionDeAspecto', imgFmt2);
   }
+  var imgInputAnun = document.getElementById('cont-anun-img');
+  if (imgInputAnun && imgInputAnun.files && imgInputAnun.files.length > 0) formDataAnun.append('imagen', imgInputAnun.files[0]);
 
-  var imgInput = document.getElementById('cont-anun-img');
-  if (imgInput && imgInput.files && imgInput.files.length > 0) {
-    formData.append('imagen', imgInput.files[0]);
-  }
-
-  fetch('http://localhost:3002/api/contenido/anuncio', { method: 'POST', body: formData })
+  _motorFetch(MOTOR_URL + '/api/contenido/anuncio', { method: 'POST', body: formDataAnun })
     .then(function (res) {
       if (!res.ok) {
         return res.json().catch(function () { return {}; }).then(function (d) {
@@ -3627,10 +3716,16 @@ function handleContenidoAnuncio() {
     })
     .then(function (data) {
       if (!data.ok) throw new Error(data.error || 'Error al generar anuncio.');
+      if (data.creditos_restantes != null) _actualizarCreditosUI(data.creditos_restantes);
       renderContenidoAnuncio(data, resultEl);
     })
     .catch(function (err) {
-      if (resultEl) resultEl.innerHTML = '<p class="mon-result-placeholder" style="color:#c0392b;">Error: ' + err.message + '</p>';
+      if (err.sinCreditos) {
+        _mostrarSinCreditos(alertEl, err);
+        if (resultEl) resultEl.innerHTML = '';
+      } else if (resultEl) {
+        resultEl.innerHTML = '<p class="mon-result-placeholder" style="color:#c0392b;">Error: ' + err.message + '</p>';
+      }
       console.error('[contenido/anuncio] Error:', err.message);
     })
     .finally(function () {
@@ -3701,24 +3796,25 @@ function handleContenidoAvatar(subtab) {
 
   _contProcesando[subtab] = true;
   var btnTextoOrig = btn ? btn.textContent : '';
-  if (btn)     { btn.disabled = true; btn.textContent = 'Generando...'; btn.classList.add('btn-procesando'); }
+  if (btn) { btn.disabled = true; btn.textContent = 'Verificando creditos...'; btn.classList.add('btn-procesando'); }
   if (alertEl) { alertEl.hidden = true; }
-  if (resultEl) { resultEl.innerHTML = '<p class="mon-result-placeholder" style="font-style:italic;color:#888;">Analizando fotos y generando video avatar UGC...</p>'; }
 
   var ideaEl = document.getElementById('cont-' + subtab + '-idea');
 
-  var formData = new FormData();
-  formData.append('fotoAvatar',        fotoAvatarEl.files[0]);
-  formData.append('fotoProducto',      fotoProdEl.files[0]);
-  formData.append('producto',          productoNombre);
-  formData.append('enfoque',           _contEnfoque[subtab] || 'emocional');
-  formData.append('duracion',          _contAvatarDuracion[subtab] || '10');
-  formData.append('relacionDeAspecto', _contAvatarFormato[subtab]  || '9:16');
-  if (redSocialVal)  formData.append('redSocial',  redSocialVal);
-  if (plataformaVal) formData.append('plataforma', plataformaVal);
-  if (ideaEl && ideaEl.value.trim()) formData.append('idea', ideaEl.value.trim());
+  if (btn) btn.textContent = 'Generando...';
+  if (resultEl) resultEl.innerHTML = '<p class="mon-result-placeholder" style="font-style:italic;color:#888;">Analizando fotos y generando video avatar UGC...</p>';
+  var formDataAv = new FormData();
+  formDataAv.append('fotoAvatar',        fotoAvatarEl.files[0]);
+  formDataAv.append('fotoProducto',      fotoProdEl.files[0]);
+  formDataAv.append('producto',          productoNombre);
+  formDataAv.append('enfoque',           _contEnfoque[subtab] || 'emocional');
+  formDataAv.append('duracion',          _contAvatarDuracion[subtab] || '10');
+  formDataAv.append('relacionDeAspecto', _contAvatarFormato[subtab]  || '9:16');
+  if (redSocialVal)  formDataAv.append('redSocial',  redSocialVal);
+  if (plataformaVal) formDataAv.append('plataforma', plataformaVal);
+  if (ideaEl && ideaEl.value.trim()) formDataAv.append('idea', ideaEl.value.trim());
 
-  fetch('http://localhost:3002/api/contenido/avatar', { method: 'POST', body: formData })
+  _motorFetch(MOTOR_URL + '/api/contenido/avatar', { method: 'POST', body: formDataAv })
     .then(function (res) {
       if (!res.ok) {
         return res.json().catch(function () { return {}; }).then(function (d) {
@@ -3729,10 +3825,16 @@ function handleContenidoAvatar(subtab) {
     })
     .then(function (data) {
       if (!data.ok) throw new Error(data.error || 'Error al generar video avatar.');
+      if (data.creditos_restantes != null) _actualizarCreditosUI(data.creditos_restantes);
       renderContenidoAvatar(data, resultEl);
     })
     .catch(function (err) {
-      if (resultEl) resultEl.innerHTML = '<p class="mon-result-placeholder" style="color:#c0392b;">Error: ' + err.message + '</p>';
+      if (err.sinCreditos) {
+        _mostrarSinCreditos(alertEl, err);
+        if (resultEl) resultEl.innerHTML = '';
+      } else if (resultEl) {
+        resultEl.innerHTML = '<p class="mon-result-placeholder" style="color:#c0392b;">Error: ' + err.message + '</p>';
+      }
       console.error('[contenido/avatar] Error:', err.message);
     })
     .finally(function () {
@@ -3956,31 +4058,24 @@ function handleMonetizacionModularVideo() {
   var alertEl      = document.getElementById('mon-mod-alert');
   var resultEl     = document.getElementById('mon-modular-result');
 
-  if (btn)     { btn.disabled = true; btn.textContent = 'Procesando...'; btn.classList.add('btn-procesando'); }
+  if (btn) { btn.disabled = true; btn.textContent = 'Procesando...'; btn.classList.add('btn-procesando'); }
   if (alertEl) { alertEl.hidden = true; }
-  if (resultEl) {
-    resultEl.innerHTML = '<p class="mon-result-placeholder" style="font-style:italic;color:#888;">Procesando el video... esto puede tardar un minuto.</p>';
-  }
+  if (resultEl) resultEl.innerHTML = '<p class="mon-result-placeholder" style="font-style:italic;color:#888;">Procesando el video... esto puede tardar un minuto.</p>';
 
-  var macroNicho       = (document.getElementById('mon-mod-macro-nicho')   || {}).value || '';
-  var microNicho       = (document.getElementById('mon-mod-micro-nicho')   || {}).value || '';
-  var formato          = (document.getElementById('mon-mod-formato')        || {}).value || '';
-  var relacionDeAspecto = (document.getElementById('mon-mod-relacion-aspecto') || {}).value || '9:16';
-  var tramoDuracion    = (document.getElementById('mon-mod-duracion')       || {}).value || 'corto';
+  var macroNichoMod     = (document.getElementById('mon-mod-macro-nicho')        || {}).value || '';
+  var microNichoMod     = (document.getElementById('mon-mod-micro-nicho')        || {}).value || '';
+  var formatoMod        = (document.getElementById('mon-mod-formato')            || {}).value || '';
+  var relacionAspectoMod= (document.getElementById('mon-mod-relacion-aspecto')   || {}).value || '9:16';
+  var tramoDuracionMod  = (document.getElementById('mon-mod-duracion')           || {}).value || 'corto';
+  var formDataMod = new FormData();
+  formDataMod.append('video', fileEl.files[0]);
+  formDataMod.append('macroNicho', macroNichoMod);
+  formDataMod.append('microNicho', microNichoMod);
+  formDataMod.append('formato', formatoMod);
+  formDataMod.append('relacionDeAspecto', relacionAspectoMod);
+  formDataMod.append('tramoDuracion', tramoDuracionMod);
 
-  var formData = new FormData();
-  formData.append('video', fileEl.files[0]);
-  formData.append('macroNicho', macroNicho);
-  formData.append('microNicho', microNicho);
-  formData.append('formato', formato);
-  formData.append('relacionDeAspecto', relacionDeAspecto);
-  formData.append('tramoDuracion', tramoDuracion);
-
-  fetch('http://localhost:3002/api/monetizacion/modular', {
-    method: 'POST',
-    body: formData
-    // Sin Content-Type manual — el browser lo agrega con el boundary correcto
-  })
+  _motorFetch(MOTOR_URL + '/api/monetizacion/modular', { method: 'POST', body: formDataMod })
     .then(function (res) {
       if (!res.ok) {
         return res.json().catch(function () { return {}; }).then(function (errData) {
@@ -3990,10 +4085,14 @@ function handleMonetizacionModularVideo() {
       return res.json();
     })
     .then(function (data) {
+      if (data.creditos_restantes != null) _actualizarCreditosUI(data.creditos_restantes);
       renderDesarrollo(data, resultEl, 'Video modular recreado');
     })
     .catch(function (err) {
-      if (resultEl) {
+      if (err.sinCreditos) {
+        _mostrarSinCreditos(alertEl, err);
+        if (resultEl) resultEl.innerHTML = '';
+      } else if (resultEl) {
         resultEl.innerHTML = '<p class="mon-result-placeholder" style="color:#c0392b;">Error: ' + err.message + '</p>';
       }
       console.error('[EcommerceAgent] Error al modular video:', err.message);
@@ -4095,7 +4194,7 @@ function renderEditorResultado(data, containerEl) {
   if (!containerEl) return;
   containerEl.innerHTML = '';
 
-  var BASE = 'http://localhost:3002';
+  var BASE = MOTOR_URL;
   var wrap = document.createElement('div');
   wrap.style.cssText = 'padding:20px;';
 
@@ -4192,34 +4291,26 @@ function procesarVideoEditor() {
 
   var btn          = document.getElementById('editor-btn-procesar');
   var btnTextoOrig = btn ? btn.textContent : '';
-  if (btn)     { btn.disabled = true; btn.textContent = 'Procesando...'; btn.classList.add('btn-procesando'); }
+  if (btn) { btn.disabled = true; btn.textContent = 'Procesando...'; btn.classList.add('btn-procesando'); }
   if (alertEl) { alertEl.hidden = true; }
-  if (resultEl) { resultEl.innerHTML = '<p class="mon-result-placeholder" style="font-style:italic;color:#888;">Procesando el video... puede tardar varios segundos.</p>'; }
+  if (resultEl) resultEl.innerHTML = '<p class="mon-result-placeholder" style="font-style:italic;color:#888;">Procesando el video... puede tardar varios segundos.</p>';
 
-  var formData = new FormData();
-
-  // Video 1: archivo tiene prioridad sobre link
+  var formDataEd = new FormData();
   if (fileEl && fileEl.files && fileEl.files.length > 0) {
-    formData.append('video', fileEl.files[0]);
+    formDataEd.append('video', fileEl.files[0]);
   } else {
-    formData.append('url', urlEl ? urlEl.value.trim() : '');
+    formDataEd.append('url', urlEl ? urlEl.value.trim() : '');
   }
-
-  // Video 2: archivo tiene prioridad sobre link
   if (file2El && file2El.files && file2El.files.length > 0) {
-    formData.append('video2', file2El.files[0]);
+    formDataEd.append('video2', file2El.files[0]);
   } else {
-    formData.append('url2', url2El ? url2El.value.trim() : '');
+    formDataEd.append('url2', url2El ? url2El.value.trim() : '');
   }
+  formDataEd.append('accion',       accionEditor);
+  formDataEd.append('audio_opcion', audioEditorSeleccionado);
+  formDataEd.append('redSocial',    redSocialEditor);
 
-  formData.append('accion',       accionEditor);   // 'split-vertical' | 'split-mitad'
-  formData.append('audio_opcion', audioEditorSeleccionado);
-  formData.append('redSocial',    redSocialEditor);
-
-  fetch('http://localhost:3002/api/editor/procesar-video', {
-    method: 'POST',
-    body: formData
-  })
+  _motorFetch(MOTOR_URL + '/api/editor/procesar-video', { method: 'POST', body: formDataEd })
     .then(function (res) {
       if (!res.ok) {
         return res.json().catch(function () { return {}; }).then(function (d) {
@@ -4230,10 +4321,16 @@ function procesarVideoEditor() {
     })
     .then(function (data) {
       if (!data.ok) throw new Error(data.error || 'Error al procesar el video.');
+      if (data.creditos_restantes != null) _actualizarCreditosUI(data.creditos_restantes);
       renderEditorResultado(data, resultEl);
     })
     .catch(function (err) {
-      if (resultEl) resultEl.innerHTML = '<p class="mon-result-placeholder" style="color:#c0392b;">Error: ' + err.message + '</p>';
+      if (err.sinCreditos) {
+        _mostrarSinCreditos(alertEl, err);
+        if (resultEl) resultEl.innerHTML = '';
+      } else if (resultEl) {
+        resultEl.innerHTML = '<p class="mon-result-placeholder" style="color:#c0392b;">Error: ' + err.message + '</p>';
+      }
       console.error('[editor] Error procesando video:', err.message);
     })
     .finally(function () {
@@ -4269,29 +4366,24 @@ function procesarReaccionEditor() {
 
   var btn          = document.getElementById('reaccion-btn-procesar');
   var btnTextoOrig = btn ? btn.textContent : '';
-  if (btn)     { btn.disabled = true; btn.textContent = 'Procesando...'; btn.classList.add('btn-procesando'); }
+  if (btn) { btn.disabled = true; btn.textContent = 'Procesando...'; btn.classList.add('btn-procesando'); }
   if (alertEl) { alertEl.hidden = true; }
-  if (resultEl) { resultEl.innerHTML = '<p class="mon-result-placeholder" style="font-style:italic;color:#888;">Procesando video reaccion... puede tardar un minuto.</p>'; }
+  if (resultEl) resultEl.innerHTML = '<p class="mon-result-placeholder" style="font-style:italic;color:#888;">Procesando video reaccion... puede tardar un minuto.</p>';
 
-  var formData = new FormData();
-  formData.append('url',          urlEl.value.trim());
-  formData.append('posicion',     posGif);
-  formData.append('duracion',     '30');
-  formData.append('tamanoMeme',   tamanoMemeReaccion);
-  formData.append('audio_opcion', audioReaccionSeleccionado);
-  formData.append('redSocial',    redSocialReaccion);
-
-  // Meme: archivo tiene prioridad sobre link
+  var formDataReac = new FormData();
+  formDataReac.append('url',          urlEl.value.trim());
+  formDataReac.append('posicion',     posGif);
+  formDataReac.append('duracion',     '30');
+  formDataReac.append('tamanoMeme',   tamanoMemeReaccion);
+  formDataReac.append('audio_opcion', audioReaccionSeleccionado);
+  formDataReac.append('redSocial',    redSocialReaccion);
   if (memeFileEl && memeFileEl.files && memeFileEl.files.length > 0) {
-    formData.append('reaccionMemeFile', memeFileEl.files[0]);
+    formDataReac.append('reaccionMemeFile', memeFileEl.files[0]);
   } else {
-    formData.append('reaccionGifUrl', gifUrlEl ? gifUrlEl.value.trim() : '');
+    formDataReac.append('reaccionGifUrl', gifUrlEl ? gifUrlEl.value.trim() : '');
   }
 
-  fetch('http://localhost:3002/api/editor/procesar-reaccion', {
-    method: 'POST',
-    body: formData
-  })
+  _motorFetch(MOTOR_URL + '/api/editor/procesar-reaccion', { method: 'POST', body: formDataReac })
     .then(function (res) {
       if (!res.ok) {
         return res.json().catch(function () { return {}; }).then(function (d) {
@@ -4302,10 +4394,16 @@ function procesarReaccionEditor() {
     })
     .then(function (data) {
       if (!data.ok) throw new Error(data.error || 'Error al crear el video reaccion.');
+      if (data.creditos_restantes != null) _actualizarCreditosUI(data.creditos_restantes);
       renderEditorResultado(data, resultEl);
     })
     .catch(function (err) {
-      if (resultEl) resultEl.innerHTML = '<p class="mon-result-placeholder" style="color:#c0392b;">Error: ' + err.message + '</p>';
+      if (err.sinCreditos) {
+        _mostrarSinCreditos(alertEl, err);
+        if (resultEl) resultEl.innerHTML = '';
+      } else if (resultEl) {
+        resultEl.innerHTML = '<p class="mon-result-placeholder" style="color:#c0392b;">Error: ' + err.message + '</p>';
+      }
       console.error('[editor] Error procesando reaccion:', err.message);
     })
     .finally(function () {
@@ -4318,10 +4416,8 @@ function procesarReaccionEditor() {
 function handleMonetizacionEditarVideo() {}
 
 function refreshMonetizacionTab() {
-  const balanceEl = document.getElementById('mon-credits-balance');
-  if (balanceEl) {
-    balanceEl.textContent = String(MONETIZACION_CREDITOS_DUMMY);
-  }
+  var balanceEl = document.getElementById('mon-credits-balance');
+  if (balanceEl) balanceEl.textContent = String(currentAgent.creditos_ia || 0);
   refreshMonetizacionProductSelectors();
 }
 
@@ -4336,6 +4432,8 @@ function initAgentDashboard() {
   const adminShell = document.getElementById('admin-dashboard-shell');
   if (agentShell) agentShell.hidden = false;
   if (adminShell) adminShell.hidden = true;
+  _precargarMisProductos();   // carga slugs/links de Supabase para otros tabs
+  _cargarCreditosReales();    // sincroniza saldo de créditos con Supabase
   renderAgentProductGrids();
   initMonetizacionTab();
   updateAgentCuentasPanel();
@@ -4357,6 +4455,147 @@ function initAdminDashboard() {
   renderAdminCatalogGrid();
   const homeNav = document.getElementById('nav-home');
   switchView('view-home', homeNav || null);
+}
+
+// ══════════════════════════════════════════════════════
+// LANDING — ARENA PARTICLES + PRODUCT CAROUSEL
+// ══════════════════════════════════════════════════════
+
+let _sandRafId    = null;
+let _sandStarted  = false;
+
+function initLandingSand() {
+  if (_sandStarted) return;
+  const canvas = document.getElementById('landing-sand');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  // Respect reduced-motion preference
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+  _sandStarted = true;
+  const isMobile = window.innerWidth < 768;
+  const COUNT    = isMobile ? 55 : 130;
+
+  const PALETTE = [
+    [184, 147, 104],  // gold
+    [199, 169, 128],  // light gold
+    [162, 135,  96],  // muted bronze
+    [210, 196, 172],  // warm cream
+    [140, 110,  75],  // dark bronze
+    [220, 205, 180],  // sand
+  ];
+
+  function resize() {
+    canvas.width  = canvas.offsetWidth  || window.innerWidth;
+    canvas.height = canvas.offsetHeight || window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize, { passive: true });
+
+  const particles = Array.from({ length: COUNT }, () => {
+    const col = PALETTE[Math.floor(Math.random() * PALETTE.length)];
+    return {
+      x:      Math.random() * canvas.width,
+      y:      Math.random() * canvas.height,
+      r:      0.8 + Math.random() * 2.4,
+      alpha:  0.10 + Math.random() * 0.22,   // raised: 0.10–0.32
+      speed:  0.12 + Math.random() * 0.30,
+      angle:  Math.random() * Math.PI * 2,
+      wobble: (Math.random() - 0.5) * 0.007,
+      col
+    };
+  });
+
+  function tick() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (const p of particles) {
+      p.angle += p.wobble;
+      p.x += Math.cos(p.angle) * p.speed;
+      p.y += Math.sin(p.angle) * p.speed * 0.38;
+
+      // Wrap at edges
+      if (p.x < -4) p.x = canvas.width  + 4;
+      else if (p.x > canvas.width  + 4) p.x = -4;
+      if (p.y < -4) p.y = canvas.height + 4;
+      else if (p.y > canvas.height + 4) p.y = -4;
+
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${p.col[0]},${p.col[1]},${p.col[2]},${p.alpha})`;
+      ctx.fill();
+    }
+    _sandRafId = requestAnimationFrame(tick);
+  }
+
+  tick();
+}
+
+function stopLandingSand() {
+  if (_sandRafId) { cancelAnimationFrame(_sandRafId); _sandRafId = null; }
+  _sandStarted = false;
+}
+
+function initHeroShowcase() {
+  var track = document.getElementById('hps-h-track');
+  if (!track) return;
+
+  // Productos del hero visual — imágenes locales del proyecto
+  var SHOWCASE = [
+    { img: 'assets/img/products/smartwatch.jpg',                    name: 'Smartwatch',         badge: 'Verified Supplier' },
+    { img: 'assets/img/products/headphones.jpg',                    name: 'Auriculares',        badge: 'USA Ready' },
+    { img: 'assets/img/products/led-kit.jpg',                       name: 'LED Kit',            badge: 'Source and Sync' },
+    { img: 'assets/img/products/rizador-nova.png',                  name: 'Rizador Nova',       badge: 'Verified Supplier' },
+    { img: 'assets/img/products/airpods-pantalla.png',              name: 'Airpods Pro',        badge: 'USA Ready' },
+    { img: 'assets/img/products/combo-bioaqua.png',                 name: 'Set Skincare',       badge: 'Verified Supplier' },
+    { img: 'assets/img/products/humidificador-montana-led.png',     name: 'Humidificador LED',  badge: 'USA Ready' },
+    { img: 'assets/img/products/cubiertos-24pcs.png',               name: 'Cubiertos 24pcs',   badge: 'Verified Supplier' },
+  ];
+
+  function card(p) {
+    return '<div class="hps-h-card">'
+      + '<img class="hps-h-img" src="' + p.img + '" alt="' + p.name + '" loading="lazy" decoding="async">'
+      + '<div class="hps-h-label">'
+      +   '<div class="hps-h-name">' + p.name + '</div>'
+      +   '<div class="hps-h-sub">'  + p.badge + '</div>'
+      + '</div>'
+      + '</div>';
+  }
+
+  // Duplicar para loop infinito derecha → izquierda
+  track.innerHTML = SHOWCASE.map(card).join('') + SHOWCASE.map(card).join('');
+}
+
+function initLandingCarousel() {
+  const track = document.getElementById('lp-carousel-track');
+  if (!track) return;
+
+  const items = CATALOGO_PRODUCTOS
+    .map(function(p) {
+      return {
+        img:  p.imagen || (p.imagenes && p.imagenes[0]) || '',
+        name: (p.nombre || '').replace(/\s+/g, ' ').trim(),
+        cat:  p.categoria || ''
+      };
+    })
+    .filter(function(p) { return p.img; });
+
+  if (!items.length) return;
+
+  function card(p) {
+    return '<div class="lp-card" role="listitem">'
+      + '<div class="lp-card-img"><img src="' + p.img + '" alt="" loading="lazy" decoding="async"></div>'
+      + '<div class="lp-card-info">'
+      + '<p class="lp-card-name">' + p.name + '</p>'
+      + '<p class="lp-card-cat">' + p.cat + '</p>'
+      + '</div></div>';
+  }
+
+  // Duplicate for seamless loop
+  var html = items.map(card).join('') + items.map(card).join('');
+  track.innerHTML = html;
+  track.setAttribute('role', 'list');
 }
 
 let ariaCanvasLoopStarted = false;
@@ -5194,27 +5433,13 @@ function getContenidoData() {
 }
 
 async function llamarGroqContenido(prompt) {
-  const response = await fetch(
-    'https://api.groq.com/openai/v1/chat/completions',
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + GROQ_API_KEY
-      },
-      body: JSON.stringify({
-        model: GROQ_MODEL,
-        messages: [{
-          role: 'user',
-          content: prompt
-        }],
-        max_tokens: 2000,
-        temperature: 0.9
-      })
-    }
-  );
+  const response = await fetch(MOTOR_IA_URL + '/api/ia/groq', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-usuario-id': _getUsuarioId() || '' },
+    body: JSON.stringify({ prompt, max_tokens: 2000, temperature: 0.9 })
+  });
   const data = await response.json();
-  return data.choices[0].message.content;
+  return data.texto || '';
 }
 
 function mostrarResultado(id, texto) {
@@ -5856,7 +6081,7 @@ function switchView(viewId, navEl) {
     'view-orders':     'Mis <span>Pedidos</span>',
     'view-admin':      'Panel de <span>Administración</span>',
   };
-  document.getElementById('topbar-title').innerHTML = titles[viewId] || 'EcommerceAgent';
+  document.getElementById('topbar-title').innerHTML = titles[viewId] || 'EcommerceAgents';
 }
 
 function switchViewFromCard(viewId) {
@@ -6033,28 +6258,19 @@ async function enviarChatARIA() {
     'ejecutar hoy\n';
 
   try {
-    const response = await fetch(
-      'https://api.groq.com/openai/v1/chat/completions',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + GROQ_API_KEY
-        },
-        body: JSON.stringify({
-          model: GROQ_MODEL,
-          messages: [
-            { role: 'system', content: systemContext },
-            ...ariaChatSecHistory
-          ],
-          max_tokens: 1000,
-          temperature: 0.9
-        })
-      }
-    );
+    const response = await fetch(MOTOR_IA_URL + '/api/ia/groq', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-usuario-id': _getUsuarioId() || '' },
+      body: JSON.stringify({
+        system: systemContext,
+        messages: ariaChatSecHistory,
+        max_tokens: 1000,
+        temperature: 0.9
+      })
+    });
 
     const data = await response.json();
-    const reply = data.choices[0].message.content;
+    const reply = data.texto || 'Error, intenta de nuevo.';
 
     loadMsg.textContent = reply;
 
@@ -6166,31 +6382,212 @@ function publishManualProduct() {
 }
 
 // ══════════════════════════════════════════════════════
+// LOGIN CON SUPABASE
+// ══════════════════════════════════════════════════════
+
+function _eaRestaurarSesion(u) {
+  currentAgent.role            = 'agent';
+  currentAgent.name            = u.nombre || u.codigo;
+  currentAgent.refCode         = u.ref_codigo || u.codigo;
+  currentAgent.codigo          = u.codigo;
+  currentAgent.id              = u.id   || null;
+  currentAgent.creditos_ia     = u.creditos_ia     || 0;
+  currentAgent.saldo_productos = u.saldo_productos || 0;
+  currentAgent.whatsapp        = u.whatsapp        || '';
+  currentAgent.pixelId         = '';
+  try { sessionStorage.setItem(EA_DISPLAY_NAME_KEY, currentAgent.name); } catch (e) {}
+}
+
+/* ── Toggle visibilidad del campo de contraseña ── */
+function toggleLoginClave() {
+  var input   = document.getElementById('ea-login-clave');
+  var eyeOpen = document.getElementById('ea-eye-open');
+  var eyeOff  = document.getElementById('ea-eye-closed');
+  if (!input) return;
+  var isPassword = input.type === 'password';
+  input.type = isPassword ? 'text' : 'password';
+  if (eyeOpen) eyeOpen.style.display  = isPassword ? 'none'  : 'block';
+  if (eyeOff)  eyeOff.style.display   = isPassword ? 'block' : 'none';
+}
+
+async function loginConSupabase() {
+  const nombreEl   = document.getElementById('ea-login-nombre');
+  const codigoEl   = document.getElementById('ea-login-codigo');
+  const claveEl    = document.getElementById('ea-login-clave');
+  const errorEl    = document.getElementById('ea-login-error');
+  const btnEl      = document.getElementById('ea-login-btn');
+  const rememberEl = document.getElementById('ea-login-remember');
+
+  if (!codigoEl || !claveEl) return;
+
+  const nombre          = nombreEl   ? nombreEl.value.trim()              : '';
+  const codigo          = codigoEl.value.trim().toUpperCase();
+  const codigoSeguridad = claveEl.value.trim();
+
+  if (!codigo || !codigoSeguridad) {
+    _loginMostrarError('Por favor ingresa tu codigo de usuario y tu codigo de seguridad.');
+    if (!codigo && codigoEl) codigoEl.classList.add('error');
+    if (!codigoSeguridad && claveEl) claveEl.classList.add('error');
+    return;
+  }
+  if (codigoEl) codigoEl.classList.remove('error');
+  if (claveEl)  claveEl.classList.remove('error');
+  if (errorEl)  errorEl.hidden = true;
+
+  if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Verificando...'; }
+
+  try {
+    const resp = await fetch(MOTOR_URL + '/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ codigo, codigoSeguridad })
+    });
+
+    if (!resp.ok && resp.status !== 400) {
+      throw new Error('HTTP ' + resp.status);
+    }
+
+    const data = await resp.json();
+
+    if (data.ok) {
+      // Si el usuario escribio su nombre, usarlo como nombre de display
+      if (nombre) data.usuario.nombre = nombre;
+
+      // Recordar codigo y nombre (nunca la clave)
+      try {
+        if (rememberEl && rememberEl.checked) {
+          localStorage.setItem('ea_recordar_usuario', codigo);
+          if (nombre) localStorage.setItem('ea_recordar_nombre', nombre);
+          else        localStorage.removeItem('ea_recordar_nombre');
+        } else {
+          localStorage.removeItem('ea_recordar_usuario');
+          localStorage.removeItem('ea_recordar_nombre');
+        }
+      } catch (e) {}
+
+      // Si el usuario escribio nombre, persistirlo en Supabase (fire-and-forget)
+      if (nombre && data.usuario.id) {
+        fetch(MOTOR_URL + '/api/usuario/nombre', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: data.usuario.id, nombre })
+        }).catch(function() {}); // silencioso: no bloquea el login
+      }
+
+      try { sessionStorage.setItem(EA_SESION_KEY, JSON.stringify(data.usuario)); } catch (e) {}
+      _eaRestaurarSesion(data.usuario);
+      if (claveEl)  claveEl.value  = '';
+      showPage('page-dashboard');
+      setWelcomeHeading(currentAgent.name);
+      initAgentDashboard();
+    } else {
+      _loginMostrarError(data.error || 'Error al iniciar sesion.');
+    }
+
+  } catch (e) {
+    _loginMostrarError(
+      'No se pudo conectar al servidor. Asegurate de que el motor este corriendo en el puerto 3002.'
+    );
+  } finally {
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Entrar'; }
+  }
+}
+
+function _loginMostrarError(msg) {
+  const el = document.getElementById('ea-login-error');
+  if (!el) return;
+  el.textContent = msg;
+  el.hidden = false;
+}
+
+function cerrarSesion() {
+  try {
+    sessionStorage.removeItem(EA_SESION_KEY);
+    sessionStorage.removeItem(EA_DISPLAY_NAME_KEY);
+    sessionStorage.removeItem(EA_PIXEL_ID_KEY);
+    sessionStorage.removeItem(EA_MIS_PRODUCTOS_KEY);
+    sessionStorage.removeItem(EA_MIS_LINKS_KEY);
+  } catch (e) {}
+  // Limpiar currentAgent
+  currentAgent.role            = 'agent';
+  currentAgent.name            = 'Agente';
+  currentAgent.refCode         = 'AGENTE01';
+  currentAgent.pixelId         = '';
+  currentAgent.id              = null;
+  currentAgent.codigo          = '';
+  currentAgent.creditos_ia     = 0;
+  currentAgent.saldo_productos = 0;
+
+  showPage('page-login');
+  // Limpiar campos del form por si el usuario vuelve a hacer login
+  try {
+    const c = document.getElementById('ea-login-codigo');
+    const k = document.getElementById('ea-login-clave');
+    const n = document.getElementById('ea-login-nombre');
+    const e = document.getElementById('ea-login-error');
+    if (c) { c.value = ''; c.classList.remove('error'); }
+    if (k) { k.value = ''; k.classList.remove('error'); }
+    if (n) n.value = '';
+    if (e) e.hidden = true;
+  } catch (e) {}
+}
+
+// ══════════════════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════════════════
 
 document.addEventListener('DOMContentLoaded', () => {
-  if (DEV_MODE) {
-    const displayName = 'Dev Brayan';
-    try {
-      sessionStorage.setItem('ea_display_name', displayName);
-      sessionStorage.setItem('ea_pixel_id', 'DEV-000');
-    } catch (e) {}
-    currentAgent.role = 'agent';
-    currentAgent.name = displayName;
-    currentAgent.refCode = 'AGENTE01';
-    currentAgent.pixelId = 'DEV-000';
-    setWelcomeHeading(displayName);
-    showPage('page-dashboard');
-    initAgentDashboard();
-    return;
-  }
+  // Restaurar sesion activa si existe
+  try {
+    const raw = sessionStorage.getItem(EA_SESION_KEY);
+    if (raw) {
+      const u = JSON.parse(raw);
+      if (u && u.codigo) {
+        _eaRestaurarSesion(u);
+        showPage('page-dashboard');
+        setWelcomeHeading(currentAgent.name);
+        initAgentDashboard();
+        return;
+      }
+    }
+  } catch (e) {}
 
-  const tokenInput = document.getElementById('token-input');
-  if (tokenInput) {
-    tokenInput.addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') validateToken();
+  // Sin sesion activa — mostrar la portada principal
+  showPage('page-home');
+
+  // Arrancar efectos de la portada
+  setTimeout(function() {
+    initHeroShowcase();    // mini-carrusel vertical en el mockup del hero
+    initLandingCarousel(); // carrusel horizontal de productos en la sección inferior
+    initLandingSand();     // partículas de arena en el fondo
+  }, 80);
+
+  // Pre-rellenar usuario recordado si existe
+  try {
+    const savedUser   = localStorage.getItem('ea_recordar_usuario');
+    const savedNombre = localStorage.getItem('ea_recordar_nombre');
+    const codigoEl2   = document.getElementById('ea-login-codigo');
+    const nombreEl2   = document.getElementById('ea-login-nombre');
+    const rememberEl2 = document.getElementById('ea-login-remember');
+    if (savedUser && codigoEl2) {
+      codigoEl2.value = savedUser;
+      if (rememberEl2) rememberEl2.checked = true;
+    }
+    if (savedNombre && nombreEl2) nombreEl2.value = savedNombre;
+  } catch (e) {}
+
+  // Enter en campo de codigo → mueve foco a la clave (NO llama loginConSupabase todavia)
+  // Enter en campo de clave  → llama loginConSupabase
+  const codigoEl = document.getElementById('ea-login-codigo');
+  const claveEl  = document.getElementById('ea-login-clave');
+  if (codigoEl && claveEl) {
+    codigoEl.addEventListener('keydown', function(ev) {
+      if (ev.key === 'Enter') { ev.preventDefault(); claveEl.focus(); }
+    });
+    claveEl.addEventListener('keydown', function(ev) {
+      if (ev.key === 'Enter') { ev.preventDefault(); loginConSupabase(); }
     });
   }
+
   setTimeout(initAriaCanvas, 500);
 });

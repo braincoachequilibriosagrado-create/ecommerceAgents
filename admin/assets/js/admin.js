@@ -4,6 +4,91 @@
    ============================================================ */
 
 /* ============================================================
+   AUTH — login / logout del panel admin
+   ============================================================ */
+var _ADMIN_KEY_STORAGE = 'ea_admin_key';
+
+function _getAdminKey() {
+  return sessionStorage.getItem(_ADMIN_KEY_STORAGE) || '';
+}
+
+function _adminShowLogin() {
+  var loginEl   = document.getElementById('adm-login-screen');
+  var contentEl = document.getElementById('adm-main-content');
+  if (loginEl)   loginEl.style.display   = 'flex';
+  if (contentEl) contentEl.style.display = 'none';
+  var pwEl = document.getElementById('adm-login-password');
+  if (pwEl) { pwEl.value = ''; pwEl.focus(); }
+}
+
+function _adminShowPanel() {
+  var loginEl   = document.getElementById('adm-login-screen');
+  var contentEl = document.getElementById('adm-main-content');
+  if (loginEl)   loginEl.style.display   = 'none';
+  if (contentEl) contentEl.style.display = 'block';
+}
+
+function adminLogin() {
+  var pwEl  = document.getElementById('adm-login-password');
+  var btnEl = document.getElementById('adm-login-btn');
+  var errEl = document.getElementById('adm-login-error');
+  if (!pwEl) return;
+  var pw = pwEl.value.trim();
+  if (!pw) return;
+
+  if (errEl) errEl.style.display = 'none';
+  if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Verificando...'; }
+
+  fetch((window.MOTOR_URL_LOGIN || 'http://104.248.61.107:3002') + '/api/admin/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: pw })
+  })
+    .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
+    .then(function (res) {
+      if (!res.data.ok) throw new Error(res.data.error || 'Credenciales incorrectas');
+      sessionStorage.setItem(_ADMIN_KEY_STORAGE, res.data.adminKey);
+      _adminShowPanel();
+      renderInventario();
+    })
+    .catch(function (e) {
+      if (errEl) { errEl.textContent = e.message || 'Error al conectar'; errEl.style.display = 'block'; }
+    })
+    .finally(function () {
+      if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Entrar al panel'; }
+    });
+}
+
+function adminLogout() {
+  sessionStorage.removeItem(_ADMIN_KEY_STORAGE);
+  _adminShowLogin();
+}
+
+/** Wrapper de fetch que añade el header x-admin-key y redirige al login en 401 */
+function _adminFetch(url, opts) {
+  opts = opts || {};
+  var key = _getAdminKey();
+  if (!key) {
+    _adminShowLogin();
+    return Promise.reject(new Error('Sin sesion de admin'));
+  }
+  var baseHeaders = { 'x-admin-key': key };
+  if (opts.headers) {
+    opts.headers = Object.assign({}, opts.headers, baseHeaders);
+  } else {
+    opts.headers = baseHeaders;
+  }
+  return fetch(url, opts).then(function (r) {
+    if (r.status === 401) {
+      sessionStorage.removeItem(_ADMIN_KEY_STORAGE);
+      _adminShowLogin();
+      throw new Error('Sesion expirada. Vuelve a iniciar sesion.');
+    }
+    return r;
+  });
+}
+
+/* ============================================================
    DATA — arrays vacios, listos para datos reales
    TODO: cargar datos reales desde Supabase/backend en cada seccion
    ============================================================ */
@@ -24,9 +109,8 @@ var DEMO_PAGINAS_VENTA = [];
 // TODO: cargar datos reales desde Supabase tabla `usuarios`
 var DEMO_USUARIOS = [];
 
-// -- VENTAS GLOBALES --
-// TODO: cargar datos reales desde Supabase tabla `ventas`
-var DEMO_VENTAS_GLOBAL = [];
+// -- VENTAS GLOBALES (se cargan desde motor via /api/admin/ventas-por-vendedor) --
+var DEMO_VENTAS_GLOBAL = [];   // solo usado para ranking del dashboard hasta migrar ese bloque
 
 // -- SOLICITUDES DE PAGO --
 // TODO: cargar datos reales desde Supabase tabla `solicitudes_pago`
@@ -131,34 +215,18 @@ function switchAdminTab(tabId) {
 }
 
 /* ============================================================
-   1. INVENTARIO
+   1. INVENTARIO — conectado a Supabase via motor (puerto 3002)
    ============================================================ */
 
-var INV_KEY        = 'admin_inventario';
-var INV_TOTAL_ROWS = 50;
-var _invFormOpen   = false;
-// TODO: en produccion las imagenes van a Cloudflare R2 / Supabase Storage, no a localStorage en base64
-var _invImagenes   = []; // Array de hasta 5 data URLs (base64) para el formulario activo
-var INV_MAX_IMGS   = 5;
-
-function _invCargar() {
-  try { return JSON.parse(localStorage.getItem(INV_KEY) || '[]'); } catch (e) { return []; }
-}
-
-function _invGuardar(arr) {
-  // TODO: cargar datos reales desde Supabase/backend — sincronizar con tabla `productos`
-  localStorage.setItem(INV_KEY, JSON.stringify(arr));
-}
+var _invFormOpen = false;
+var _invImagenes = []; // base64 hasta 5 // TODO: produccion → Cloudflare R2 / Supabase Storage
+var INV_MAX_IMGS = 5;
+var _invCache    = null; // cache en memoria de la sesion actual
 
 function _invEstado(stock) {
-  if (stock === 0)   return 'Agotado';
-  if (stock <= 15)   return 'Bajo';
+  if (stock === 0)  return 'Agotado';
+  if (stock <= 15)  return 'Bajo';
   return 'Disponible';
-}
-
-function _invNextId(arr) {
-  if (!arr.length) return 1;
-  return Math.max.apply(null, arr.map(function (p) { return p.id; })) + 1;
 }
 
 function invToggleForm() {
@@ -167,25 +235,28 @@ function invToggleForm() {
   var txt  = document.getElementById('inv-form-toggle-txt');
   if (wrap) wrap.hidden = !_invFormOpen;
   if (txt)  txt.textContent = _invFormOpen ? 'Ocultar formulario' : 'Agregar producto';
-  if (_invFormOpen) {
-    _invImagenes = [];
-    invRenderImagenesGrid();
-  }
+  if (_invFormOpen) { _invImagenes = []; invRenderImagenesGrid(); }
 }
 
-// ── Multi-image upload (up to 5) ──────────────────────────────────────
+function invCategoriaChange() {
+  var sel    = document.getElementById('inv-f-categoria');
+  var custom = document.getElementById('inv-f-categoria-custom');
+  if (!sel || !custom) return;
+  var isCustom = sel && sel.value === '__custom__';
+  custom.style.display = isCustom ? 'block' : 'none';
+  if (isCustom) { custom.focus(); }
+  else          { custom.value = ''; }
+}
+
+// ── Imagenes (hasta 5, base64) ────────────────────────────────────────
 
 function invAgregarImagenes(input) {
   if (!input || !input.files || !input.files.length) return;
   var remaining = INV_MAX_IMGS - _invImagenes.length;
-  if (remaining <= 0) {
-    alert('Maximo ' + INV_MAX_IMGS + ' imagenes por producto.');
-    input.value = '';
-    return;
-  }
+  if (remaining <= 0) { alert('Maximo ' + INV_MAX_IMGS + ' imagenes.'); input.value = ''; return; }
   var files = Array.prototype.slice.call(input.files, 0, remaining);
   if (input.files.length > remaining) {
-    alert('Solo se agregaron ' + remaining + ' imagen' + (remaining > 1 ? 'es' : '') + '. Maximo ' + INV_MAX_IMGS + ' por producto.');
+    alert('Solo se agregaron ' + remaining + ' imagen' + (remaining > 1 ? 'es' : '') + '.');
   }
   var loaded = 0;
   files.forEach(function (file) {
@@ -197,7 +268,7 @@ function invAgregarImagenes(input) {
     };
     reader.readAsDataURL(file);
   });
-  input.value = ''; // reset so same file can be re-selected
+  input.value = '';
 }
 
 function invQuitarImagen(idx) {
@@ -209,7 +280,6 @@ function invRenderImagenesGrid() {
   var grid    = document.getElementById('inv-imgs-grid');
   var countEl = document.getElementById('inv-imgs-count');
   if (!grid) return;
-
   var html = _invImagenes.map(function (url, i) {
     return '<div class="adm-img-slot">' +
       '<img src="' + url + '" class="adm-img-slot-img" alt="Imagen ' + (i + 1) + '">' +
@@ -217,16 +287,11 @@ function invRenderImagenesGrid() {
       '<span class="adm-img-slot-num">' + (i + 1) + '</span>' +
     '</div>';
   }).join('');
-
   if (_invImagenes.length < INV_MAX_IMGS) {
     html += '<label class="adm-img-add" for="inv-f-imagenes">' +
-      '<span class="adm-img-add-icon">+</span>' +
-      '<span class="adm-img-add-txt">Agregar</span>' +
-    '</label>';
+      '<span class="adm-img-add-icon">+</span><span class="adm-img-add-txt">Agregar</span></label>';
   }
-
   grid.innerHTML = html;
-
   if (countEl) {
     countEl.textContent = _invImagenes.length + ' / ' + INV_MAX_IMGS;
     countEl.className = 'adm-imgs-count' + (_invImagenes.length >= INV_MAX_IMGS ? ' adm-imgs-count--full' : '');
@@ -236,9 +301,8 @@ function invRenderImagenesGrid() {
 function invCalcGanancia() {
   var precio   = parseFloat(document.getElementById('inv-f-precio')   ? document.getElementById('inv-f-precio').value   || '0' : '0');
   var utilidad = parseFloat(document.getElementById('inv-f-utilidad') ? document.getElementById('inv-f-utilidad').value || '0' : '0');
-  var ganancia = (isNaN(precio) || isNaN(utilidad)) ? 0 : precio * (utilidad / 100);
   var el = document.getElementById('inv-ganancia-preview');
-  if (el) el.textContent = 'Ganancia por venta: ' + _fmt(ganancia);
+  if (el) el.textContent = 'Ganancia por venta: ' + _fmt((isNaN(precio)||isNaN(utilidad)) ? 0 : precio*(utilidad/100));
 }
 
 function invActualizarGanancia(id) {
@@ -246,24 +310,23 @@ function invActualizarGanancia(id) {
   var utilEl     = document.getElementById('inv-utilidad-' + id);
   var gananciaEl = document.getElementById('inv-ganancia-' + id);
   if (!precioEl || !utilEl || !gananciaEl) return;
-  var precio   = parseFloat(precioEl.value)   || 0;
-  var utilidad = parseFloat(utilEl.value)     || 0;
-  gananciaEl.textContent = _fmt(precio * utilidad / 100);
+  gananciaEl.textContent = _fmt((parseFloat(precioEl.value)||0) * ((parseFloat(utilEl.value)||0) / 100));
 }
 
-function invGuardarProducto() {
-  var elNombre    = document.getElementById('inv-f-nombre');
-  var elCategoria = document.getElementById('inv-f-categoria');
-  var elPrecio    = document.getElementById('inv-f-precio');
-  var elUtilidad  = document.getElementById('inv-f-utilidad');
-  var elStock     = document.getElementById('inv-f-stock');
-  var errEl       = document.getElementById('inv-form-error');
+// ── Guardar nuevo producto → Supabase ─────────────────────────────────
 
-  var nombre    = elNombre    ? elNombre.value.trim()    : '';
-  var categoria = elCategoria ? elCategoria.value.trim() : 'General';
-  var precio    = parseFloat(elPrecio   ? elPrecio.value   || '0' : '0');
-  var utilidad  = parseFloat(elUtilidad ? elUtilidad.value || '0' : '0');
-  var stock     = parseInt(elStock      ? elStock.value    || '0' : '0', 10);
+function invGuardarProducto() {
+  var elNombre   = document.getElementById('inv-f-nombre');
+  var elPrecio   = document.getElementById('inv-f-precio');
+  var elUtilidad = document.getElementById('inv-f-utilidad');
+  var elStock    = document.getElementById('inv-f-stock');
+  var errEl      = document.getElementById('inv-form-error');
+  var btnEl      = document.getElementById('inv-form-save-btn');
+
+  var nombre   = elNombre   ? elNombre.value.trim()    : '';
+  var precio   = parseFloat(elPrecio   ? elPrecio.value   || '0' : '0');
+  var utilidad = parseFloat(elUtilidad ? elUtilidad.value || '0' : '0');
+  var stock    = parseInt(elStock      ? elStock.value    || '0' : '0', 10);
 
   if (!nombre) {
     if (errEl) { errEl.textContent = 'El nombre del producto es obligatorio.'; errEl.hidden = false; }
@@ -274,89 +337,136 @@ function invGuardarProducto() {
     return;
   }
   if (errEl) errEl.hidden = true;
+  if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Guardando...'; }
 
-  var arr = _invCargar();
-  arr.push({
-    id:        _invNextId(arr),
-    nombre:    nombre,
-    // TODO: en produccion imagenes[] son URLs de Cloudflare R2 / Supabase Storage
-    // TODO: estas 5 imagenes se sincronizan con el catalogo de usuarios (Mis Productos)
-    //       para que cada vendedor pueda descargar cualquiera y usarla en su contenido
-    imagenes:  _invImagenes.slice(),
-    categoria: categoria || 'General',
-    precio:    isNaN(precio)   ? 0 : precio,
-    utilidad:  isNaN(utilidad) ? 0 : utilidad,
-    stock:     isNaN(stock)    ? 0 : stock,
-    visible:   true,
-    pausado:   false
-  });
-  _invGuardar(arr);
-
-  // Reset form
-  if (elNombre)    elNombre.value    = '';
-  if (elPrecio)    elPrecio.value    = '';
-  if (elUtilidad)  elUtilidad.value  = '';
-  if (elStock)     elStock.value     = '';
-  if (elCategoria) elCategoria.selectedIndex = 0;
-  var fi = document.getElementById('inv-f-imagenes');
-  if (fi) fi.value = '';
-  _invImagenes = [];
-  invRenderImagenesGrid();
-  var gp = document.getElementById('inv-ganancia-preview');
-  if (gp) gp.textContent = 'Ganancia por venta: $0.00';
-  invToggleForm();
-  renderInventario();
-  // TODO: en produccion sincronizar producto con Supabase tabla `productos`
+  _adminFetch(MOTOR_URL + '/api/admin/productos', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      nombre:   nombre,
+      precio:   isNaN(precio)   ? 0 : precio,
+      utilidad: isNaN(utilidad) ? 0 : utilidad,
+      stock:    isNaN(stock)    ? 0 : stock,
+      imagenes: _invImagenes.slice()
+    })
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (!data.ok) throw new Error(data.error || 'Error del servidor.');
+      if (elNombre)   elNombre.value   = '';
+      if (elPrecio)   elPrecio.value   = '';
+      if (elUtilidad) elUtilidad.value = '';
+      if (elStock)    elStock.value    = '';
+      var fi = document.getElementById('inv-f-imagenes');
+      if (fi) fi.value = '';
+      _invImagenes = [];
+      invRenderImagenesGrid();
+      var gp = document.getElementById('inv-ganancia-preview');
+      if (gp) gp.textContent = 'Ganancia por venta: $0.00';
+      invToggleForm();
+      _invCache = null;
+      renderInventario();
+    })
+    .catch(function (e) {
+      if (errEl) { errEl.textContent = 'Error al guardar: ' + e.message; errEl.hidden = false; }
+    })
+    .finally(function () {
+      if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Guardar producto'; }
+    });
 }
+
+// ── Pausar / reanudar → Supabase ──────────────────────────────────────
 
 function invPausarProducto(id) {
-  var arr = _invCargar();
-  for (var i = 0; i < arr.length; i++) {
-    if (arr[i].id === id) { arr[i].pausado = !arr[i].pausado; break; }
+  var producto = null;
+  if (_invCache) {
+    for (var i = 0; i < _invCache.length; i++) {
+      if (String(_invCache[i].id) === String(id)) { producto = _invCache[i]; break; }
+    }
   }
-  _invGuardar(arr);
-  renderInventario();
-  // TODO: cargar datos reales desde Supabase/backend — sincronizar visibilidad con catalogo de usuario
+  var nuevoPausado = producto ? !producto.pausado : true;
+
+  _adminFetch(MOTOR_URL + '/api/admin/productos/actualizar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: id, pausado: nuevoPausado })
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (!data.ok) throw new Error(data.error || 'Error.');
+      if (producto) producto.pausado = nuevoPausado;
+      _invRenderTabla(_invCache || []);
+    })
+    .catch(function (e) { alert('Error al pausar: ' + e.message); });
 }
+
+// ── Eliminar → Supabase ───────────────────────────────────────────────
 
 function invEliminarProducto(id) {
   if (!confirm('Eliminar este producto del inventario? Esta accion no se puede deshacer.')) return;
-  var arr = _invCargar().filter(function (p) { return p.id !== id; });
-  _invGuardar(arr);
-  renderInventario();
-  // TODO: cargar datos reales desde Supabase tabla `productos`
+
+  _adminFetch(MOTOR_URL + '/api/admin/productos/eliminar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: id })
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (!data.ok) throw new Error(data.error || 'Error.');
+      _invCache = null;
+      renderInventario();
+    })
+    .catch(function (e) { alert('Error al eliminar: ' + e.message); });
 }
 
+// ── Guardar cambios de stock/precio/utilidad en filas → Supabase ──────
+
 function invGuardarCambios() {
-  var arr = _invCargar();
-  arr.forEach(function (p) {
+  if (!_invCache || !_invCache.length) { renderInventario(); return; }
+  var updates = [];
+  _invCache.forEach(function (p) {
     var inpStock    = document.getElementById('inv-stock-'    + p.id);
     var inpPrecio   = document.getElementById('inv-precio-'   + p.id);
     var inpUtilidad = document.getElementById('inv-utilidad-' + p.id);
-    if (inpStock) {
-      var v = parseInt(inpStock.value, 10);
-      if (!isNaN(v) && v >= 0) p.stock = v;
-    }
-    if (inpPrecio) {
-      var vp = parseFloat(inpPrecio.value);
-      if (!isNaN(vp) && vp >= 0) p.precio = vp;
-    }
-    if (inpUtilidad) {
-      var vu = parseFloat(inpUtilidad.value);
-      if (!isNaN(vu) && vu >= 0) p.utilidad = vu;
-    }
+    var changed = {};
+    if (inpStock)    { var v  = parseInt(inpStock.value, 10);    if (!isNaN(v)  && v  >= 0) changed.stock    = v;  }
+    if (inpPrecio)   { var vp = parseFloat(inpPrecio.value);     if (!isNaN(vp) && vp >= 0) changed.precio   = vp; }
+    if (inpUtilidad) { var vu = parseFloat(inpUtilidad.value);   if (!isNaN(vu) && vu >= 0) changed.utilidad = vu; }
+    if (Object.keys(changed).length) { changed.id = p.id; updates.push(changed); }
   });
-  _invGuardar(arr);
-  renderInventario();
-  var ok = document.getElementById('inv-save-ok');
-  if (ok) { ok.hidden = false; setTimeout(function () { ok.hidden = true; }, 3000); }
-  // TODO: cargar datos reales desde Supabase tabla `productos`
+
+  if (!updates.length) {
+    var ok = document.getElementById('inv-save-ok');
+    if (ok) { ok.hidden = false; setTimeout(function () { ok.hidden = true; }, 2000); }
+    return;
+  }
+
+  var btnEl = document.getElementById('inv-save-changes-btn');
+  if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Guardando...'; }
+
+  Promise.all(updates.map(function (upd) {
+    return _adminFetch(MOTOR_URL + '/api/admin/productos/actualizar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(upd)
+    }).then(function (r) { return r.json(); });
+  }))
+    .then(function () {
+      _invCache = null;
+      renderInventario();
+      var ok = document.getElementById('inv-save-ok');
+      if (ok) { ok.hidden = false; setTimeout(function () { ok.hidden = true; }, 3000); }
+    })
+    .catch(function (e) { alert('Error al guardar cambios: ' + e.message); })
+    .finally(function () {
+      if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Guardar cambios'; }
+    });
 }
 
-function renderInventario() {
-  var arr = _invCargar();
-  DEMO_INVENTARIO = arr;
+// ── Render tabla ──────────────────────────────────────────────────────
 
+function _invRenderTabla(arr) {
+  DEMO_INVENTARIO = arr;
   var disponibles = arr.filter(function (p) { return _invEstado(p.stock) === 'Disponible'; }).length;
   var bajos       = arr.filter(function (p) { return _invEstado(p.stock) === 'Bajo'; }).length;
   var agotados    = arr.filter(function (p) { return _invEstado(p.stock) === 'Agotado'; }).length;
@@ -368,55 +478,73 @@ function renderInventario() {
     _statCard('<span style="color:#9B3333">' + agotados + '</span>', 'Agotados')
   );
 
-  var rows = '';
-  for (var i = 0; i < INV_TOTAL_ROWS; i++) {
-    var p = arr[i] || null;
-    if (p) {
-      var estado = _invEstado(p.stock);
-      // backward compat: support old `foto` field and new `imagenes[]`
-      var imgs  = (p.imagenes && p.imagenes.length) ? p.imagenes : (p.foto ? [p.foto] : []);
-      var thumb = imgs.length > 0
-        ? '<div class="adm-prod-thumb-wrap">' +
-            '<img src="' + _esc(imgs[0]) + '" class="adm-prod-thumb" alt="">' +
-            (imgs.length > 1
-              ? '<span class="adm-prod-img-count">1/' + imgs.length + '</span>'
-              : '') +
-          '</div>'
-        : '<span class="adm-prod-no-img"></span>';
-      var pausaTxt = p.pausado ? 'Reanudar' : 'Pausar';
-      var precio   = p.precio   || 0;
-      var utilidad = p.utilidad || 0;
-      var ganancia = precio * (utilidad / 100);
-      rows +=
-        '<tr' + (p.pausado ? ' class="adm-row--pausado"' : '') + '>' +
-          '<td><div class="adm-prod-cell">' + thumb +
-            '<span class="adm-td-strong">' + _esc(p.nombre) + '</span>' +
-            (p.pausado ? '<span class="adm-badge adm-badge--inactivo adm-badge--xs">Pausado</span>' : '') +
-          '</div></td>' +
-          '<td class="adm-td-muted">' + _esc(p.categoria) + '</td>' +
-          '<td><input type="number" class="adm-stock-input" id="inv-precio-' + p.id + '" value="' + precio + '" min="0" step="0.01" style="width:90px" oninput="invActualizarGanancia(' + p.id + ')"></td>' +
-          '<td><input type="number" class="adm-stock-input" id="inv-utilidad-' + p.id + '" value="' + utilidad + '" min="0" max="100" step="1" style="width:70px" oninput="invActualizarGanancia(' + p.id + ')"><span class="adm-td-muted" style="font-size:11px;margin-left:3px">%</span></td>' +
-          '<td id="inv-ganancia-' + p.id + '" class="adm-ganancia-cell">' + _fmt(ganancia) + '</td>' +
-          '<td><input type="number" class="adm-stock-input" id="inv-stock-' + p.id + '" value="' + p.stock + '" min="0"></td>' +
-          '<td>' + _badgeStock(estado) + '</td>' +
-          '<td><div class="adm-action-cell">' +
-            '<button type="button" class="adm-btn adm-btn--sm adm-btn--outline" onclick="invPausarProducto(' + p.id + ')">' + pausaTxt + '</button>' +
-            '<button type="button" class="adm-btn adm-btn--sm adm-btn--danger"   onclick="invEliminarProducto(' + p.id + ')">Eliminar</button>' +
-          '</div></td>' +
-        '</tr>';
-    } else {
-      rows += '<tr class="adm-row--empty"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>';
-    }
+  if (!arr.length) {
+    _setHtml('inv-table-wrap', '<p style="padding:32px 24px;color:#999;font-style:italic;">No hay productos aun. Agrega el primero arriba.</p>');
+    return;
   }
 
+  var rows = arr.map(function (p) {
+    var estado   = _invEstado(p.stock);
+    var imgs     = (p.imagenes && p.imagenes.length) ? p.imagenes : [];
+    var thumb    = imgs.length > 0
+      ? '<div class="adm-prod-thumb-wrap">' +
+          '<img src="' + _esc(imgs[0]) + '" class="adm-prod-thumb" alt="">' +
+          (imgs.length > 1 ? '<span class="adm-prod-img-count">1/' + imgs.length + '</span>' : '') +
+        '</div>'
+      : '<span class="adm-prod-no-img"></span>';
+    var pausaTxt = p.pausado ? 'Reanudar' : 'Pausar';
+    var precio   = p.precio   || 0;
+    var utilidad = p.utilidad || 0;
+    var ganancia = precio * (utilidad / 100);
+    var idQ      = _esc(p.id); // UUID seguro para atributos HTML
+    return '<tr' + (p.pausado ? ' class="adm-row--pausado"' : '') + '>' +
+      '<td><div class="adm-prod-cell">' + thumb +
+        '<span class="adm-td-strong">' + _esc(p.nombre) + '</span>' +
+        (p.pausado ? '<span class="adm-badge adm-badge--inactivo adm-badge--xs">Pausado</span>' : '') +
+      '</div></td>' +
+      '<td><input type="number" class="adm-stock-input" id="inv-precio-' + idQ + '" value="' + precio + '" min="0" step="0.01" style="width:90px" oninput="invActualizarGanancia(\'' + idQ + '\')"></td>' +
+      '<td><input type="number" class="adm-stock-input" id="inv-utilidad-' + idQ + '" value="' + utilidad + '" min="0" max="100" step="1" style="width:70px" oninput="invActualizarGanancia(\'' + idQ + '\')"><span class="adm-td-muted" style="font-size:11px;margin-left:3px">%</span></td>' +
+      '<td id="inv-ganancia-' + idQ + '" class="adm-ganancia-cell">' + _fmt(ganancia) + '</td>' +
+      '<td><input type="number" class="adm-stock-input" id="inv-stock-' + idQ + '" value="' + p.stock + '" min="0"></td>' +
+      '<td>' + _badgeStock(estado) + '</td>' +
+      '<td><div class="adm-action-cell">' +
+        '<button type="button" class="adm-btn adm-btn--sm adm-btn--outline" onclick="invPausarProducto(\'' + idQ + '\')">' + pausaTxt + '</button>' +
+        '<button type="button" class="adm-btn adm-btn--sm adm-btn--danger"   onclick="invEliminarProducto(\'' + idQ + '\')">Eliminar</button>' +
+      '</div></td>' +
+    '</tr>';
+  }).join('');
+
   _setHtml('inv-table-wrap',
-    '<table class="adm-table">' +
+      '<table class="adm-table">' +
     '<thead><tr>' +
-      '<th>Producto</th><th>Categoria</th><th>Precio ($)</th><th>Utilidad (%)</th>' +
+      '<th>Producto</th><th>Precio ($)</th><th>Utilidad (%)</th>' +
       '<th>Ganancia ($)</th><th>Stock actual</th><th>Estado</th><th>Acciones</th>' +
     '</tr></thead>' +
     '<tbody>' + rows + '</tbody></table>'
   );
+}
+
+function renderInventario() {
+  _setHtml('inv-table-wrap', '<p style="padding:24px;color:#999;font-style:italic;">Cargando inventario de Supabase...</p>');
+
+  _adminFetch(MOTOR_URL + '/api/admin/productos')
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (!data.ok) throw new Error(data.error || 'Error del servidor.');
+      _invCache = data.productos;
+      _invRenderTabla(_invCache);
+    })
+    .catch(function (e) {
+      console.error('[renderInventario]', e);
+      _setHtml('inv-summary-row', '');
+      _setHtml('inv-table-wrap',
+        '<div style="padding:32px 24px;text-align:center;">' +
+        '<p style="color:#c0392b;font-weight:600;margin-bottom:8px;">No se pudo conectar al servidor.</p>' +
+        '<p style="color:#888;font-size:13px;">Verifica que el motor este encendido en el puerto 3002.</p>' +
+        '<button class="adm-btn adm-btn--sm" style="margin-top:16px" onclick="renderInventario()">Reintentar</button>' +
+        '</div>'
+      );
+    });
 }
 
 /* ============================================================
@@ -438,7 +566,6 @@ function _catRankRows(arr, maxVal, cols) {
     return '<tr>' +
       '<td><span class="' + rankCls + '">' + (i + 1) + '</span></td>' +
       '<td class="adm-td-strong">' + _esc(p.nombre) + '</td>' +
-      '<td class="adm-td-muted">' + _esc(p.categoria || '—') + '</td>' +
       cells +
       '<td class="adm-bar-cell">' +
         '<div class="adm-bar-wrap"><div class="adm-bar" style="width:' + pct + '%"></div></div>' +
@@ -449,184 +576,164 @@ function _catRankRows(arr, maxVal, cols) {
 }
 
 function renderCatalogo() {
-  // TODO: cargar datos reales desde Supabase/backend
-  var inv = _invCargar();
+  var emptyMsg = '<p class="adm-empty" style="padding:36px 0;">Aun no hay datos suficientes.</p>';
+  var loadMsg  = '<p class="adm-empty" style="padding:36px 0;">Cargando...</p>';
+  var errMsg   = '<p class="adm-empty" style="padding:36px 0;color:#c0392b">Error al cargar datos. Verifica que el motor este activo.</p>';
 
-  // ── Ranking mas vendidos ─────────────────────────────────
-  // TODO: cargar datos reales desde Supabase tabla `ventas`
-  var ventasMap = {};
-  DEMO_VENTAS_GLOBAL.forEach(function (v) {
-    var k = v.producto || ''; if (!k) return;
-    if (!ventasMap[k]) ventasMap[k] = { nombre: k, categoria: '', unidades: 0, ingresos: 0 };
-    ventasMap[k].unidades++;
-    ventasMap[k].ingresos += (v.monto || 0);
-  });
-  inv.forEach(function (p) { if (ventasMap[p.nombre]) ventasMap[p.nombre].categoria = p.categoria || ''; });
-  var statsVentas = Object.keys(ventasMap).map(function (k) { return ventasMap[k]; });
-  statsVentas.sort(function (a, b) { return b.unidades - a.unidades; });
-
-  // ── Ranking mas vistos ───────────────────────────────────
-  // TODO: cargar datos reales desde Supabase (contador de vistas en tabla `paginas_venta`)
-  var vistasMap = {};
-  DEMO_PAGINAS_VENTA.forEach(function (pg) {
-    var k = pg.producto || ''; if (!k) return;
-    if (!vistasMap[k]) vistasMap[k] = { nombre: k, categoria: '', vistas: 0, conversiones: 0 };
-    vistasMap[k].vistas      += (pg.visitas      || 0);
-    vistasMap[k].conversiones += (pg.conversiones || 0);
-  });
-  inv.forEach(function (p) { if (vistasMap[p.nombre]) vistasMap[p.nombre].categoria = p.categoria || ''; });
-  var statsVistas = Object.keys(vistasMap).map(function (k) { return vistasMap[k]; });
-  statsVistas.sort(function (a, b) { return b.vistas - a.vistas; });
-
-  // ── Cards resumen ────────────────────────────────────────
-  var totalUnidades = statsVentas.reduce(function (s, p) { return s + p.unidades; }, 0);
-  var totalIngresos = statsVentas.reduce(function (s, p) { return s + p.ingresos; }, 0);
-  var totalVistas   = statsVistas.reduce(function (s, p) { return s + p.vistas;   }, 0);
-  var topVenta  = statsVentas[0] || null;
-  var topVistas = statsVistas[0] || null;
-
+  _setHtml('cat-ranking-ventas', loadMsg);
+  _setHtml('cat-ranking-vistas', loadMsg);
   _setHtml('cat-summary-row',
-    _statCard(totalUnidades, 'Unidades vendidas') +
-    _statCard(_fmt(totalIngresos), 'Ingresos totales') +
-    _statCard(totalVistas.toLocaleString(), 'Total vistas') +
-    _statCard(topVenta ? _esc(topVenta.nombre) : '—', 'Producto top ventas')
+    _statCard('...', 'Unidades vendidas') +
+    _statCard('...', 'Ingresos totales') +
+    _statCard('...', 'Total vistas') +
+    _statCard('...', 'Producto top ventas')
   );
 
-  // ── Tabla mas vendidos ───────────────────────────────────
-  var emptyMsg = '<p class="adm-empty" style="padding:36px 0;">Aun no hay datos suficientes.</p>';
-  if (!statsVentas.length) {
-    _setHtml('cat-ranking-ventas', emptyMsg);
-  } else {
-    var maxV = statsVentas[0].unidades || 1;
-    var rowsV = _catRankRows(statsVentas, maxV, [
-      { key: 'unidades', fmt: function (v) { return '<strong>' + v + '</strong>'; } },
-      { key: 'ingresos', fmt: _fmt }
-    ]);
-    _setHtml('cat-ranking-ventas',
-      '<table class="adm-table">' +
-      '<thead><tr><th>#</th><th>Producto</th><th>Categoria</th><th>Unidades</th><th>Ingresos</th><th>Proporcion</th></tr></thead>' +
-      '<tbody>' + rowsV + '</tbody></table>'
-    );
-  }
+  var p1 = _adminFetch(MOTOR_URL + '/api/admin/metricas/mas-vendidos').then(function (r) { return r.json(); });
+  var p2 = _adminFetch(MOTOR_URL + '/api/admin/metricas/mas-vistos').then(function (r) { return r.json(); });
 
-  // ── Tabla mas vistos ─────────────────────────────────────
-  if (!statsVistas.length) {
-    _setHtml('cat-ranking-vistas', emptyMsg);
-  } else {
-    var maxVi = statsVistas[0].vistas || 1;
-    var rowsVi = statsVistas.map(function (p, i) {
-      var pct     = Math.max(2, Math.round((p.vistas / maxVi) * 100));
-      var convPct = p.vistas > 0 ? ((p.conversiones / p.vistas) * 100).toFixed(1) + '%' : '—';
-      var convCls = p.vistas > 0 && (p.conversiones / p.vistas) >= 0.05 ? 'adm-conv--ok' : 'adm-conv--low';
-      var rankCls = i === 0 ? 'adm-rank adm-rank--gold'
-        : i === 1 ? 'adm-rank adm-rank--silver'
-        : i === 2 ? 'adm-rank adm-rank--bronze'
-        : 'adm-rank';
-      return '<tr>' +
-        '<td><span class="' + rankCls + '">' + (i + 1) + '</span></td>' +
-        '<td class="adm-td-strong">' + _esc(p.nombre) + '</td>' +
-        '<td class="adm-td-muted">' + _esc(p.categoria || '—') + '</td>' +
-        '<td><strong>' + p.vistas.toLocaleString() + '</strong></td>' +
-        '<td><span class="' + convCls + '">' + convPct + '</span></td>' +
-        '<td class="adm-bar-cell">' +
-          '<div class="adm-bar-wrap"><div class="adm-bar adm-bar--blue" style="width:' + pct + '%"></div></div>' +
-          '<span class="adm-bar-pct">' + pct + '%</span>' +
-        '</td>' +
-      '</tr>';
-    }).join('');
-    _setHtml('cat-ranking-vistas',
-      '<table class="adm-table">' +
-      '<thead><tr><th>#</th><th>Producto</th><th>Categoria</th><th>Vistas</th><th>Conversion</th><th>Proporcion</th></tr></thead>' +
-      '<tbody>' + rowsVi + '</tbody></table>'
-    );
-  }
+  Promise.all([p1, p2])
+    .then(function (results) {
+      var dataV  = results[0];
+      var dataPg = results[1];
+      if (!dataV.ok)  throw new Error(dataV.error  || 'Error mas-vendidos');
+      if (!dataPg.ok) throw new Error(dataPg.error || 'Error mas-vistos');
 
-  // ── Insights cruzados ────────────────────────────────────
-  var insightsEl = document.getElementById('cat-insights-section');
-  if (!statsVentas.length && !statsVistas.length) {
-    _setHtml('cat-insights-body', emptyMsg);
-    if (insightsEl) insightsEl.hidden = false;
-    return;
-  }
+      var statsVentas  = dataV.productos  || [];
+      var statsPaginas = dataPg.paginas   || [];
 
-  // Cruzar: para cada producto con vistas, calcular conversion real vs ventas reales
-  var cruzMap = {};
-  statsVistas.forEach(function (p) { cruzMap[p.nombre] = { nombre: p.nombre, vistas: p.vistas, ventas: 0 }; });
-  statsVentas.forEach(function (p) { if (cruzMap[p.nombre]) cruzMap[p.nombre].ventas = p.unidades; });
+      var totalUnidades = statsVentas.reduce(function (s, p) { return s + p.unidades; }, 0);
+      var totalIngresos = statsVentas.reduce(function (s, p) { return s + p.total_vendido; }, 0);
+      var totalVistas   = statsPaginas.reduce(function (s, p) { return s + (p.vistas || 0); }, 0);
+      var topVenta      = statsVentas[0] || null;
 
-  var oportunidades = [];
-  var campeones     = [];
-  Object.keys(cruzMap).forEach(function (k) {
-    var p = cruzMap[k];
-    if (p.vistas < 10) return; // no hay suficiente trafico aun
-    var conv = p.ventas / p.vistas;
-    if (conv < 0.02)  oportunidades.push(p);  // < 2% conversion
-    if (conv >= 0.05) campeones.push(p);       // >= 5% conversion
-  });
+      _setHtml('cat-summary-row',
+        _statCard(totalUnidades,             'Unidades vendidas') +
+        _statCard(_fmt(totalIngresos),       'Ingresos totales') +
+        _statCard(totalVistas.toLocaleString(), 'Total vistas') +
+        _statCard(topVenta ? _esc(topVenta.nombre) : '—', 'Producto top ventas')
+      );
 
-  var html = '';
+      // ── Tabla mas vendidos ─────────────────────────────────
+      if (!statsVentas.length) {
+        _setHtml('cat-ranking-ventas', emptyMsg);
+      } else {
+        var mappedV = statsVentas.map(function (p) {
+          return { nombre: p.nombre, unidades: p.unidades, ingresos: p.total_vendido };
+        });
+        var maxV  = mappedV[0].unidades || 1;
+        var rowsV = _catRankRows(mappedV, maxV, [
+          { key: 'unidades', fmt: function (v) { return '<strong>' + v + '</strong>'; } },
+          { key: 'ingresos', fmt: _fmt }
+        ]);
+        _setHtml('cat-ranking-ventas',
+          '<table class="adm-table">' +
+          '<thead><tr><th>#</th><th>Producto</th><th>Unidades</th><th>Ingresos</th><th>Proporcion</th></tr></thead>' +
+          '<tbody>' + rowsV + '</tbody></table>'
+        );
+      }
 
-  if (campeones.length) {
-    html += '<div class="adm-insight adm-insight--ok">' +
-      '<div class="adm-insight-title">Productos campeones</div>' +
-      '<p class="adm-insight-desc">Alta conversion (5% o mas de vistas terminan en venta).</p>' +
-      '<ul class="adm-insight-list">' +
-      campeones.map(function (p) {
-        return '<li><strong>' + _esc(p.nombre) + '</strong> — ' +
-          p.vistas + ' vistas, ' + p.ventas + ' ventas (' +
-          ((p.ventas / p.vistas) * 100).toFixed(1) + '% conv.)</li>';
-      }).join('') +
-      '</ul></div>';
-  }
+      // ── Tabla mas vistos ───────────────────────────────────
+      if (!statsPaginas.length) {
+        _setHtml('cat-ranking-vistas', emptyMsg);
+      } else {
+        var maxVi  = statsPaginas[0].vistas || 1;
+        var rowsVi = statsPaginas.map(function (p, i) {
+          var pct     = Math.max(2, Math.round(((p.vistas || 0) / maxVi) * 100));
+          var rankCls = i === 0 ? 'adm-rank adm-rank--gold'
+            : i === 1 ? 'adm-rank adm-rank--silver'
+            : i === 2 ? 'adm-rank adm-rank--bronze'
+            : 'adm-rank';
+          return '<tr>' +
+            '<td><span class="' + rankCls + '">' + (i + 1) + '</span></td>' +
+            '<td class="adm-td-strong">' + _esc(p.nombre) + '</td>' +
+            '<td class="adm-td-muted" style="font-size:0.82em">' + _esc(p.slug || '') + '</td>' +
+            '<td><strong>' + (p.vistas || 0).toLocaleString() + '</strong></td>' +
+            '<td class="adm-bar-cell">' +
+              '<div class="adm-bar-wrap"><div class="adm-bar adm-bar--blue" style="width:' + pct + '%"></div></div>' +
+              '<span class="adm-bar-pct">' + pct + '%</span>' +
+            '</td>' +
+          '</tr>';
+        }).join('');
+        _setHtml('cat-ranking-vistas',
+          '<table class="adm-table">' +
+          '<thead><tr><th>#</th><th>Pagina</th><th>URL slug</th><th>Vistas</th><th>Proporcion</th></tr></thead>' +
+          '<tbody>' + rowsVi + '</tbody></table>'
+        );
+      }
 
-  if (oportunidades.length) {
-    html += '<div class="adm-insight adm-insight--warn">' +
-      '<div class="adm-insight-title">Oportunidad de mejora</div>' +
-      '<p class="adm-insight-desc">Muchas vistas pero poca conversion (menos del 2%). Revisar precio o pagina de venta.</p>' +
-      '<ul class="adm-insight-list">' +
-      oportunidades.map(function (p) {
-        return '<li><strong>' + _esc(p.nombre) + '</strong> — ' +
-          p.vistas + ' vistas, ' + p.ventas + ' ventas (' +
-          ((p.ventas / p.vistas) * 100).toFixed(1) + '% conv.)</li>';
-      }).join('') +
-      '</ul></div>';
-  }
+      // ── Insights cruzados ──────────────────────────────────
+      var insightsEl = document.getElementById('cat-insights-section');
+      if (!statsVentas.length && !statsPaginas.length) {
+        _setHtml('cat-insights-body', emptyMsg);
+        if (insightsEl) insightsEl.hidden = false;
+        return;
+      }
 
-  if (!html) {
-    html = '<p class="adm-empty" style="padding:20px 0;">Aun no hay suficiente trafico cruzado para mostrar insights.</p>';
-  }
+      // Cruzar paginas (que tienen producto) con ventas de ese producto
+      var ventasNombreMap = {};
+      statsVentas.forEach(function (p) { ventasNombreMap[p.nombre] = p.unidades; });
 
-  _setHtml('cat-insights-body', html);
-  if (insightsEl) insightsEl.hidden = false;
+      var oportunidades = [];
+      var campeones     = [];
+      statsPaginas.forEach(function (pg) {
+        if (!pg.producto) return;
+        var vistas = pg.vistas || 0;
+        if (vistas < 10) return;
+        var ventas = ventasNombreMap[pg.producto] || 0;
+        var conv   = ventas / vistas;
+        var entry  = { nombre: pg.producto, pagina: pg.nombre, vistas: vistas, ventas: ventas };
+        if (conv < 0.02)  oportunidades.push(entry);
+        if (conv >= 0.05) campeones.push(entry);
+      });
+
+      var html = '';
+      if (campeones.length) {
+        html += '<div class="adm-insight adm-insight--ok">' +
+          '<div class="adm-insight-title">Productos campeones</div>' +
+          '<p class="adm-insight-desc">Alta conversion (5% o mas de vistas terminan en venta).</p>' +
+          '<ul class="adm-insight-list">' +
+          campeones.map(function (p) {
+            return '<li><strong>' + _esc(p.nombre) + '</strong> — ' +
+              p.vistas + ' vistas, ' + p.ventas + ' ventas (' +
+              ((p.ventas / p.vistas) * 100).toFixed(1) + '% conv.)</li>';
+          }).join('') + '</ul></div>';
+      }
+      if (oportunidades.length) {
+        html += '<div class="adm-insight adm-insight--warn">' +
+          '<div class="adm-insight-title">Oportunidad de mejora</div>' +
+          '<p class="adm-insight-desc">Muchas vistas pero poca conversion. Revisar precio o pagina de venta.</p>' +
+          '<ul class="adm-insight-list">' +
+          oportunidades.map(function (p) {
+            return '<li><strong>' + _esc(p.nombre) + '</strong> — ' +
+              p.vistas + ' vistas, ' + p.ventas + ' ventas (' +
+              ((p.ventas / p.vistas) * 100).toFixed(1) + '% conv.)</li>';
+          }).join('') + '</ul></div>';
+      }
+      if (!html) {
+        html = '<p class="adm-empty" style="padding:20px 0;">Aun no hay suficiente trafico cruzado para mostrar insights.</p>';
+      }
+
+      _setHtml('cat-insights-body', html);
+      if (insightsEl) insightsEl.hidden = false;
+    })
+    .catch(function () {
+      _setHtml('cat-ranking-ventas', errMsg);
+      _setHtml('cat-ranking-vistas', errMsg);
+      _setHtml('cat-summary-row',
+        _statCard('—', 'Unidades vendidas') +
+        _statCard('—', 'Ingresos totales') +
+        _statCard('—', 'Total vistas') +
+        _statCard('—', 'Producto top ventas')
+      );
+    });
 }
 
 /* ============================================================
-   3. PAGINAS DE VENTA
+   3. PAGINAS DE VENTA  — conectado a Supabase via motor
    ============================================================ */
 
-var PAG_KEY = 'admin_paginas_venta';
-
-function _pagCargar() {
-  try { return JSON.parse(localStorage.getItem(PAG_KEY) || '[]'); } catch (e) { return []; }
-}
-
-function _pagGuardar(arr) {
-  // TODO: en produccion guardar en Supabase tabla `paginas_venta`
-  localStorage.setItem(PAG_KEY, JSON.stringify(arr));
-}
-
-function _pagSlug(nombre) {
-  return nombre.toLowerCase()
-    .replace(/[áàâä]/g, 'a').replace(/[éèêë]/g, 'e')
-    .replace(/[íìîï]/g, 'i').replace(/[óòôö]/g, 'o')
-    .replace(/[úùûü]/g, 'u').replace(/ñ/g, 'n')
-    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-}
-
-function _pagNextId(arr) {
-  if (!arr.length) return 1;
-  return Math.max.apply(null, arr.map(function (p) { return p.id; })) + 1;
-}
+var _pagCache = null; // cache en memoria
 
 function pagSwitchSubTab(tabId) {
   ['crear', 'activas'].forEach(function (id) {
@@ -637,6 +744,25 @@ function pagSwitchSubTab(tabId) {
     if (btn)   btn.classList.toggle('active', active);
   });
   if (tabId === 'activas') renderPagActivas();
+  if (tabId === 'crear')   pagCargarProductos();
+}
+
+function pagCargarProductos() {
+  var sel = document.getElementById('pag-producto-id');
+  if (!sel) return;
+  _adminFetch(MOTOR_URL + '/api/admin/productos')
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      var lista = Array.isArray(data) ? data : (data.productos || []);
+      sel.innerHTML = '<option value="">— Sin producto asociado —</option>';
+      lista.filter(function(p){ return p.activo !== false; }).forEach(function(p){
+        var opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = p.nombre + (p.precio ? ' — $' + Number(p.precio).toLocaleString('en-US') : '');
+        sel.appendChild(opt);
+      });
+    })
+    .catch(function(){ /* silencioso */ });
 }
 
 function pagPrevisualizar() {
@@ -686,7 +812,7 @@ function pagUsarPlantilla() {
     '    .btn-comprar-ea:hover { opacity: 0.9; }',
     '    .beneficios { text-align: left; margin-bottom: 28px; }',
     '    .beneficios li { padding: 6px 0; font-size: 14px; list-style: none; }',
-    '    .beneficios li::before { content: "✓ "; color: #b8973a; font-weight: 700; }',
+    '    .beneficios li::before { content: "\\u2713 "; color: #b8973a; font-weight: 700; }',
     '  </style>',
     '</head>',
     '<body>',
@@ -709,12 +835,17 @@ function pagUsarPlantilla() {
 }
 
 function pagCrearHtml() {
-  var elNombre = document.getElementById('pag-html-nombre');
-  var elCode   = document.getElementById('pag-html-code');
-  var errEl    = document.getElementById('pag-html-error');
-  var nombre   = elNombre ? elNombre.value.trim() : '';
-  var html     = elCode   ? elCode.value.trim()   : '';
+  var elNombre    = document.getElementById('pag-html-nombre');
+  var elCode      = document.getElementById('pag-html-code');
+  var elProducto  = document.getElementById('pag-producto-id');
+  var errEl       = document.getElementById('pag-html-error');
+  var successEl   = document.getElementById('pag-html-success');
+  var btnEl       = document.getElementById('pag-crear-btn');
+  var nombre      = elNombre   ? elNombre.value.trim()  : '';
+  var html        = elCode     ? elCode.value.trim()    : '';
+  var producto_id = elProducto ? elProducto.value       : '';
 
+  if (successEl) successEl.hidden = true;
   if (!nombre) {
     if (errEl) { errEl.textContent = 'El nombre de la pagina es obligatorio.'; errEl.hidden = false; }
     if (elNombre) elNombre.focus();
@@ -726,70 +857,79 @@ function pagCrearHtml() {
     return;
   }
   if (errEl) errEl.hidden = true;
+  if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Guardando...'; }
 
-  var arr  = _pagCargar();
-  var slug = _pagSlug(nombre);
-  var base = slug; var n = 1;
-  while (arr.some(function (p) { return p.slug === slug; })) { slug = base + '-' + (n++); }
-
-  arr.push({
-    id:           _pagNextId(arr),
-    slug:         slug,
-    nombre:       nombre,
-    html:         html,
-    link:         '',
-    fechaCreacion: new Date().toISOString().slice(0, 10),
-    activa:       true,
-    vistas:       0
-  });
-  _pagGuardar(arr);
-
-  DEMO_PAGINAS_VENTA = arr.map(function (p) {
-    return { producto: p.nombre, visitas: p.vistas || 0, conversiones: 0 };
-  });
-
-  if (elNombre) elNombre.value = '';
-  if (elCode)   elCode.value   = '';
-  var pv = document.getElementById('pag-preview-wrap');
-  if (pv) pv.hidden = true;
-
-  renderPaginas();
-  pagSwitchSubTab('activas');
-  // TODO: en produccion servir el HTML en GET /p/:slug con inyeccion automatica de ea-checkout.js
+  _adminFetch(MOTOR_URL + '/api/admin/paginas', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nombre: nombre, html: html, producto_id: producto_id || null })
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (!data.ok) throw new Error(data.error || 'Error del servidor.');
+      var link = PUBLIC_BASE_URL + '/p/' + data.pagina.slug;
+      if (elNombre)   elNombre.value   = '';
+      if (elCode)     elCode.value     = '';
+      if (elProducto) elProducto.value = '';
+      var pv = document.getElementById('pag-preview-wrap');
+      if (pv) pv.hidden = true;
+      if (successEl) {
+        successEl.innerHTML = 'Pagina creada. Link: <a href="' + _esc(link) + '" target="_blank">' + _esc(link) + '</a> ' +
+          '<button type="button" class="adm-btn adm-btn--sm adm-btn--outline" onclick="pagCopiarLink(\'' + _esc(link) + '\')">Copiar</button>';
+        successEl.hidden = false;
+      }
+      _pagCache = null;
+      renderPaginas();
+      pagSwitchSubTab('activas');
+    })
+    .catch(function (e) {
+      if (errEl) { errEl.textContent = 'Error al guardar: ' + e.message; errEl.hidden = false; }
+    })
+    .finally(function () {
+      if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Crear pagina'; }
+    });
 }
 
-function pagVerHtml(id) {
-  var arr  = _pagCargar();
-  var page = null;
-  for (var i = 0; i < arr.length; i++) { if (arr[i].id === id) { page = arr[i]; break; } }
-  if (!page || !page.html) return;
-  var win = window.open('', '_blank');
-  if (win) { win.document.write(page.html); win.document.close(); }
+function pagVerPagina(slug) {
+  window.open(MOTOR_URL + '/p/' + slug, '_blank');
 }
 
-function pagToggleEstado(id) {
-  var arr = _pagCargar();
-  for (var i = 0; i < arr.length; i++) {
-    if (arr[i].id === id) { arr[i].activa = !arr[i].activa; break; }
-  }
-  _pagGuardar(arr);
-  renderPaginas();
-  renderPagActivas();
-  // TODO: cargar datos reales desde Supabase/backend — actualizar visibilidad de la pagina
+function pagToggleEstado(id, estaActiva) {
+  _adminFetch(MOTOR_URL + '/api/admin/paginas/actualizar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: id, activa: !estaActiva })
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (!data.ok) throw new Error(data.error || 'Error');
+      _pagCache = null;
+      renderPaginas();
+      renderPagActivas();
+    })
+    .catch(function (e) { alert('Error: ' + e.message); });
 }
 
 function pagEliminar(id) {
   if (!confirm('Eliminar esta pagina de venta? Esta accion no se puede deshacer.')) return;
-  var arr = _pagCargar().filter(function (p) { return p.id !== id; });
-  _pagGuardar(arr);
-  renderPaginas();
-  renderPagActivas();
-  // TODO: cargar datos reales desde Supabase/backend
+  _adminFetch(MOTOR_URL + '/api/admin/paginas/eliminar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: id })
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (!data.ok) throw new Error(data.error || 'Error');
+      _pagCache = null;
+      renderPaginas();
+      renderPagActivas();
+    })
+    .catch(function (e) { alert('Error al eliminar: ' + e.message); });
 }
 
 function pagCopiarLink(link) {
   if (navigator.clipboard) {
-    navigator.clipboard.writeText(link);
+    navigator.clipboard.writeText(link).catch(function () {});
   } else {
     var ta = document.createElement('textarea');
     ta.value = link; document.body.appendChild(ta); ta.select();
@@ -797,22 +937,16 @@ function pagCopiarLink(link) {
   }
 }
 
-function renderPagActivas() {
-  var arr    = _pagCargar();
-  var wrapEl = document.getElementById('pag-activas-wrap');
-  if (!wrapEl) return;
-
+function _pagRenderCards(arr, wrapEl) {
   if (!arr.length) {
-    wrapEl.innerHTML = '<p class="adm-empty" style="padding:40px 0;">Aun no has creado paginas de venta. Crea una en la pestana "Crear pagina".</p>';
+    wrapEl.innerHTML = '<p class="adm-empty" style="padding:40px 0;">Aun no hay paginas de venta. Crea una en la pestana "Crear pagina".</p>';
     return;
   }
-
   var cards = arr.map(function (p) {
-    var fullLink  = 'https://ecommerceagent.com/p/' + p.slug;
+    var localLink = PUBLIC_BASE_URL + '/p/' + p.slug;
     var estadoCls = p.activa ? 'adm-badge--ok'      : 'adm-badge--inactivo';
     var estadoTxt = p.activa ? 'Activa'             : 'Pausada';
     var toggleTxt = p.activa ? 'Pausar'             : 'Activar';
-
     return (
       '<div class="adm-pag-card' + (p.activa ? '' : ' adm-pag-card--pausada') + '">' +
         '<div class="adm-pag-card-thumb"><div class="adm-pag-html-thumb">&lt;/&gt;</div></div>' +
@@ -824,116 +958,75 @@ function renderPagActivas() {
           '<div class="adm-pag-card-meta">' +
             '<span class="adm-badge adm-badge--html">HTML</span>' +
             '<span class="adm-td-muted" style="font-size:11px">' + (p.vistas || 0) + ' vistas</span>' +
-            '<span class="adm-td-muted" style="font-size:11px">' + _fmtFecha(p.fechaCreacion) + '</span>' +
+            '<span class="adm-td-muted" style="font-size:11px">' + _fmtFecha(p.creado_en) + '</span>' +
           '</div>' +
           '<div class="adm-pag-card-link">' +
-            '<a class="adm-link" href="' + _esc(fullLink) + '" target="_blank">' + _esc(fullLink) + '</a>' +
-            '<button type="button" class="adm-btn adm-btn--sm adm-btn--outline" onclick="pagCopiarLink(\'' + _esc(fullLink) + '\')">Copiar</button>' +
+            '<a class="adm-link" href="' + _esc(localLink) + '" target="_blank">' + _esc(localLink) + '</a>' +
+            '<button type="button" class="adm-btn adm-btn--sm adm-btn--outline" onclick="pagCopiarLink(\'' + _esc(localLink) + '\')">Copiar</button>' +
           '</div>' +
         '</div>' +
         '<div class="adm-pag-card-actions">' +
-          '<button type="button" class="adm-btn adm-btn--sm adm-btn--outline" onclick="pagVerHtml(' + p.id + ')">Ver HTML</button>' +
-          '<button type="button" class="adm-btn adm-btn--sm adm-btn--outline" onclick="pagToggleEstado(' + p.id + ')">' + toggleTxt + '</button>' +
-          '<button type="button" class="adm-btn adm-btn--sm adm-btn--danger" onclick="pagEliminar(' + p.id + ')">Eliminar</button>' +
+          '<button type="button" class="adm-btn adm-btn--sm adm-btn--outline" onclick="pagVerPagina(\'' + _esc(p.slug) + '\')">Ver</button>' +
+          '<button type="button" class="adm-btn adm-btn--sm adm-btn--outline" onclick="pagToggleEstado(\'' + _esc(p.id) + '\',' + (p.activa ? 'true' : 'false') + ')">' + toggleTxt + '</button>' +
+          '<button type="button" class="adm-btn adm-btn--sm adm-btn--danger" onclick="pagEliminar(\'' + _esc(p.id) + '\')">Eliminar</button>' +
         '</div>' +
       '</div>'
     );
   }).join('');
-
   wrapEl.innerHTML = '<div class="adm-pag-list">' + cards + '</div>';
 }
 
+function renderPagActivas() {
+  var wrapEl = document.getElementById('pag-activas-wrap');
+  if (!wrapEl) return;
+  if (_pagCache) { _pagRenderCards(_pagCache, wrapEl); return; }
+  wrapEl.innerHTML = '<p style="padding:32px;color:#999;font-style:italic;">Cargando paginas...</p>';
+  _adminFetch(MOTOR_URL + '/api/admin/paginas')
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (!data.ok) throw new Error(data.error || 'Error');
+      _pagCache = data.paginas || [];
+      _pagRenderCards(_pagCache, wrapEl);
+    })
+    .catch(function (e) {
+      wrapEl.innerHTML = '<p style="padding:32px;color:#c0392b;font-size:13px;">No se pudo conectar al servidor. Verifica que el motor este encendido.</p>';
+    });
+}
+
 function renderPaginas() {
-  var arr = _pagCargar();
-  DEMO_PAGINAS_VENTA = arr.map(function (p) {
-    return { producto: p.nombre, visitas: p.vistas || 0, conversiones: 0 };
-  });
-
-  var activas     = arr.filter(function (p) { return p.activa; }).length;
-  var totalVistas = arr.reduce(function (s, p) { return s + (p.vistas || 0); }, 0);
-
-  _setHtml('pag-summary-row',
-    _statCard(arr.length, 'Total paginas') +
-    _statCard(activas, 'Activas') +
-    _statCard(totalVistas.toLocaleString(), 'Vistas totales') +
-    _statCard(arr.length - activas, 'Pausadas')
-  );
-
-  var activasPanel = document.getElementById('pag-subpanel-activas');
-  if (activasPanel && !activasPanel.hidden) renderPagActivas();
-  // TODO: cargar datos reales desde Supabase/backend
+  _pagCache = null; // forzar fetch fresco
+  _adminFetch(MOTOR_URL + '/api/admin/paginas')
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (!data.ok) throw new Error(data.error || 'Error');
+      var arr = data.paginas || [];
+      _pagCache = arr;
+      var activas     = arr.filter(function (p) { return p.activa; }).length;
+      var totalVistas = arr.reduce(function (s, p) { return s + (p.vistas || 0); }, 0);
+      _setHtml('pag-summary-row',
+        _statCard(arr.length, 'Total paginas') +
+        _statCard(activas, 'Activas') +
+        _statCard(totalVistas.toLocaleString(), 'Vistas totales') +
+        _statCard(arr.length - activas, 'Pausadas')
+      );
+      var activasPanel = document.getElementById('pag-subpanel-activas');
+      if (activasPanel && !activasPanel.hidden) _pagRenderCards(arr, document.getElementById('pag-activas-wrap'));
+    })
+    .catch(function (e) {
+      _setHtml('pag-summary-row', '<p style="color:#c0392b;font-size:13px;padding:16px;">No se pudo conectar al servidor. Verifica que el motor este encendido.</p>');
+    });
 }
 
 /* ============================================================
-   4. USUARIOS
+   4. USUARIOS  — conectado a Supabase via motor (puerto 3002)
    ============================================================ */
 
-var USR_KEY = 'admin_usuarios';
+// TODO: cuando el dominio esté listo, cambiar por: https://motor.ecommerceagents.store
+var MOTOR_URL      = 'http://104.248.61.107:3002';
+var PUBLIC_BASE_URL = MOTOR_URL; // misma base; cambiar junto con MOTOR_URL cuando haya dominio
 
-function _usrCargar() {
-  try { return JSON.parse(localStorage.getItem(USR_KEY) || '[]'); } catch (e) { return []; }
-}
-
-function _usrGuardar(arr) {
-  // TODO: cargar datos reales desde Supabase/backend
-  localStorage.setItem(USR_KEY, JSON.stringify(arr));
-}
-
-function _usrRandLetra()  { return 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[Math.floor(Math.random() * 26)]; }
-function _usrRandDigito() { return '0123456789'[Math.floor(Math.random() * 10)]; }
-function _usrRandChar() {
-  var pool = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-#@!';
-  return pool[Math.floor(Math.random() * pool.length)];
-}
-
-function _usrGenNombreUnico(usados) {
-  var n;
-  do {
-    n = _usrRandLetra() + _usrRandLetra() + _usrRandLetra() + _usrRandLetra() +
-        _usrRandDigito() + _usrRandDigito() + _usrRandDigito();
-  } while (usados[n]);
-  usados[n] = true;
-  return n;
-}
-
-function _usrGenCodigoUnico(usados) {
-  var c;
-  do {
-    c = '';
-    for (var i = 0; i < 7; i++) c += _usrRandChar();
-  } while (usados[c]);
-  usados[c] = true;
-  return c;
-}
-
-function _usrInit() {
-  var existing = _usrCargar();
-  if (existing.length >= 100) return existing;
-  // Genera 100 usuarios una sola vez y los persiste
-  var usadosN = {};
-  var usadosC = {};
-  var arr = [];
-  for (var i = 1; i <= 100; i++) {
-    arr.push({
-      n:       i,
-      usuario: _usrGenNombreUnico(usadosN),
-      codigo:  _usrGenCodigoUnico(usadosC),
-      activo:  false
-    });
-  }
-  _usrGuardar(arr);
-  return arr;
-}
-
-function usrToggle(n) {
-  var arr = _usrCargar();
-  for (var i = 0; i < arr.length; i++) {
-    if (arr[i].n === n) { arr[i].activo = !arr[i].activo; break; }
-  }
-  _usrGuardar(arr);
-  renderUsuarios();
-  // TODO: cargar datos reales desde Supabase/backend — activar/desactivar acceso al app
-}
+// Cache en memoria para no recargar en cada re-render dentro de la misma sesión
+var _usrCache = null;
 
 function usrCopiar(texto) {
   if (navigator.clipboard) {
@@ -945,8 +1038,7 @@ function usrCopiar(texto) {
   }
 }
 
-function renderUsuarios() {
-  var arr          = _usrInit();
+function _usrRenderTabla(arr) {
   var activos      = arr.filter(function (u) { return u.activo; }).length;
   var desactivados = arr.length - activos;
 
@@ -956,23 +1048,20 @@ function renderUsuarios() {
     _statCard(desactivados, 'Desactivados')
   );
 
-  var rows = arr.map(function (u) {
-    var estadoCls = u.activo ? 'adm-badge--ok'      : 'adm-badge--inactivo';
-    var estadoTxt = u.activo ? 'Activo'             : 'Desactivado';
-    var toggleTxt = u.activo ? 'Desactivar'         : 'Activar';
-    var toggleCls = u.activo ? 'adm-btn--danger'    : 'adm-btn--success';
-    return '<tr>' +
-      '<td class="adm-td-muted adm-td-n">' + u.n + '</td>' +
+  var rows = arr.map(function (u, idx) {
+    var estadoCls = u.activo ? 'adm-badge--ok'   : 'adm-badge--inactivo';
+    var estadoTxt = u.activo ? 'Activo'           : 'Desactivado';
+    var toggleTxt = u.activo ? 'Desactivar'       : 'Activar';
+    var toggleCls = u.activo ? 'adm-btn--danger'  : 'adm-btn--success';
+    var idAttr    = 'data-uid="' + _esc(u.id) + '"';
+    return '<tr id="usr-row-' + _esc(u.id) + '">' +
+      '<td class="adm-td-muted adm-td-n">' + (idx + 1) + '</td>' +
       '<td><div class="adm-usr-cell">' +
-        '<span class="adm-usr-name">' + _esc(u.usuario) + '</span>' +
-        '<button type="button" class="adm-copy-mini" onclick="usrCopiar(\'' + _esc(u.usuario) + '\')">Copiar</button>' +
-      '</div></td>' +
-      '<td><div class="adm-usr-cell">' +
-        '<span class="adm-usr-code">' + _esc(u.codigo) + '</span>' +
+        '<span class="adm-usr-name">' + _esc(u.codigo) + '</span>' +
         '<button type="button" class="adm-copy-mini" onclick="usrCopiar(\'' + _esc(u.codigo) + '\')">Copiar</button>' +
       '</div></td>' +
-      '<td><span class="adm-badge ' + estadoCls + '">' + estadoTxt + '</span></td>' +
-      '<td><button type="button" class="adm-btn adm-btn--sm ' + toggleCls + '" onclick="usrToggle(' + u.n + ')">' + toggleTxt + '</button></td>' +
+      '<td><span class="adm-badge ' + estadoCls + '" id="usr-badge-' + _esc(u.id) + '">' + estadoTxt + '</span></td>' +
+      '<td><button type="button" class="adm-btn adm-btn--sm ' + toggleCls + '" ' + idAttr + ' id="usr-btn-' + _esc(u.id) + '" onclick="usrToggle(\'' + _esc(u.id) + '\',' + (u.activo ? 'true' : 'false') + ')">' + toggleTxt + '</button></td>' +
     '</tr>';
   }).join('');
 
@@ -980,13 +1069,87 @@ function renderUsuarios() {
     '<table class="adm-table">' +
     '<thead><tr>' +
       '<th class="adm-th-n">N</th>' +
-      '<th>Usuario</th>' +
-      '<th>Codigo de seguridad</th>' +
+      '<th>Codigo de usuario</th>' +
       '<th>Estado</th>' +
       '<th>Accion</th>' +
     '</tr></thead>' +
     '<tbody>' + rows + '</tbody></table>'
   );
+}
+
+function usrToggle(uid, estaActivo) {
+  var endpoint = estaActivo ? '/api/admin/usuarios/desactivar' : '/api/admin/usuarios/activar';
+  var btn   = document.getElementById('usr-btn-'   + uid);
+  var badge = document.getElementById('usr-badge-' + uid);
+  if (btn) btn.disabled = true;
+
+  _adminFetch(MOTOR_URL + endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: uid })
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (!data.ok) throw new Error(data.error || 'Error del servidor.');
+      var nuevoActivo = !estaActivo;
+      // Actualizar cache local
+      if (_usrCache) {
+        for (var i = 0; i < _usrCache.length; i++) {
+          if (_usrCache[i].id === uid) { _usrCache[i].activo = nuevoActivo; break; }
+        }
+      }
+      // Actualizar fila sin recargar todo
+      if (badge) {
+        badge.className = 'adm-badge ' + (nuevoActivo ? 'adm-badge--ok' : 'adm-badge--inactivo');
+        badge.textContent = nuevoActivo ? 'Activo' : 'Desactivado';
+      }
+      if (btn) {
+        btn.disabled = false;
+        btn.className = 'adm-btn adm-btn--sm ' + (nuevoActivo ? 'adm-btn--danger' : 'adm-btn--success');
+        btn.textContent = nuevoActivo ? 'Desactivar' : 'Activar';
+        btn.setAttribute('onclick', 'usrToggle(\'' + uid + '\',' + (nuevoActivo ? 'true' : 'false') + ')');
+      }
+      // Recalcular cards de resumen
+      if (_usrCache) _usrRenderSummary(_usrCache);
+    })
+    .catch(function (e) {
+      console.error('[usrToggle]', e);
+      if (btn) btn.disabled = false;
+      alert('Error al cambiar estado: ' + e.message);
+    });
+}
+
+function _usrRenderSummary(arr) {
+  var activos      = arr.filter(function (u) { return u.activo; }).length;
+  var desactivados = arr.length - activos;
+  _setHtml('usr-summary-row',
+    _statCard(arr.length, 'Total usuarios') +
+    _statCard('<span style="color:#2E7D50">' + activos + '</span>', 'Activos') +
+    _statCard(desactivados, 'Desactivados')
+  );
+}
+
+function renderUsuarios() {
+  _setHtml('usr-table-wrap', '<p style="padding:24px;color:#999;font-style:italic;">Cargando usuarios de Supabase...</p>');
+
+  _adminFetch(MOTOR_URL + '/api/admin/usuarios')
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (!data.ok) throw new Error(data.error || 'Error desconocido del servidor.');
+      _usrCache = data.usuarios;
+      _usrRenderTabla(_usrCache);
+    })
+    .catch(function (e) {
+      console.error('[renderUsuarios]', e);
+      _setHtml('usr-summary-row', '');
+      _setHtml('usr-table-wrap',
+        '<div style="padding:32px 24px;text-align:center;">' +
+        '<p style="color:#c0392b;font-weight:600;margin-bottom:8px;">No se pudo conectar al servidor.</p>' +
+        '<p style="color:#888;font-size:13px;">Verifica que el motor este encendido en el puerto 3002 e intenta de nuevo.</p>' +
+        '<button class="adm-btn adm-btn--sm" style="margin-top:16px" onclick="renderUsuarios()">Reintentar</button>' +
+        '</div>'
+      );
+    });
 
   // Ventas globales
   // TODO: cargar datos reales desde Supabase/backend
@@ -1038,86 +1201,71 @@ function renderCuentasAdmin() {
 
 // ── SUB-TAB: UTILIDAD Y VENTAS ────────────────────────────────────────
 
-// TODO: en produccion estas ventas vienen de Supabase tabla `ventas`
-//       con join a `usuarios` (para nombre/codigo) y a `inventario` (para precio, utilidad%)
-var CUENTAS_VENTAS_KEY = 'admin_ventas_global';
-
-function _cventasCargar() {
-  try { return JSON.parse(localStorage.getItem(CUENTAS_VENTAS_KEY) || '[]'); } catch (e) { return []; }
-}
-
-function _badgeVentaEstado(estado) {
-  var map = {
-    'Pendiente':  'adm-badge--bajo',
-    'Procesando': 'adm-badge--proceso',
-    'Enviado':    'adm-badge--enviado',
-    'Entregado':  'adm-badge--ok',
-    'Cancelado':  'adm-badge--agotado',
-    'Pagado':     'adm-badge--pagado'
-  };
-  return '<span class="adm-badge ' + (map[estado] || 'adm-badge--bajo') + '">' + _esc(estado) + '</span>';
-}
-
-function _startOfMonth() {
-  var d = new Date();
-  return new Date(d.getFullYear(), d.getMonth(), 1);
-}
-
 function renderUtilidadVentas() {
-  var ventas = _cventasCargar();
+  var summaryEl = document.getElementById('cuentas-util-summary');
+  var tableEl   = document.getElementById('cuentas-ventas-wrap');
 
-  // Summary calculations
-  var totalVentas     = ventas.reduce(function (s, v) { return s + (v.monto || 0); }, 0);
-  var totalUtilidad   = ventas.reduce(function (s, v) { return s + (v.utilidad || 0); }, 0);
-  var som             = _startOfMonth();
-  var ventasMes       = ventas.filter(function (v) { return v.fecha && new Date(v.fecha) >= som; });
-  var ventasMesMonto  = ventasMes.reduce(function (s, v) { return s + (v.monto || 0); }, 0);
-  var utilidadMes     = ventasMes.reduce(function (s, v) { return s + (v.utilidad || 0); }, 0);
+  if (summaryEl) summaryEl.innerHTML =
+    _statCard('...', 'Ventas plataforma') +
+    _statCard('...', 'Comisiones a pagar') +
+    _statCard('...', 'Pedidos totales') +
+    _statCard('...', 'Vendedores activos');
+  if (tableEl) tableEl.innerHTML = '<p class="adm-empty-text">Cargando...</p>';
 
-  _setHtml('cuentas-util-summary',
-    _statCard(_fmt(totalVentas),   'Ventas totales') +
-    _statCard('<span style="color:var(--adm-green)">' + _fmt(totalUtilidad) + '</span>', 'Utilidad generada') +
-    _statCard(_fmt(ventasMesMonto), 'Ventas del mes') +
-    _statCard('<span style="color:var(--adm-green)">' + _fmt(utilidadMes) + '</span>', 'Utilidad del mes')
-  );
+  _adminFetch(MOTOR_URL + '/api/admin/ventas-por-vendedor')
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (!data.ok) throw new Error(data.error || 'Error del servidor');
+      var rg = data.resumen_global || {};
+      var vendedores = data.vendedores || [];
 
-  if (!ventas.length) {
-    _setHtml('cuentas-ventas-wrap', '<p class="adm-empty-text">Aun no hay ventas registradas.</p>');
-    return;
-  }
+      if (summaryEl) {
+        summaryEl.innerHTML =
+          _statCard(_fmt(rg.total_vendido || 0),  'Ventas plataforma') +
+          _statCard('<span style="color:var(--adm-green)">' + _fmt(rg.total_comision || 0) + '</span>', 'Comisiones a pagar') +
+          _statCard(rg.total_ventas || 0,          'Pedidos totales') +
+          _statCard(vendedores.length,             'Vendedores activos');
+      }
 
-  var sorted = ventas.slice().sort(function (a, b) {
-    return new Date(b.fecha || 0) - new Date(a.fecha || 0);
-  });
+      if (!tableEl) return;
+      if (vendedores.length === 0) {
+        tableEl.innerHTML = '<p class="adm-empty-text">Aun no hay ventas registradas.</p>';
+        return;
+      }
 
-  var rows = sorted.map(function (v) {
-    return '<tr>' +
-      '<td class="adm-td-usr">' +
-        '<div class="adm-usr-name">' + _esc(v.usuario || '—') + '</div>' +
-        '<div class="adm-usr-code">' + _esc(v.codigo  || '') + '</div>' +
-      '</td>' +
-      '<td class="adm-td-strong">' + _esc(v.producto || '—') + '</td>' +
-      '<td class="adm-td-muted">' + _fmtFecha(v.fecha) + '</td>' +
-      '<td>' + _fmt(v.monto || 0) + '</td>' +
-      '<td style="color:var(--adm-green);font-weight:600">' + _fmt(v.utilidad || 0) + '</td>' +
-      '<td>' + _badgeVentaEstado(v.estado || 'Pendiente') + '</td>' +
-    '</tr>';
-  }).join('');
+      var rows = vendedores.map(function (v) {
+        return '<tr>' +
+          '<td class="adm-td-strong">' + _esc(v.codigo || '—') + '</td>' +
+          '<td>' + (v.ventas || 0) + '</td>' +
+          '<td>' + _fmt(v.total_vendido || 0) + '</td>' +
+          '<td style="color:var(--adm-green);font-weight:600">' + _fmt(v.total_comision || 0) + '</td>' +
+          '<td>' + _fmt(v.pagado || 0) + '</td>' +
+          '<td style="color:var(--adm-accent,#b89368);font-weight:600">' + _fmt(v.saldo_pendiente || 0) + '</td>' +
+        '</tr>';
+      }).join('');
 
-  _setHtml('cuentas-ventas-wrap',
-    '<div class="adm-table-wrap">' +
-    '<table class="adm-table">' +
-    '<thead><tr>' +
-      '<th>Usuario</th>' +
-      '<th>Producto</th>' +
-      '<th>Fecha</th>' +
-      '<th>Monto venta</th>' +
-      '<th>Utilidad</th>' +
-      '<th>Estado</th>' +
-    '</tr></thead>' +
-    '<tbody>' + rows + '</tbody>' +
-    '</table></div>'
-  );
+      tableEl.innerHTML =
+        '<div class="adm-table-wrap">' +
+        '<table class="adm-table">' +
+        '<thead><tr>' +
+          '<th>Vendedor</th>' +
+          '<th>Ventas</th>' +
+          '<th>Total vendido</th>' +
+          '<th>Comision generada</th>' +
+          '<th>Ya pagado</th>' +
+          '<th>Saldo pendiente</th>' +
+        '</tr></thead>' +
+        '<tbody>' + rows + '</tbody>' +
+        '</table></div>';
+    })
+    .catch(function () {
+      if (summaryEl) summaryEl.innerHTML =
+        _statCard('—', 'Ventas plataforma') +
+        _statCard('—', 'Comisiones a pagar') +
+        _statCard('—', 'Pedidos totales') +
+        _statCard('—', 'Vendedores activos');
+      if (tableEl) tableEl.innerHTML = '<p class="adm-empty-text" style="color:#c0392b">Error al cargar datos. Verifica que el motor este activo.</p>';
+    });
 }
 
 // ── SUB-TAB: PAGOS ────────────────────────────────────────────────────
@@ -1348,117 +1496,113 @@ function pagoMarcarPagado(id) {
 }
 
 /* ============================================================
-   6. PEDIDOS
+   6. PEDIDOS  — conectado a Supabase via motor
    ============================================================ */
 
-// Misma key que escribe checkout-direccion.html para que el flujo sea end-to-end
-var PEDIDOS_KEY = 'ea_pedidos';
-
-// TODO: en produccion los pedidos llegan via webhook de Stripe (checkout.session.completed)
-//       y se guardan en Supabase tabla `pedidos`. _pedidosCargar() consultaria Supabase.
-
-function _pedidosCargar() {
-  try { return JSON.parse(localStorage.getItem(PEDIDOS_KEY) || '[]'); } catch (e) { return []; }
-}
-function _pedidosGuardar(arr) {
-  try { localStorage.setItem(PEDIDOS_KEY, JSON.stringify(arr)); } catch (e) {}
-}
-
-function _pedidoNextNum(arr) {
-  if (!arr.length) return 1;
-  return Math.max.apply(null, arr.map(function (p) { return p.nPedido || 0; })) + 1;
-}
+var _pedCache        = null;   // cache en memoria
+var _pedFiltroActivo = 'todos';
 
 function _badgePedido(estado) {
   var map = {
-    'Pendiente':  'adm-badge--bajo',
-    'Procesado':  'adm-badge--pagado',
-    'Cancelado':  'adm-badge--agotado'
+    'Pendiente': 'adm-badge--bajo',
+    'Procesado': 'adm-badge--pagado',
+    'Enviado':   'adm-badge--disponible',
+    'Cancelado': 'adm-badge--agotado'
   };
   return '<span class="adm-badge ' + (map[estado] || 'adm-badge--bajo') + '">' + _esc(estado) + '</span>';
 }
 
-function _fmtDireccion(d) {
-  if (!d) return '—';
-  var partes = [d.addr1, d.addr2, d.ciudad, d.estado, d.zip].filter(Boolean);
-  return partes.join(', ') || '—';
+function _fmtDir(p) {
+  return [p.direccion, p.ciudad, p.estado_region, p.zip, p.pais]
+    .filter(Boolean).join(', ') || '—';
 }
-
-var _pedFiltroActivo = 'todos';
 
 function pedFiltrar(valor) {
   _pedFiltroActivo = valor;
-  // update pill active state
-  var pills = document.querySelectorAll('.ped-filtro-btn');
-  pills.forEach(function (b) {
+  document.querySelectorAll('.ped-filtro-btn').forEach(function (b) {
     b.classList.toggle('active', b.getAttribute('data-filtro') === valor);
   });
-  renderPedidosTabla(_pedidosCargar());
+  if (_pedCache) renderPedidosTabla(_pedCache);
 }
 
 function renderPedidos() {
   _pedFiltroActivo = 'todos';
-  // reset filter pills
-  var pills = document.querySelectorAll('.ped-filtro-btn');
-  pills.forEach(function (b) {
+  document.querySelectorAll('.ped-filtro-btn').forEach(function (b) {
     b.classList.toggle('active', b.getAttribute('data-filtro') === 'todos');
   });
+  _setHtml('ped-tabla-wrap', '<p class="adm-empty-text" style="padding:28px">Cargando pedidos...</p>');
+  _setHtml('ped-summary-row', '');
 
-  var arr = _pedidosCargar();
+  _adminFetch(MOTOR_URL + '/api/admin/pedidos')
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (!data.ok) throw new Error(data.error || 'Error del servidor.');
+      _pedCache = data.pedidos || [];
+      var arr = _pedCache;
 
-  var pendientes = arr.filter(function (p) { return p.estado === 'Pendiente'; }).length;
-  var procesados = arr.filter(function (p) { return p.estado === 'Procesado'; }).length;
+      var pendientes = arr.filter(function (p) { return p.estado === 'Pendiente'; }).length;
+      var procesados = arr.filter(function (p) { return p.estado === 'Procesado'; }).length;
+      var enviados   = arr.filter(function (p) { return p.estado === 'Enviado';   }).length;
+      var totalMonto = arr.reduce(function (s, p) { return s + (Number(p.monto) || 0); }, 0);
 
-  _setHtml('ped-summary-row',
-    _statCard('<span style="color:#b8973a">' + pendientes + '</span>', 'Pedidos pendientes') +
-    _statCard('<span style="color:#2E7D32">' + procesados + '</span>', 'Procesados') +
-    _statCard(arr.length, 'Total de pedidos')
-  );
+      _setHtml('ped-summary-row',
+        _statCard('<span style="color:#b8973a">' + pendientes + '</span>', 'Pendientes') +
+        _statCard('<span style="color:#2E7D32">' + procesados + '</span>', 'Procesados') +
+        _statCard('<span style="color:#1565C0">' + enviados + '</span>', 'Enviados') +
+        _statCard(_fmt(totalMonto), 'Total vendido')
+      );
 
-  renderPedidosTabla(arr);
+      renderPedidosTabla(arr);
+    })
+    .catch(function (e) {
+      _setHtml('ped-tabla-wrap',
+        '<p class="adm-empty-text" style="color:#c0392b;padding:28px">Error al cargar pedidos: ' +
+        _esc(e.message) + '. Verifica que el motor este encendido.</p>');
+    });
 }
 
 function renderPedidosTabla(arr) {
-  var filtro = _pedFiltroActivo;
+  var filtro   = _pedFiltroActivo;
   var filtered = filtro === 'todos' ? arr : arr.filter(function (p) { return p.estado === filtro; });
 
   if (!arr.length) {
-    _setHtml('ped-tabla-wrap', '<p class="adm-empty-text">No hay pedidos aun. Cuando un cliente complete una compra, el pedido aparecera aqui.</p>');
+    _setHtml('ped-tabla-wrap', '<p class="adm-empty-text">Aun no hay pedidos. Cuando un cliente complete una compra, aparecera aqui.</p>');
     return;
   }
   if (!filtered.length) {
-    var label = filtro === 'Pendiente' ? 'pedidos pendientes' : 'pedidos procesados';
-    _setHtml('ped-tabla-wrap', '<p class="adm-empty-text">No hay ' + label + ' en este momento.</p>');
+    _setHtml('ped-tabla-wrap', '<p class="adm-empty-text">No hay pedidos con estado "' + _esc(filtro) + '" en este momento.</p>');
     return;
   }
 
-  var sorted = filtered.slice().sort(function (a, b) {
-    return new Date(b.fecha || 0) - new Date(a.fecha || 0);
-  });
+  var rows = filtered.map(function (p) {
+    var vendedor = p.ref_vendedor ? p.ref_vendedor : 'Directo';
 
-  var rows = sorted.map(function (p) {
-    var esPendiente = p.estado !== 'Procesado';
-    var accion = esPendiente
-      ? '<button type="button" class="adm-btn adm-btn--sm adm-btn--pagar" onclick="pedidoMarcarProcesado(\'' + p.id + '\')">Marcar procesado</button>'
-      : '<span class="ped-fecha-despacho">' + _fmtFecha(p.fechaProcesado) + '</span>';
+    var accionHtml = '';
+    if (p.estado === 'Pendiente') {
+      accionHtml = '<button type="button" class="adm-btn adm-btn--sm adm-btn--pagar" ' +
+        'onclick="pedidoActualizar(\'' + p.id + '\',\'Procesado\')">Marcar procesado</button>';
+    } else if (p.estado === 'Procesado') {
+      accionHtml = '<button type="button" class="adm-btn adm-btn--sm adm-btn--primary" ' +
+        'onclick="pedidoActualizar(\'' + p.id + '\',\'Enviado\')">Marcar enviado</button>';
+    } else {
+      accionHtml = '<span class="adm-td-muted" style="font-size:11px">—</span>';
+    }
 
     return '<tr id="ped-row-' + p.id + '">' +
-      '<td class="adm-td-strong adm-td-mono">#' + String(p.nPedido || '?').padStart(5, '0') + '</td>' +
-      '<td class="adm-td-strong">' + _esc(p.producto || '—') + '</td>' +
-      '<td class="adm-td-usr">' +
-        '<div class="adm-usr-name">' + _esc((p.cliente && p.cliente.nombre) || '—') + '</div>' +
-        '<div class="adm-usr-code">' + _esc((p.cliente && p.cliente.email) || '') + '</div>' +
-      '</td>' +
-      '<td class="adm-td-muted adm-td-dir">' + _esc(_fmtDireccion(p.direccion)) + '</td>' +
-      '<td class="adm-td-muted">' + _esc((p.cliente && p.cliente.telefono) || '—') + '</td>' +
-      '<td class="adm-td-usr">' +
-        '<div class="adm-usr-name">' + _esc(p.vendedor || 'directo') + '</div>' +
-        '<div class="adm-usr-code">' + _esc(p.refVendedor || '') + '</div>' +
-      '</td>' +
+      '<td class="adm-td-strong">' + _esc(p.nombre_producto || '—') + '</td>' +
       '<td class="adm-td-strong">' + _fmt(p.monto || 0) + '</td>' +
-      '<td class="adm-td-muted">' + _fmtFecha(p.fecha) + '</td>' +
+      '<td class="adm-td-usr">' +
+        '<div class="adm-usr-name">' + _esc(p.cliente_nombre || '—') + '</div>' +
+        '<div class="adm-usr-code">' + _esc(p.cliente_email || '') + '</div>' +
+        '<div class="adm-usr-code">' + _esc(p.cliente_telefono || '') + '</div>' +
+      '</td>' +
+      '<td class="adm-td-muted adm-td-dir">' + _esc(_fmtDir(p)) + '</td>' +
+      '<td class="adm-td-usr">' +
+        '<div class="adm-usr-name">' + _esc(vendedor) + '</div>' +
+      '</td>' +
       '<td>' + _badgePedido(p.estado || 'Pendiente') + '</td>' +
-      '<td style="white-space:nowrap">' + accion + '</td>' +
+      '<td class="adm-td-muted">' + _fmtFecha(p.fecha) + '</td>' +
+      '<td style="white-space:nowrap">' + accionHtml + '</td>' +
     '</tr>';
   }).join('');
 
@@ -1466,15 +1610,13 @@ function renderPedidosTabla(arr) {
     '<div class="adm-table-wrap">' +
     '<table class="adm-table">' +
     '<thead><tr>' +
-      '<th>N</th>' +
       '<th>Producto</th>' +
+      '<th>Monto</th>' +
       '<th>Cliente</th>' +
       '<th>Direccion de envio</th>' +
-      '<th>Telefono</th>' +
       '<th>Vendedor</th>' +
-      '<th>Monto</th>' +
-      '<th>Fecha</th>' +
       '<th>Estado</th>' +
+      '<th>Fecha</th>' +
       '<th>Accion</th>' +
     '</tr></thead>' +
     '<tbody>' + rows + '</tbody>' +
@@ -1482,41 +1624,28 @@ function renderPedidosTabla(arr) {
   );
 }
 
-function pedidoMarcarProcesado(id) {
-  var arr = _pedidosCargar();
-  var idx = arr.findIndex(function (p) { return String(p.id) === String(id); });
-  if (idx === -1) return;
+function pedidoActualizar(id, nuevoEstado) {
+  var btn = document.querySelector('#ped-row-' + id + ' .adm-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
 
-  arr[idx].estado         = 'Procesado';
-  arr[idx].fechaProcesado = new Date().toISOString();
-  _pedidosGuardar(arr);
-
-  // TODO: en produccion — notificar al cliente (email/SMS) y al vendedor (Telegram) que el pedido fue despachado
-  //       y actualizar el estado en Supabase tabla `pedidos`
-
-  renderPedidos();
-}
-
-// Funcion utilitaria para que checkout-direccion.html (o el webhook de Stripe) cree pedidos:
-// llamar pedidoRegistrar(datos) donde datos = { producto, cliente, direccion, vendedor, refVendedor, monto }
-function pedidoRegistrar(datos) {
-  var arr  = _pedidosCargar();
-  var ahora = new Date().toISOString();
-  arr.push({
-    id:            'ped_' + Date.now(),
-    nPedido:       _pedidoNextNum(arr),
-    producto:      datos.producto      || '',
-    cliente:       datos.cliente       || { nombre: '', telefono: '' },
-    direccion:     datos.direccion     || {},
-    vendedor:      datos.vendedor      || '',
-    refVendedor:   datos.refVendedor   || '',
-    monto:         datos.monto         || 0,
-    fecha:         datos.fecha         || ahora,
-    estado:        'Pendiente',
-    fechaProcesado: null
-  });
-  _pedidosGuardar(arr);
-  // TODO: en produccion este registro viene del webhook de Stripe, no de localStorage
+  _adminFetch(MOTOR_URL + '/api/admin/pedidos/actualizar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: id, estado: nuevoEstado })
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (!data.ok) throw new Error(data.error || 'Error');
+      if (_pedCache) {
+        var idx = _pedCache.findIndex(function (p) { return String(p.id) === String(id); });
+        if (idx !== -1) _pedCache[idx].estado = nuevoEstado;
+      }
+      renderPedidosTabla(_pedCache || []);
+    })
+    .catch(function (e) {
+      alert('Error al actualizar pedido: ' + e.message);
+      if (btn) { btn.disabled = false; btn.textContent = 'Reintentar'; }
+    });
 }
 
 /* ============================================================
@@ -1546,6 +1675,13 @@ document.addEventListener('DOMContentLoaded', function () {
       if (e.target === overlay) admCerrarModal();
     });
   }
-  // Init first tab
+
+  // Auth check: mostrar login o panel según sessionStorage
+  var key = _getAdminKey();
+  if (!key) {
+    _adminShowLogin();
+    return;
+  }
+  _adminShowPanel();
   renderInventario();
 });

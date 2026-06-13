@@ -16,9 +16,75 @@ const SYSTEM_COPY_EDITOR = require('./system-copy-editor');
 const SYSTEM_CONTENIDO   = require('./system-contenido');
 const SYSTEM_AVATAR      = require('./system-avatar');
 const agenteVentas       = require('./agente-ventas');
+const supabase           = require('./supabase');
 
 const app  = express();
 const PORT = process.env.PORT || 3002;
+
+// URL pública base donde el motor sirve las páginas de venta
+// TODO: en producción, cambiar por el dominio real (ej. https://ecommerceagents.com)
+const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || `http://localhost:${PORT}`;
+
+// ── Autenticación de admin ─────────────────────────────────────────────────────
+const ADMIN_API_KEY  = process.env.ADMIN_API_KEY  || '';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
+
+function requireAdmin(req, res, next) {
+  const key = req.headers['x-admin-key'];
+  if (!ADMIN_API_KEY || !key || key !== ADMIN_API_KEY) {
+    return res.status(401).json({ ok: false, error: 'No autorizado' });
+  }
+  next();
+}
+
+// ── Autenticación de usuario en endpoints de IA ────────────────────────────────
+// TODO produccion: reemplazar el usuario_id directo por un token de sesion firmado (JWT)
+//   para que el cliente no pueda falsificar el id. Pasos: 1) al hacer login devolver
+//   un JWT firmado con el id y una clave secreta, 2) verificarlo aqui con jwt.verify().
+async function requireUsuario(req, res, next) {
+  const usuario_id = req.headers['x-usuario-id'];
+  if (!usuario_id) {
+    return res.status(401).json({ ok: false, error: 'No autorizado' });
+  }
+  try {
+    const { data, error } = await supabase
+      .from('usuarios')
+      .select('id, activo')
+      .eq('id', usuario_id)
+      .maybeSingle();
+    if (error || !data || !data.activo) {
+      return res.status(401).json({ ok: false, error: 'No autorizado' });
+    }
+    req.usuario_id = usuario_id; // disponible en el handler siguiente
+    next();
+  } catch (e) {
+    return res.status(401).json({ ok: false, error: 'No autorizado' });
+  }
+}
+
+// Verifica y descuenta créditos de Supabase.
+// Si costo <= 0 resuelve sin tocar la BD. Devuelve { ok, creditos_restantes } o { ok:false, error }.
+async function _deductCreditsBackend(usuario_id, costo, motor, descripcion) {
+  if (!costo || costo <= 0) return { ok: true, creditos_restantes: null };
+  const { data: usr, error: errL } = await supabase
+    .from('usuarios').select('creditos_ia').eq('id', usuario_id).single();
+  if (errL) throw new Error(errL.message);
+  const actuales = Number(usr.creditos_ia) || 0;
+  if (actuales < costo) {
+    return { ok: false, error: 'Creditos insuficientes', creditos_actuales: actuales };
+  }
+  const nuevos = actuales - costo;
+  const { error: errU } = await supabase
+    .from('usuarios').update({ creditos_ia: nuevos }).eq('id', usuario_id);
+  if (errU) throw new Error(errU.message);
+  supabase.from('movimientos_creditos').insert({
+    usuario_id, tipo: 'consumo', cantidad: costo,
+    motor: motor || 'desconocido', descripcion: descripcion || '',
+    saldo_despues: nuevos, fecha: new Date().toISOString()
+  }).then(() => {}).catch(e => console.warn('[movimientos_creditos]', e.message));
+  console.log(`[creditos] uid=${usuario_id} motor=${motor} -${costo} → restantes=${nuevos}`);
+  return { ok: true, creditos_restantes: nuevos };
+}
 
 // ── Directorios de trabajo ────────────────────────────────────────────────────
 const TEMP_DIR    = path.join(__dirname, 'temp');
@@ -42,9 +108,35 @@ const uploadReaccionFields = upload.fields([{ name: 'reaccionMemeFile', maxCount
 const uploadContenidoImg   = upload.single('imagen');
 const uploadAvatarFields   = upload.fields([{ name: 'fotoAvatar', maxCount: 1 }, { name: 'fotoProducto', maxCount: 1 }]);
 
+// ── CORS — lista blanca de orígenes permitidos ────────────────────────────────
+// Editar aquí para agregar dominios de producción / Vercel / staging.
+// TODO: cuando se despliegue en Vercel, agregar también la URL asignada
+//   (ej. 'https://ecommerceagents.vercel.app') mientras no apuntes el dominio propio.
+const ORIGENES_PERMITIDOS = [
+  'http://localhost:3000',  // app usuario (local)
+  'http://localhost:3001',  // admin       (local)
+  'http://localhost:3002',  // el motor mismo (peticiones internas / iframe)
+  'https://ecommerceagents.store',
+  'https://www.ecommerceagents.store',
+  'https://ecommerce-agents-mauve.vercel.app', // app en Vercel
+  // TODO: agregar URL de admin en Vercel cuando esté desplegado
+  // TODO: cuando se apunte el dominio propio, agregar: 'https://app.ecommerceagents.store'
+];
+
+const _corsOpts = {
+  origin: function (origin, callback) {
+    // Sin origen = petición directa de browser (barra de URL), curl, Postman, etc.
+    // Permitirla para que las páginas HTML públicas (/p/:slug, /checkout) carguen bien.
+    if (!origin) return callback(null, true);
+    if (ORIGENES_PERMITIDOS.includes(origin)) return callback(null, true);
+    callback(new Error('Origen no permitido por CORS: ' + origin));
+  },
+  credentials: true // permite enviar cookies / headers de auth en peticiones cross-origin
+};
+
 // ── Middleware ────────────────────────────────────────────────────────────────
-app.use(cors());
-app.use(express.json());
+app.use(cors(_corsOpts));
+app.use(express.json({ limit: '50mb' })); // 50 MB para soportar imagenes base64
 
 // ════════════════════════════════════════════════════════════════════════════
 // OBJETIVO 1 — Helper de limpieza de archivos
@@ -220,7 +312,15 @@ async function generarCopyParaVideo(outVideoPath, redSocial, anthropicKey, tempF
 }
 
 // ── Endpoint: POST /api/monetizacion/tendencias ───────────────────────────────
-app.post('/api/monetizacion/tendencias', async (req, res) => {
+app.post('/api/monetizacion/tendencias', requireUsuario, async (req, res) => {
+  const costo = COSTO_MOTOR_IA['viral-tendencias'];
+  let _credRest = null;
+  try {
+    const cr = await _deductCreditsBackend(req.usuario_id, costo, 'viral-tendencias', 'Video viral - busqueda de tendencias');
+    if (!cr.ok) return res.status(402).json({ ok: false, error: cr.error, creditos_actuales: cr.creditos_actuales });
+    _credRest = cr.creditos_restantes;
+  } catch (e) { return res.status(500).json({ ok: false, error: 'Error al verificar creditos' }); }
+
   const { macroNicho, microNicho, duracion, formato, relacionDeAspecto, idea } = req.body;
 
   if (!macroNicho || !microNicho || !formato) {
@@ -302,11 +402,12 @@ app.post('/api/monetizacion/tendencias', async (req, res) => {
   }
 
   console.log(`[motor] OK — ${bocetosData.bocetos.length} bocetos generados.`);
-  return res.json({ bocetos: bocetosData.bocetos });
+  return res.json({ bocetos: bocetosData.bocetos, creditos_restantes: _credRest });
 });
 
 // ── Endpoint: POST /api/monetizacion/desarrollar ─────────────────────────────
-app.post('/api/monetizacion/desarrollar', async (req, res) => {
+app.post('/api/monetizacion/desarrollar', requireUsuario, async (req, res) => {
+  // costo 0: incluido en viral-tendencias; solo requiere autenticacion
   const { titular, boceto, gancho, formato, relacionDeAspecto, duracion, numeroEscenas } = req.body;
 
   if (!titular || !boceto) {
@@ -402,7 +503,7 @@ app.post('/api/monetizacion/desarrollar', async (req, res) => {
 // ── Endpoint: POST /api/monetizacion/modular ──────────────────────────────────
 // Archivos gestionados: video subido + hasta 20 frames JPG + audio MP3
 // Limpieza: SIEMPRE en finally, incluido el caso de error parcial de ffmpeg.
-app.post('/api/monetizacion/modular', function (req, res, next) {
+app.post('/api/monetizacion/modular', requireUsuario, function (req, res, next) {
   uploadModular(req, res, function (err) {
     if (err) {
       if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ error: 'El video es demasiado grande. Maximo 500 MB.' });
@@ -412,6 +513,14 @@ app.post('/api/monetizacion/modular', function (req, res, next) {
   });
 }, async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Se requiere un archivo de video (campo "video").' });
+
+  const _costo = COSTO_MOTOR_IA['modular'];
+  let _credRest = null;
+  try {
+    const cr = await _deductCreditsBackend(req.usuario_id, _costo, 'modular', 'Video modular recreado');
+    if (!cr.ok) { limpiarArchivos([req.file.path], 'modular-creditos'); return res.status(402).json({ ok: false, error: cr.error, creditos_actuales: cr.creditos_actuales }); }
+    _credRest = cr.creditos_restantes;
+  } catch (e) { limpiarArchivos([req.file.path], 'modular-creditos'); return res.status(500).json({ ok: false, error: 'Error al verificar creditos' }); }
 
   const { macroNicho, microNicho, formato, relacionDeAspecto, tramoDuracion } = req.body;
   if (!macroNicho || !microNicho || !formato) {
@@ -570,7 +679,7 @@ app.post('/api/monetizacion/modular', function (req, res, next) {
     }
 
     console.log(`[modular] OK — ${modularData.escenas.length} escenas generadas`);
-    return res.json({ guion: modularData.guion, miniatura: modularData.miniatura, escenas: modularData.escenas, copy: modularData.copy });
+    return res.json({ guion: modularData.guion, miniatura: modularData.miniatura, escenas: modularData.escenas, copy: modularData.copy, creditos_restantes: _credRest });
 
   } catch (err) {
     console.error('[modular] Error en pipeline:', err.message);
@@ -584,12 +693,19 @@ app.post('/api/monetizacion/modular', function (req, res, next) {
 // ── Endpoint: POST /api/editor/procesar-video ─────────────────────────────────
 // OBJETIVO 2: -map_metadata -1 en todos los outputs ffmpeg para limpiar metadata.
 // OBJETIVO 1: limpiarArchivos() en finally con lista pre-registrada.
-app.post('/api/editor/procesar-video', function (req, res, next) {
+app.post('/api/editor/procesar-video', requireUsuario, function (req, res, next) {
   uploadEditorFields(req, res, function (err) {
     if (err) return res.status(400).json({ ok: false, error: 'Error al subir archivo: ' + err.message });
     next();
   });
 }, async (req, res) => {
+  let _credRest = null;
+  try {
+    const cr = await _deductCreditsBackend(req.usuario_id, COSTO_MOTOR_IA['editor-video'], 'editor-video', 'Editor de video split');
+    if (!cr.ok) return res.status(402).json({ ok: false, error: cr.error, creditos_actuales: cr.creditos_actuales });
+    _credRest = cr.creditos_restantes;
+  } catch (e) { return res.status(500).json({ ok: false, error: 'Error al verificar creditos' }); }
+
   const { url = '', url2 = '', accion = 'split-vertical', clips = '1', audio_opcion = 'original', redSocial = 'TikTok' } = req.body;
   const numClips     = Math.min(3, Math.max(1, parseInt(clips) || 1));
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
@@ -663,7 +779,7 @@ app.post('/api/editor/procesar-video', function (req, res, next) {
       await execAsync(splitCmd, { timeout: 600000 });
 
       const copy = await generarCopyParaVideo(outPath, redSocial, anthropicKey, tempFiles);
-      return res.json({ ok: true, filename: outName, copy });
+      return res.json({ ok: true, filename: outName, copy, creditos_restantes: _credRest });
     }
 
     // ── ACCION: split-mitad (hstack, lado a lado, 9:16) ──────────────────────
@@ -705,7 +821,7 @@ app.post('/api/editor/procesar-video', function (req, res, next) {
       await execAsync(splitCmd, { timeout: 600000 });
 
       const copy = await generarCopyParaVideo(outPath, redSocial, anthropicKey, tempFiles);
-      return res.json({ ok: true, filename: outName, copy });
+      return res.json({ ok: true, filename: outName, copy, creditos_restantes: _credRest });
     }
 
     // ── ACCION: clip ──────────────────────────────────────────────────────────
@@ -744,8 +860,8 @@ app.post('/api/editor/procesar-video', function (req, res, next) {
       const firstClipPath = path.join(OUTPUTS_DIR, clipFilenames[0]);
       const copy = await generarCopyParaVideo(firstClipPath, redSocial, anthropicKey, tempFiles);
 
-      if (clipFilenames.length === 1) return res.json({ ok: true, filename: clipFilenames[0], copy });
-      return res.json({ ok: true, clips: clipFilenames, copy });
+      if (clipFilenames.length === 1) return res.json({ ok: true, filename: clipFilenames[0], copy, creditos_restantes: _credRest });
+      return res.json({ ok: true, clips: clipFilenames, copy, creditos_restantes: _credRest });
     }
 
     // ── ACCION: descargar ─────────────────────────────────────────────────────
@@ -762,7 +878,7 @@ app.post('/api/editor/procesar-video', function (req, res, next) {
       await execAsync(dlCmd, { timeout: 120000 });
 
       const copy = await generarCopyParaVideo(outPath, redSocial, anthropicKey, tempFiles);
-      return res.json({ ok: true, filename: outName, copy });
+      return res.json({ ok: true, filename: outName, copy, creditos_restantes: _credRest });
     }
 
     return res.status(400).json({ ok: false, error: 'Accion no reconocida: ' + accion });
@@ -779,12 +895,19 @@ app.post('/api/editor/procesar-video', function (req, res, next) {
 // ── Endpoint: POST /api/editor/procesar-reaccion ──────────────────────────────
 // OBJETIVO 2: -map_metadata -1 en el output.
 // OBJETIVO 1: limpiarArchivos() garantizado en finally.
-app.post('/api/editor/procesar-reaccion', function (req, res, next) {
+app.post('/api/editor/procesar-reaccion', requireUsuario, function (req, res, next) {
   uploadReaccionFields(req, res, function (err) {
     if (err) return res.status(400).json({ ok: false, error: 'Error al subir archivo: ' + err.message });
     next();
   });
 }, async (req, res) => {
+  let _credRest = null;
+  try {
+    const cr = await _deductCreditsBackend(req.usuario_id, COSTO_MOTOR_IA['editor-reaccion'], 'editor-reaccion', 'Video reaccion con meme');
+    if (!cr.ok) return res.status(402).json({ ok: false, error: cr.error, creditos_actuales: cr.creditos_actuales });
+    _credRest = cr.creditos_restantes;
+  } catch (e) { return res.status(500).json({ ok: false, error: 'Error al verificar creditos' }); }
+
   const {
     url            = '',
     reaccionGifUrl = '',
@@ -873,7 +996,7 @@ app.post('/api/editor/procesar-reaccion', function (req, res, next) {
     await execAsync(reaccionCmd, { timeout: 600000 });
 
     const copy = await generarCopyParaVideo(outPath, redSocial, anthropicKey, tempFiles);
-    return res.json({ ok: true, filename: outName, copy });
+    return res.json({ ok: true, filename: outName, copy, creditos_restantes: _credRest });
 
   } catch (err) {
     console.error('[reaccion] Error:', err.message);
@@ -1009,12 +1132,21 @@ async function buscarProductoInternet(producto, anthropicKey) {
 }
 
 // ── Endpoint: POST /api/contenido/organico ────────────────────────────────────
-app.post('/api/contenido/organico', function (req, res, next) {
+app.post('/api/contenido/organico', requireUsuario, function (req, res, next) {
   uploadContenidoImg(req, res, function (err) {
     if (err) return res.status(400).json({ ok: false, error: 'Error al subir imagen: ' + err.message });
     next();
   });
 }, async (req, res) => {
+  let _credRest = null;
+  try {
+    const _tipo = (req.body && req.body.tipoContenido) || 'imagen';
+    const _cKey = _tipo === 'video' ? 'contenido-avatar' : 'contenido-organico';
+    const cr = await _deductCreditsBackend(req.usuario_id, COSTO_MOTOR_IA[_cKey], _cKey, 'Contenido organico - ' + _tipo);
+    if (!cr.ok) return res.status(402).json({ ok: false, error: cr.error, creditos_actuales: cr.creditos_actuales });
+    _credRest = cr.creditos_restantes;
+  } catch (e) { return res.status(500).json({ ok: false, error: 'Error al verificar creditos' }); }
+
   const { producto = '', tipoContenido = 'imagen', redSocial = '', tono = '', idea = '', enfoque = 'emocional', duracion = '18', relacionImagen = '9:16', relacionDeAspecto = '9:16' } = req.body;
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
   const tempFiles    = [];
@@ -1080,7 +1212,7 @@ app.post('/api/contenido/organico', function (req, res, next) {
     const parsed  = JSON.parse(limpiarJSON(rawText));
 
     // Devolver los campos que corresponden al tipo solicitado
-    const respuesta = { ok: true, tipo: tipoContenido, copy: parsed.copy || '' };
+    const respuesta = { ok: true, tipo: tipoContenido, copy: parsed.copy || '', creditos_restantes: _credRest };
     if (tipoContenido === 'video') {
       respuesta.guion    = parsed.guion    || '';
       respuesta.miniatura = parsed.miniatura || '';
@@ -1099,12 +1231,21 @@ app.post('/api/contenido/organico', function (req, res, next) {
 });
 
 // ── Endpoint: POST /api/contenido/anuncio ─────────────────────────────────────
-app.post('/api/contenido/anuncio', function (req, res, next) {
+app.post('/api/contenido/anuncio', requireUsuario, function (req, res, next) {
   uploadContenidoImg(req, res, function (err) {
     if (err) return res.status(400).json({ ok: false, error: 'Error al subir imagen: ' + err.message });
     next();
   });
 }, async (req, res) => {
+  let _credRest = null;
+  try {
+    const _tipo = (req.body && req.body.tipoContenido) || 'imagen';
+    const _cKey = _tipo === 'video' ? 'contenido-avatar' : 'contenido-anuncio';
+    const cr = await _deductCreditsBackend(req.usuario_id, COSTO_MOTOR_IA[_cKey], _cKey, 'Contenido anuncio - ' + _tipo);
+    if (!cr.ok) return res.status(402).json({ ok: false, error: cr.error, creditos_actuales: cr.creditos_actuales });
+    _credRest = cr.creditos_restantes;
+  } catch (e) { return res.status(500).json({ ok: false, error: 'Error al verificar creditos' }); }
+
   const { producto = '', tipoContenido = 'imagen', plataforma = '', objetivo = '', idea = '', enfoque = 'emocional', relacionImagen = '9:16', duracion: duracionAnun = '18', relacionDeAspecto: relacionDeAspectoAnun = '9:16' } = req.body;
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
   const tempFiles    = [];
@@ -1174,7 +1315,8 @@ app.post('/api/contenido/anuncio', function (req, res, next) {
       titular:        parsed.titular        || '',
       cuerpo:         parsed.cuerpo         || '',
       llamado_accion: parsed.llamado_accion || '',
-      copy:           parsed.copy           || ''
+      copy:           parsed.copy           || '',
+      creditos_restantes: _credRest
     });
 
   } catch (err) {
@@ -1220,12 +1362,19 @@ async function analizarImagenAvatar(imagePath, anthropicKey) {
 }
 
 // ── Endpoint: POST /api/contenido/avatar ──────────────────────────────────────
-app.post('/api/contenido/avatar', function (req, res, next) {
+app.post('/api/contenido/avatar', requireUsuario, function (req, res, next) {
   uploadAvatarFields(req, res, function (err) {
     if (err) return res.status(400).json({ ok: false, error: 'Error al subir imagen: ' + err.message });
     next();
   });
 }, async (req, res) => {
+  let _credRest = null;
+  try {
+    const cr = await _deductCreditsBackend(req.usuario_id, COSTO_MOTOR_IA['contenido-avatar'], 'contenido-avatar', 'Video avatar UGC');
+    if (!cr.ok) return res.status(402).json({ ok: false, error: cr.error, creditos_actuales: cr.creditos_actuales });
+    _credRest = cr.creditos_restantes;
+  } catch (e) { return res.status(500).json({ ok: false, error: 'Error al verificar creditos' }); }
+
   const { producto = '', redSocial = '', plataforma = '', enfoque = 'emocional', duracion = '10', relacionDeAspecto = '9:16', idea = '' } = req.body;
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
   const tempFiles    = [];
@@ -1295,7 +1444,8 @@ app.post('/api/contenido/avatar', function (req, res, next) {
       guion:    parsed.guion    || '',
       tono_voz: parsed.tono_voz || '',
       escenas:  Array.isArray(parsed.escenas) ? parsed.escenas : [],
-      copy:     parsed.copy     || ''
+      copy:     parsed.copy     || '',
+      creditos_restantes: _credRest
     });
 
   } catch (err) {
@@ -1338,7 +1488,7 @@ app.get('/api/ventas/config', (req, res) => {
   }
 });
 
-app.post('/api/ventas/conectar-whatsapp', async (req, res) => {
+app.post('/api/ventas/conectar-whatsapp', requireAdmin, async (req, res) => {
   try {
     await agenteVentas.conectarWhatsApp();
     const estado = agenteVentas.getEstado();
@@ -1349,12 +1499,12 @@ app.post('/api/ventas/conectar-whatsapp', async (req, res) => {
   }
 });
 
-app.get('/api/ventas/qr', (req, res) => {
+app.get('/api/ventas/qr', requireAdmin, (req, res) => {
   const estado = agenteVentas.getEstado();
   res.json(estado);
 });
 
-app.post('/api/ventas/desconectar-whatsapp', async (req, res) => {
+app.post('/api/ventas/desconectar-whatsapp', requireAdmin, async (req, res) => {
   try {
     const result = await agenteVentas.desconectarWhatsApp();
     res.json({ ok: true, ...result });
@@ -1364,7 +1514,7 @@ app.post('/api/ventas/desconectar-whatsapp', async (req, res) => {
   }
 });
 
-app.post('/api/ventas/probar-telegram', async (req, res) => {
+app.post('/api/ventas/probar-telegram', requireAdmin, async (req, res) => {
   try {
     const { token, chatId } = req.body || {};
     if (!token || !chatId) return res.status(400).json({ error: 'Falta token o chatId' });
@@ -1374,6 +1524,1912 @@ app.post('/api/ventas/probar-telegram', async (req, res) => {
   } catch (e) {
     console.error('[ventas/probar-telegram]', e.message);
     res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Login ──────────────────────────────────────────────────────────────────────
+
+// POST /api/login
+// Valida codigo + codigoSeguridad contra Supabase tabla `usuarios`.
+// POST /api/admin/login — verifica la contraseña de admin y devuelve la API key
+app.post('/api/admin/login', (req, res) => {
+  const { password } = req.body || {};
+  if (!password || !ADMIN_PASSWORD || password !== ADMIN_PASSWORD) {
+    return res.status(401).json({ ok: false, error: 'Contraseña incorrecta' });
+  }
+  console.log('[admin/login] Acceso concedido');
+  res.json({ ok: true, adminKey: ADMIN_API_KEY });
+});
+
+// Devuelve datos del usuario si todo es correcto. NUNCA devuelve codigo_seguridad.
+app.post('/api/login', async (req, res) => {
+  const { codigo, codigoSeguridad } = req.body || {};
+
+  if (!codigo || !codigoSeguridad) {
+    return res.status(400).json({ ok: false, error: 'Faltan datos de acceso.' });
+  }
+
+  try {
+    // codigo_seguridad se trae SOLO para comparar en servidor, nunca se devuelve al cliente
+    const { data, error } = await supabase
+      .from('usuarios')
+      .select('id, codigo, nombre, codigo_seguridad, activo, creditos_ia, saldo_productos, ref_codigo, whatsapp')
+      .eq('codigo', String(codigo).trim().toUpperCase())
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (!data) {
+      return res.json({ ok: false, error: 'Usuario no encontrado.' });
+    }
+    if (data.codigo_seguridad !== String(codigoSeguridad).trim()) {
+      return res.json({ ok: false, error: 'Codigo de seguridad incorrecto.' });
+    }
+    if (!data.activo) {
+      return res.json({ ok: false, error: 'Tu cuenta aun no esta activa. Contacta al administrador.' });
+    }
+
+    return res.json({
+      ok: true,
+      usuario: {
+        id:              data.id,
+        codigo:          data.codigo,
+        nombre:          data.nombre          || data.codigo,
+        creditos_ia:     data.creditos_ia     ?? 0,
+        saldo_productos: data.saldo_productos ?? 0,
+        ref_codigo:      data.ref_codigo      || data.codigo,
+        whatsapp:        data.whatsapp        || ''
+      }
+    });
+
+  } catch (e) {
+    console.error('[login]', e.message);
+    res.status(500).json({ ok: false, error: 'Error interno. Intenta de nuevo.' });
+    // ── NOTA: codigo_seguridad se usa aquí en texto plano.
+    // Ver bloque "TODO ACTIVAR HASH" más abajo para la migración a bcrypt.
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// TODO ACTIVAR HASH — Migración de contraseñas a bcrypt
+// bcrypt YA ESTÁ INSTALADO (npm install bcrypt). NO activar hasta migrar los
+// usuarios existentes que tienen codigo_seguridad en texto plano.
+//
+// PASO A: en server.js, descomentar el import al principio del archivo:
+//   const bcrypt = require('bcrypt');
+//   const SALT_ROUNDS = 12;
+//
+// PASO B: cuando se CREA un usuario nuevo, hashear antes de guardar en Supabase:
+//   const hash = await bcrypt.hash(codigoSeguridad, SALT_ROUNDS);
+//   // guardar hash en la columna codigo_seguridad
+//
+// PASO C: en POST /api/login, reemplazar la comparación de texto plano:
+//   // Antes (texto plano — ACTUAL):
+//   if (data.codigo_seguridad !== String(codigoSeguridad).trim()) { ... }
+//   // Después (bcrypt — ACTIVAR TRAS MIGRACIÓN):
+//   const match = await bcrypt.compare(String(codigoSeguridad).trim(), data.codigo_seguridad);
+//   if (!match) { return res.json({ ok: false, error: 'Codigo de seguridad incorrecto.' }); }
+//
+// SCRIPT DE MIGRACIÓN de los usuarios existentes (ejecutar UNA sola vez):
+//   const bcrypt = require('bcrypt');
+//   const { createClient } = require('@supabase/supabase-js');
+//   const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+//   async function migrarHashes() {
+//     const { data } = await supabase.from('usuarios').select('id, codigo_seguridad');
+//     for (const u of data) {
+//       if (!u.codigo_seguridad || u.codigo_seguridad.startsWith('$2b$')) continue; // ya hasheado
+//       const hash = await bcrypt.hash(u.codigo_seguridad, 12);
+//       await supabase.from('usuarios').update({ codigo_seguridad: hash }).eq('id', u.id);
+//       console.log('Migrado:', u.id);
+//     }
+//     console.log('Migración completa');
+//   }
+//   migrarHashes();
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── Supabase ───────────────────────────────────────────────────────────────────
+
+// GET /api/supabase/test
+// Verifica la conexión con Supabase contando los registros de la tabla `usuarios`.
+// Úsalo solo para confirmar que las variables de entorno y el proyecto están bien.
+app.get('/api/supabase/test', requireAdmin, async (req, res) => {
+  try {
+    const { count, error } = await supabase
+      .from('usuarios')
+      .select('*', { count: 'exact', head: true });
+
+    if (error) throw error;
+
+    res.json({ ok: true, total_usuarios: count });
+  } catch (e) {
+    console.error('[supabase/test]', e.message);
+    // Mensajes de error claros para los casos más comunes
+    const hint =
+      e.message.includes('relation "usuarios" does not exist')
+        ? 'La tabla "usuarios" no existe aún en tu proyecto de Supabase. Créala primero.'
+        : e.message.includes('Invalid API key') || e.message.includes('401')
+        ? 'La SUPABASE_SERVICE_ROLE_KEY en .env es incorrecta o venció.'
+        : e.message.includes('fetch') || e.message.includes('ENOTFOUND')
+        ? 'No se pudo conectar a Supabase. Verifica que SUPABASE_URL en .env sea correcto.'
+        : null;
+
+    res.status(500).json({ ok: false, error: e.message, ...(hint ? { hint } : {}) });
+  }
+});
+
+// ── WhatsApp del vendedor ─────────────────────────────────────────────────────
+
+// POST /api/usuario/whatsapp  — guarda el número de WhatsApp del usuario autenticado
+app.post('/api/usuario/whatsapp', requireUsuario, async (req, res) => {
+  const { whatsapp } = req.body || {};
+  const usuario_id   = req.usuario_id;
+  const num = String(whatsapp || '').trim();
+
+  if (num && !/^[+\d\s\-().]{6,20}$/.test(num)) {
+    return res.status(400).json({ ok: false, error: 'Formato inválido. Usa solo dígitos, +, espacios o guiones. Ej: +57 300 1234567' });
+  }
+
+  try {
+    const { error } = await supabase
+      .from('usuarios')
+      .update({ whatsapp: num || null })
+      .eq('id', usuario_id);
+    if (error) throw error;
+    console.log(`[usuario/whatsapp] uid=${usuario_id} → ${num || '(borrado)'}`);
+    res.json({ ok: true, whatsapp: num });
+  } catch (e) {
+    console.error('[usuario/whatsapp]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// GET /api/checkout/asesor?slug=&ref=
+// Devuelve el WhatsApp del vendedor dueño del ref y el nombre del producto.
+app.get('/api/checkout/asesor', async (req, res) => {
+  const slug = String(req.query.slug || '').trim();
+  const ref  = String(req.query.ref  || '').trim().toUpperCase();
+
+  if (!ref) return res.status(400).json({ ok: false, error: 'Falta el código de vendedor (ref).' });
+
+  try {
+    const { data: vendor, error: vErr } = await supabase
+      .from('usuarios')
+      .select('whatsapp, nombre')
+      .eq('codigo', ref)
+      .maybeSingle();
+
+    if (vErr) throw vErr;
+
+    if (!vendor || !vendor.whatsapp) {
+      return res.json({ ok: false, error: 'Este asesor aún no tiene WhatsApp configurado.' });
+    }
+
+    let nombre_producto = 'el producto';
+    if (slug) {
+      const { data: pag } = await supabase
+        .from('paginas_venta')
+        .select('nombre')
+        .eq('slug', slug)
+        .maybeSingle();
+      if (pag && pag.nombre) nombre_producto = pag.nombre;
+    }
+
+    res.json({ ok: true, whatsapp: vendor.whatsapp, nombre_producto, nombre_vendedor: vendor.nombre || ref });
+  } catch (e) {
+    console.error('[checkout/asesor]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ── Mis Productos (por vendedor) ──────────────────────────────────────────────
+
+// POST /api/mis-productos/agregar
+app.post('/api/mis-productos/agregar', async (req, res) => {
+  const { usuario_id, producto_id } = req.body || {};
+  if (!usuario_id || !producto_id) {
+    return res.status(400).json({ ok: false, error: 'Se requiere usuario_id y producto_id.' });
+  }
+  try {
+    // Traer código del usuario y buscar página de venta activa para el producto
+    const [{ data: usuario, error: uErr }, { data: paginas, error: pgErr }] = await Promise.all([
+      supabase.from('usuarios').select('codigo').eq('id', usuario_id).single(),
+      supabase.from('paginas_venta')
+        .select('slug')
+        .eq('producto_id', producto_id)
+        .eq('activa', true)
+        .order('creado_en', { ascending: false })
+        .limit(1)
+    ]);
+    if (uErr) throw uErr;
+    if (pgErr) throw pgErr;
+
+    // Si existe una página activa, usar su slug; si no, link_venta queda null
+    const paginaSlug = paginas && paginas.length > 0 ? paginas[0].slug : null;
+    const link_venta = paginaSlug
+      ? `${PUBLIC_BASE_URL}/p/${paginaSlug}?ref=${usuario.codigo}`
+      : null;
+
+    // upsert: si ya existe la combinación, actualiza el link_venta (por si antes era null)
+    const { error: iErr } = await supabase
+      .from('mis_productos')
+      .upsert({ usuario_id, producto_id, link_venta }, { onConflict: 'usuario_id,producto_id', ignoreDuplicates: false });
+    if (iErr) throw iErr;
+
+    console.log(`[mis-productos/agregar] usuario=${usuario_id} producto=${producto_id} pagina=${paginaSlug || 'SIN PAGINA'}`);
+    res.json({ ok: true, link_venta });
+  } catch (e) {
+    console.error('[mis-productos/agregar]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// GET /api/mis-productos/:usuario_id
+app.get('/api/mis-productos/:usuario_id', async (req, res) => {
+  const { usuario_id } = req.params;
+  try {
+    const { data, error } = await supabase
+      .from('mis_productos')
+      .select('id, producto_id, link_venta, fecha_agregado, productos(id, nombre, categoria, precio, utilidad, stock, imagenes, slug)')
+      .eq('usuario_id', usuario_id)
+      .order('fecha_agregado', { ascending: false });
+    if (error) throw error;
+    res.json({ ok: true, productos: data });
+  } catch (e) {
+    console.error('[mis-productos GET]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// POST /api/mis-productos/quitar
+app.post('/api/mis-productos/quitar', async (req, res) => {
+  const { usuario_id, producto_id } = req.body || {};
+  if (!usuario_id || !producto_id) {
+    return res.status(400).json({ ok: false, error: 'Se requiere usuario_id y producto_id.' });
+  }
+  try {
+    const { error } = await supabase
+      .from('mis_productos')
+      .delete()
+      .eq('usuario_id', usuario_id)
+      .eq('producto_id', producto_id);
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[mis-productos/quitar]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ── Catalogo público (solo productos visibles y no pausados) ──────────────────
+
+// GET /api/catalogo
+app.get('/api/catalogo', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('productos')
+      .select('id, nombre, categoria, precio, utilidad, stock, imagenes, slug')
+      .eq('visible', true)
+      .eq('pausado', false)
+      .order('creado_en', { ascending: false });
+    if (error) throw error;
+    res.json({ ok: true, productos: data });
+  } catch (e) {
+    console.error('[catalogo]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ── Admin: Productos ──────────────────────────────────────────────────────────
+
+function _slugify(nombre) {
+  return String(nombre).toLowerCase()
+    .replace(/[áàâä]/g, 'a').replace(/[éèêë]/g, 'e')
+    .replace(/[íìîï]/g, 'i').replace(/[óòôö]/g, 'o')
+    .replace(/[úùûü]/g, 'u').replace(/ñ/g, 'n')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+// Middleware de autenticación para TODOS los endpoints /api/admin/*
+// (el endpoint /api/admin/login ya fue registrado antes, así que no pasa por aquí)
+app.use('/api/admin', requireAdmin);
+
+// GET /api/admin/productos
+app.get('/api/admin/productos', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('productos')
+      .select('*')
+      .order('creado_en', { ascending: false });
+    if (error) throw error;
+    res.json({ ok: true, productos: data });
+  } catch (e) {
+    console.error('[admin/productos GET]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// POST /api/admin/productos  — crear
+app.post('/api/admin/productos', async (req, res) => {
+  const { nombre, categoria, precio, utilidad, stock, imagenes } = req.body || {};
+  if (!nombre || !nombre.trim()) {
+    return res.status(400).json({ ok: false, error: 'El nombre es obligatorio.' });
+  }
+  try {
+    // Generar slug único
+    const base = _slugify(nombre);
+    const { data: existing } = await supabase
+      .from('productos')
+      .select('slug')
+      .like('slug', base + '%');
+    const usados = new Set((existing || []).map(r => r.slug));
+    let slug = base;
+    let n = 1;
+    while (usados.has(slug)) { slug = base + '-' + (n++); }
+
+    const { data, error } = await supabase
+      .from('productos')
+      .insert({
+        nombre:    nombre.trim(),
+        categoria: categoria ? categoria.trim() : null,
+        precio:    parseFloat(precio)  || 0,
+        utilidad:  parseFloat(utilidad)|| 0,
+        stock:     parseInt(stock, 10) || 0,
+        imagenes:  Array.isArray(imagenes) ? imagenes : [],
+        slug,
+        visible:   true,
+        pausado:   false
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.json({ ok: true, producto: data });
+  } catch (e) {
+    console.error('[admin/productos POST]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// POST /api/admin/productos/actualizar  — editar campos
+app.post('/api/admin/productos/actualizar', async (req, res) => {
+  const { id, ...campos } = req.body || {};
+  if (!id) return res.status(400).json({ ok: false, error: 'Se requiere id.' });
+  // Permitir solo campos seguros
+  const permitidos = ['nombre','categoria','precio','utilidad','stock','imagenes','visible','pausado','slug'];
+  const update = {};
+  permitidos.forEach(k => { if (campos[k] !== undefined) update[k] = campos[k]; });
+  if (!Object.keys(update).length) {
+    return res.status(400).json({ ok: false, error: 'No hay campos para actualizar.' });
+  }
+  try {
+    const { error } = await supabase.from('productos').update(update).eq('id', id);
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[admin/productos/actualizar]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// POST /api/admin/productos/eliminar
+app.post('/api/admin/productos/eliminar', async (req, res) => {
+  const { id } = req.body || {};
+  if (!id) return res.status(400).json({ ok: false, error: 'Se requiere id.' });
+  try {
+    const { error } = await supabase.from('productos').delete().eq('id', id);
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[admin/productos/eliminar]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ── Usuario: actualizar nombre propio ─────────────────────────────────────────
+
+// POST /api/usuario/nombre
+// Guarda el nombre personalizado del usuario en Supabase.
+// Body: { id, nombre }
+app.post('/api/usuario/nombre', async (req, res) => {
+  const { id, nombre } = req.body || {};
+  if (!id || !nombre || !nombre.trim()) {
+    return res.status(400).json({ ok: false, error: 'Se requiere id y nombre.' });
+  }
+  try {
+    const { error } = await supabase
+      .from('usuarios')
+      .update({ nombre: nombre.trim() })
+      .eq('id', id);
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[usuario/nombre]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ── Admin: Usuarios ───────────────────────────────────────────────────────────
+
+// GET /api/admin/usuarios
+// Devuelve todos los usuarios de Supabase ordenados por codigo.
+app.get('/api/admin/usuarios', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('usuarios')
+      .select('id, codigo, nombre, activo, creditos_ia, saldo_productos, fecha_registro')
+      .order('codigo', { ascending: true });
+
+    if (error) throw error;
+    res.json({ ok: true, usuarios: data });
+  } catch (e) {
+    console.error('[admin/usuarios]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// POST /api/admin/usuarios/activar
+// Activa un usuario: activo = true
+app.post('/api/admin/usuarios/activar', async (req, res) => {
+  const { id, codigo } = req.body || {};
+  if (!id && !codigo) return res.status(400).json({ ok: false, error: 'Se requiere id o codigo.' });
+  try {
+    const filtro = id ? { id } : { codigo };
+    const { error } = await supabase
+      .from('usuarios')
+      .update({ activo: true })
+      .match(filtro);
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[admin/usuarios/activar]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// POST /api/admin/usuarios/desactivar
+// Desactiva un usuario: activo = false
+app.post('/api/admin/usuarios/desactivar', async (req, res) => {
+  const { id, codigo } = req.body || {};
+  if (!id && !codigo) return res.status(400).json({ ok: false, error: 'Se requiere id o codigo.' });
+  try {
+    const filtro = id ? { id } : { codigo };
+    const { error } = await supabase
+      .from('usuarios')
+      .update({ activo: false })
+      .match(filtro);
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[admin/usuarios/desactivar]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ── Admin: Páginas de Venta ───────────────────────────────────────────────────
+
+// GET /api/admin/paginas  — lista sin html (liviano)
+app.get('/api/admin/paginas', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('paginas_venta')
+      .select('id, nombre, slug, vistas, activa, creado_en, producto_id')
+      .order('creado_en', { ascending: false });
+    if (error) throw error;
+    const paginas = (data || []).map(p => ({ ...p, tiene_html: true }));
+    res.json({ ok: true, paginas });
+  } catch (e) {
+    console.error('[admin/paginas GET]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// POST /api/admin/paginas  — crear
+app.post('/api/admin/paginas', async (req, res) => {
+  const { nombre, html, producto_id } = req.body || {};
+  if (!nombre || !nombre.trim()) return res.status(400).json({ ok: false, error: 'El nombre es obligatorio.' });
+  if (!html  || !html.trim())   return res.status(400).json({ ok: false, error: 'El HTML es obligatorio.' });
+  try {
+    const base = _slugify(nombre);
+    const { data: existing } = await supabase
+      .from('paginas_venta').select('slug').ilike('slug', base + '%');
+    const usados = new Set((existing || []).map(p => p.slug));
+    let slug = base; let n = 1;
+    while (usados.has(slug)) { slug = base + '-' + (n++); }
+
+    const insertObj = {
+      nombre:     nombre.trim(),
+      slug,
+      html:       html.trim(),
+      activa:     true,
+      vistas:     0,
+      creado_en:  new Date().toISOString()
+    };
+    if (producto_id) insertObj.producto_id = producto_id;
+
+    console.log(`[admin/paginas POST] Insertando: nombre="${insertObj.nombre}" slug="${slug}"`);
+    const { data, error } = await supabase.from('paginas_venta').insert(insertObj).select('id, slug').single();
+    console.log(`[admin/paginas POST] Resultado: data=${JSON.stringify(data)} error=${JSON.stringify(error)}`);
+
+    if (error) throw error;
+    if (!data) throw new Error('Supabase no devolvio datos tras el insert.');
+
+    console.log(`[admin/paginas POST] OK — id=${data.id} slug=${data.slug}`);
+    res.json({ ok: true, pagina: { id: data.id, slug: data.slug } });
+  } catch (e) {
+    console.error('[admin/paginas POST] ERROR:', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// POST /api/admin/paginas/actualizar
+app.post('/api/admin/paginas/actualizar', async (req, res) => {
+  const { id, ...campos } = req.body || {};
+  if (!id) return res.status(400).json({ ok: false, error: 'Se requiere id.' });
+  const permitidos = ['nombre', 'html', 'activa', 'producto_id'];
+  const update = {};
+  permitidos.forEach(k => { if (campos[k] !== undefined) update[k] = campos[k]; });
+  if (!Object.keys(update).length) return res.status(400).json({ ok: false, error: 'Sin campos a actualizar.' });
+  try {
+    const { error } = await supabase.from('paginas_venta').update(update).eq('id', id);
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[admin/paginas/actualizar]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// POST /api/admin/paginas/eliminar
+app.post('/api/admin/paginas/eliminar', async (req, res) => {
+  const { id } = req.body || {};
+  if (!id) return res.status(400).json({ ok: false, error: 'Se requiere id.' });
+  try {
+    const { error } = await supabase.from('paginas_venta').delete().eq('id', id);
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[admin/paginas/eliminar]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// GET /api/admin/paginas/:id  — con html completo (para edición)
+app.get('/api/admin/paginas/:id', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('paginas_venta').select('*').eq('id', req.params.id).single();
+    if (error) throw error;
+    if (!data) return res.status(404).json({ ok: false, error: 'No encontrada.' });
+    res.json({ ok: true, pagina: data });
+  } catch (e) {
+    console.error('[admin/paginas/:id]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ── Script público de checkout ─────────────────────────────────────────────────
+// Solo pasa slug de la página y ref del vendedor — link CORTO, sin base64 ni textos largos
+app.get('/ea-checkout.js', (req, res) => {
+  res.setHeader('Content-Type', 'application/javascript');
+  res.send(`(function(){
+  var params   = new URLSearchParams(window.location.search);
+  var ref      = params.get('ref') || '';
+  var parts    = window.location.pathname.split('/').filter(Boolean);
+  var pageSlug = parts[parts.length - 1] || '';
+  document.querySelectorAll('.btn-comprar-ea').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var url = '/checkout?slug=' + encodeURIComponent(pageSlug);
+      if (ref) url += '&ref=' + encodeURIComponent(ref);
+      window.location.href = url;
+    });
+  });
+})();`);
+});
+
+// ── Extracción de color principal desde HTML de página ───────────────────────
+function _isUsableColor(hex) {
+  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  if (r>210 && g>210 && b>210) return false; // near-white
+  if (r<25  && g<25  && b<25)  return false; // near-black
+  const avg = (r+g+b)/3;
+  if (Math.abs(r-avg)<18 && Math.abs(g-avg)<18 && Math.abs(b-avg)<18) return false; // gray
+  return true;
+}
+function _extractColor(html) {
+  if (!html) return null;
+  // 1. Color del botón .btn-comprar-ea (más confiable)
+  const btnBlock = html.match(/\.btn-comprar-ea\s*\{([^}]+)\}/s);
+  if (btnBlock) {
+    const m = btnBlock[1].match(/background(?:-color)?\s*:\s*(#[0-9a-fA-F]{6})/);
+    if (m && _isUsableColor(m[1])) return m[1].toLowerCase();
+  }
+  // 2. Variables CSS --color: #... que parezcan de acento
+  const vars = html.match(/--[a-z-]+\s*:\s*(#[0-9a-fA-F]{6})/g) || [];
+  for (const v of vars) {
+    const c = v.match(/#[0-9a-fA-F]{6}/)[0];
+    if (_isUsableColor(c)) return c.toLowerCase();
+  }
+  // 3. Cualquier hex de 6 dígitos dentro de <style>
+  const styleBlock = html.match(/<style[^>]*>([\s\S]*?)<\/style>/i);
+  if (styleBlock) {
+    const hexes = styleBlock[1].match(/#[0-9a-fA-F]{6}/g) || [];
+    for (const c of hexes) { if (_isUsableColor(c)) return c.toLowerCase(); }
+  }
+  return null;
+}
+
+// ── Info pública del producto para el checkout ────────────────────────────────
+app.get('/api/checkout/info', async (req, res) => {
+  const { slug } = req.query;
+  if (!slug) return res.status(400).json({ ok: false, error: 'Se requiere slug.' });
+  try {
+    const { data: pagina, error: pErr } = await supabase
+      .from('paginas_venta')
+      .select('id, nombre, producto_id, html')  // incluye html para extraer color
+      .eq('slug', slug).eq('activa', true).single();
+    if (pErr || !pagina) return res.status(404).json({ ok: false, error: 'Pagina no encontrada.' });
+
+    let nombre_producto = pagina.nombre;
+    let precio = 0;
+    let imagen = null;
+
+    if (pagina.producto_id) {
+      const { data: prod } = await supabase
+        .from('productos')
+        .select('nombre, precio, imagenes')
+        .eq('id', pagina.producto_id).single();
+      if (prod) {
+        nombre_producto = prod.nombre;
+        precio          = prod.precio || 0;
+        imagen          = Array.isArray(prod.imagenes) ? prod.imagenes[0] : null;
+      }
+    }
+
+    const color_principal = _extractColor(pagina.html) || '#b89368';
+    res.json({ ok: true, nombre_producto, precio, imagen, color_principal });
+  } catch (e) {
+    console.error('[checkout/info]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ── Formulario de checkout (GET /checkout) ────────────────────────────────────
+app.get('/checkout', (req, res) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(`<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Confirmar pedido · EcommerceAgents</title>
+<style>
+:root{--accent:#b89368;--accent-dk:#9a7850;--accent-shadow:rgba(184,147,104,.13);--bg:#f7f5f1;--white:#fff;--txt:#1a1714;--txt-mid:#5a4f44;--txt-lt:#8a7a68;--bd:#e0d8cc;--suc:#2d7a3a;--err:#c0392b;--r:6px}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif;background:var(--bg);color:var(--txt);min-height:100vh;font-size:15px}
+/* ─── Header ─────────────────────────────── */
+.ck-hd{background:#1a1714;padding:0 20px}
+.ck-hd-in{max-width:980px;margin:0 auto;height:54px;display:flex;align-items:center;justify-content:space-between}
+.ck-logo{color:#fff;font-family:Georgia,'Times New Roman',serif;font-size:19px;font-weight:400;letter-spacing:.02em;text-decoration:none;line-height:1}
+.ck-logo em{color:var(--accent);font-style:italic}
+.ck-ssl{display:flex;align-items:center;gap:6px;color:#b0a898;font-size:12px}
+.ck-ssl svg{color:var(--accent);flex-shrink:0}
+/* ─── Stepper ────────────────────────────── */
+.ck-steps{background:var(--white);border-bottom:1px solid var(--bd);padding:0 20px}
+.ck-steps-in{max-width:980px;margin:0 auto;height:46px;display:flex;align-items:center;justify-content:center;gap:0}
+.ck-stp{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--txt-lt)}
+.ck-stp-n{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;background:var(--bd);color:var(--txt-lt)}
+.ck-stp--on .ck-stp-n{background:var(--accent);color:#fff}
+.ck-stp--on .ck-stp-lbl{color:var(--txt);font-weight:600}
+.ck-stp-bar{width:28px;height:1px;background:var(--bd);margin:0 6px}
+/* ─── Layout ─────────────────────────────── */
+.ck-main{max-width:980px;margin:0 auto;padding:28px 16px 72px;display:flex;gap:24px;align-items:flex-start}
+.ck-left{flex:1;min-width:0}
+.ck-right{width:310px;flex-shrink:0;position:sticky;top:20px}
+/* ─── Cards ──────────────────────────────── */
+.ck-card{background:var(--white);border-radius:var(--r);border:1px solid var(--bd)}
+.ck-card+.ck-card,.ck-card+.ck-note{margin-top:14px}
+.ck-card-hd{padding:14px 18px 12px;border-bottom:1px solid var(--bd);font-size:11.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--txt-lt)}
+/* ─── Form ───────────────────────────────── */
+.ck-fbody{padding:18px}
+.ck-fld{margin-bottom:14px}
+.ck-lbl{display:block;font-size:12px;font-weight:600;color:var(--txt-mid);margin-bottom:4px}
+.ck-req{color:var(--accent)}
+.ck-inp{width:100%;padding:10px 12px;border:1.5px solid var(--bd);border-radius:var(--r);font-size:14px;color:var(--txt);background:var(--white);transition:border-color .15s,box-shadow .15s;outline:none;-webkit-appearance:none}
+.ck-inp:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-shadow)}
+.ck-inp::placeholder{color:#bfb8b0}
+.ck-g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.ck-g2z{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+/* ─── Button ─────────────────────────────── */
+.ck-btn{width:100%;padding:15px 20px;background:var(--accent);color:#fff;border:none;border-radius:var(--r);font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:9px;letter-spacing:.04em;transition:background .15s,transform .1s;margin-top:4px}
+.ck-btn:hover{background:var(--accent-dk)}
+.ck-btn:active{transform:scale(.99)}
+.ck-btn:disabled{opacity:.65;cursor:not-allowed;transform:none}
+.ck-bsub{text-align:center;font-size:11px;color:var(--txt-lt);margin-top:9px;line-height:1.5}
+.ck-err{color:var(--err);font-size:13px;margin-top:10px;padding:9px 13px;background:#fef5f5;border-radius:4px;border:1px solid #f5c6c6;display:none}
+/* ─── Trust zone (near button) ──────────── */
+.ck-guarantee{display:flex;align-items:flex-start;gap:10px;background:#faf9f6;border:1px solid var(--bd);border-left:3px solid var(--accent);border-radius:var(--r);padding:11px 13px;margin:14px 0 0}
+.ck-guar-ic{color:var(--accent);flex-shrink:0;margin-top:1px}
+.ck-guar-t{font-size:12px;font-weight:700;color:var(--txt);line-height:1.3;margin-bottom:2px}
+.ck-guar-s{font-size:11px;color:var(--txt-mid);line-height:1.45}
+.ck-ssl-line{display:flex;align-items:center;justify-content:center;gap:6px;font-size:11px;color:var(--txt-lt);margin-top:8px;line-height:1.5;text-align:center}
+.ck-ssl-line svg{color:var(--suc);flex-shrink:0}
+.ck-pay-zone{margin-top:16px;padding-top:14px;border-top:1px solid var(--bd)}
+.ck-pay-lbl{display:block;text-align:center;font-size:10px;color:var(--txt-lt);letter-spacing:.06em;text-transform:uppercase;margin-bottom:9px}
+.ck-pay-row{display:flex;align-items:center;justify-content:center;gap:7px;flex-wrap:wrap}
+.ck-pay-ic{height:26px;border-radius:4px;border:1px solid var(--bd);padding:2px 8px;background:#fff;display:inline-flex;align-items:center;justify-content:center}
+.ck-social{display:flex;align-items:center;justify-content:center;gap:6px;font-size:11px;color:var(--txt-lt);margin-top:10px}
+.ck-stars{color:#e8a020;font-size:11px;letter-spacing:1px}
+/* ─── WhatsApp asesor ────────────────────── */
+.ck-asesor-wrap{margin-top:16px}
+.ck-asesor-divider{display:flex;align-items:center;gap:10px;margin:14px 0;color:var(--txt-lt);font-size:12px}
+.ck-asesor-divider::before,.ck-asesor-divider::after{content:'';flex:1;height:1px;background:var(--bd)}
+.ck-asesor-btn{width:100%;padding:13px 20px;background:#25d366;color:#fff;border:none;border-radius:var(--r);font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:9px;transition:background .15s,opacity .15s;letter-spacing:.01em}
+.ck-asesor-btn:hover:not(:disabled){background:#1ebe5c}
+.ck-asesor-btn:disabled{opacity:.6;cursor:not-allowed}
+.ck-asesor-msg{text-align:center;font-size:12.5px;margin-top:8px;color:var(--txt-lt);line-height:1.4}
+/* ─── Payment method selector ─────────────── */
+.ck-pay-sel{margin-top:18px}
+.ck-pay-sel-ttl{font-size:11.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--txt-lt);margin-bottom:10px}
+.ck-pay-opts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ck-pay-opt{border:2px solid var(--bd);border-radius:var(--r);padding:12px 14px;cursor:pointer;background:var(--white);transition:border-color .15s;user-select:none}
+.ck-pay-opt:hover{border-color:var(--accent)}
+.ck-pay-opt--active{border-color:var(--accent);background:#faf9f6}
+.ck-pay-opt-ic{display:flex;align-items:center;gap:7px;margin-bottom:5px;color:var(--accent)}
+.ck-pay-opt-t{font-size:13px;font-weight:700;color:var(--txt);line-height:1.2}
+.ck-pay-opt-s{font-size:11px;color:var(--txt-lt);line-height:1.4;margin-top:2px}
+.ck-wu-panel{background:#faf9f6;border:1px solid var(--bd);border-left:3px solid #f5a623;border-radius:var(--r);padding:14px 16px;margin-top:12px;display:none}
+.ck-wu-panel.visible{display:block}
+.ck-wu-ttl{font-size:12px;font-weight:700;color:var(--txt);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.ck-wu-steps{font-size:11.5px;color:var(--txt-mid);line-height:1.8;margin-bottom:12px}
+.ck-wu-steps strong{color:var(--txt)}
+.ck-wu-ref-lbl{font-size:11px;font-weight:700;color:var(--txt);margin-bottom:5px;display:block}
+.ck-wu-ref{width:100%;padding:9px 12px;border:1.5px solid var(--bd);border-radius:4px;font-size:13px;outline:none;background:var(--white);color:var(--txt);transition:border-color .15s}
+.ck-wu-ref:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-shadow)}
+@media(max-width:500px){.ck-pay-opts{grid-template-columns:1fr}}
+/* ─── Summary ────────────────────────────── */
+.ck-prod-img-area{border-radius:var(--r) var(--r) 0 0;overflow:hidden;background:var(--bg);border-bottom:1px solid var(--bd)}
+.ck-prod-img-area img{width:100%;height:210px;object-fit:cover;display:block}
+.ck-prod-img-ph{height:120px;display:flex;align-items:center;justify-content:center;color:var(--bd)}
+.ck-prod-info{padding:14px 18px 10px}
+.ck-urgency{display:inline-flex;align-items:center;gap:5px;background:var(--accent);color:#fff;font-size:10px;font-weight:800;padding:3px 10px;border-radius:20px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:9px}
+.ck-prod-name{font-weight:700;font-size:15px;line-height:1.4;color:var(--txt)}
+.ck-stock-badge{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--suc);margin-top:7px;font-weight:600}
+.ck-stock-dot{width:7px;height:7px;border-radius:50%;background:var(--suc);flex-shrink:0;animation:pulse-dot 2s ease-in-out infinite}
+@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.35}}
+.ck-no-precio{font-size:12px;color:var(--txt-lt);font-style:italic;margin-top:6px}
+.ck-tots{padding:12px 18px;border-top:1px solid var(--bd)}
+.ck-trow{display:flex;justify-content:space-between;padding:5px 0;font-size:13px;color:var(--txt-mid)}
+.ck-trow--total{padding-top:12px;margin-top:6px;border-top:1px solid var(--bd);font-weight:700;font-size:16px;color:var(--txt)}
+.ck-trow--total span:last-child{color:var(--accent);font-size:18px}
+.ck-ship-free{color:var(--suc);font-weight:600}
+/* ─── Trust badges ───────────────────────── */
+.ck-trust{padding:14px 18px;border-top:1px solid var(--bd);display:grid;grid-template-columns:1fr 1fr;gap:10px 8px}
+.ck-tr{display:flex;align-items:flex-start;gap:7px}
+.ck-tr-ic{color:var(--accent);flex-shrink:0;margin-top:1px}
+.ck-tr-t{font-size:11px;font-weight:700;color:var(--txt);line-height:1.3}
+.ck-tr-s{font-size:10px;color:var(--txt-lt);line-height:1.3}
+/* ─── Loading ────────────────────────────── */
+.ck-load{padding:64px 20px;text-align:center;color:var(--txt-lt);font-size:14px}
+.ck-spin{width:28px;height:28px;border:2.5px solid var(--bd);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 14px}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* ─── Confirmation ───────────────────────── */
+.ck-ok{display:none;max-width:480px;margin:56px auto;text-align:center;padding:40px 24px}
+.ck-ok-ic{width:76px;height:76px;background:#e8f5e9;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 22px}
+.ck-ok-h{font-family:Georgia,serif;font-size:26px;font-weight:700;color:var(--suc);margin-bottom:12px}
+.ck-ok-p{font-size:15px;color:var(--txt-mid);line-height:1.7}
+.ck-ok-box{margin-top:22px;padding:14px 18px;background:var(--white);border-radius:var(--r);border:1px solid var(--bd);font-size:13px;color:var(--txt-lt);text-align:left}
+/* ─── Note ───────────────────────────────── */
+.ck-note{font-size:11px;color:#aaa;text-align:center;line-height:1.6;padding:0 8px}
+/* ─── Responsive ─────────────────────────── */
+@media(max-width:700px){
+  .ck-main{flex-direction:column;padding-top:20px}
+  .ck-right{width:100%;position:static;order:-1}
+  .ck-left{order:1}
+  .ck-stp-lbl{display:none}
+  .ck-stp--on .ck-stp-lbl{display:block}
+  .ck-stp-bar{width:14px}
+}
+@media(max-width:380px){.ck-g2,.ck-g2z{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<!-- ── Header ──────────────────────────────────────────────────────── -->
+<header class="ck-hd">
+  <div class="ck-hd-in">
+    <span class="ck-logo">Ecommerce<em>Agents</em></span>
+    <div class="ck-ssl">
+      <svg width="12" height="14" viewBox="0 0 12 14" fill="none">
+        <rect x="1" y="6" width="10" height="8" rx="1.5" fill="currentColor"/>
+        <path d="M3 6V4.5a3 3 0 016 0V6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+      </svg>
+      Compra 100% segura &middot; SSL encriptado
+    </div>
+  </div>
+</header>
+
+<!-- ── Stepper ─────────────────────────────────────────────────────── -->
+<nav class="ck-steps">
+  <div class="ck-steps-in">
+    <div class="ck-stp ck-stp--on">
+      <span class="ck-stp-n">1</span>
+      <span class="ck-stp-lbl">Datos de envio</span>
+    </div>
+    <div class="ck-stp-bar"></div>
+    <div class="ck-stp">
+      <span class="ck-stp-n">2</span>
+      <span class="ck-stp-lbl">Pago</span>
+    </div>
+    <div class="ck-stp-bar"></div>
+    <div class="ck-stp">
+      <span class="ck-stp-n">3</span>
+      <span class="ck-stp-lbl">Confirmacion</span>
+    </div>
+  </div>
+</nav>
+
+<!-- ── Loading ─────────────────────────────────────────────────────── -->
+<div id="co-loading" class="ck-load" style="display:none">
+  <div class="ck-spin"></div>
+  Cargando informacion del pedido...
+</div>
+
+<!-- ── Confirmation ────────────────────────────────────────────────── -->
+<div id="co-confirm" class="ck-ok">
+  <div class="ck-ok-ic">
+    <svg width="34" height="34" viewBox="0 0 34 34" fill="none">
+      <path d="M7 17l7 7 13-14" stroke="#2d7a3a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </div>
+  <h1 class="ck-ok-h">Pedido registrado</h1>
+  <p class="ck-ok-p">Gracias, <strong id="co-confirm-nombre"></strong>.<br>
+  <span id="co-confirm-msg">Recibimos tu pedido. Pronto nos contactamos para coordinar el envio.</span></p>
+  <div class="ck-ok-box" id="co-confirm-box">
+    Revisa tu email para la confirmacion. Si tienes dudas, contactanos por WhatsApp.
+  </div>
+</div>
+
+<!-- ── Main layout ─────────────────────────────────────────────────── -->
+<div id="co-main" class="ck-main" style="display:none">
+
+  <!-- Left: form -->
+  <div class="ck-left">
+    <div class="ck-card">
+      <div class="ck-card-hd">Datos de envio</div>
+      <div class="ck-fbody">
+        <form id="co-form" onsubmit="coSubmit(event)" novalidate>
+          <div class="ck-fld">
+            <label class="ck-lbl" for="co-nombre">Nombre completo <span class="ck-req">*</span></label>
+            <input class="ck-inp" id="co-nombre" type="text" placeholder="Como aparece en tu ID" autocomplete="name" required>
+          </div>
+          <div class="ck-g2">
+            <div class="ck-fld">
+              <label class="ck-lbl" for="co-email">Email <span class="ck-req">*</span></label>
+              <input class="ck-inp" id="co-email" type="email" placeholder="tu@email.com" autocomplete="email" required>
+            </div>
+            <div class="ck-fld">
+              <label class="ck-lbl" for="co-telefono">Telefono <span class="ck-req">*</span></label>
+              <input class="ck-inp" id="co-telefono" type="tel" placeholder="+1 (555) 000-0000" autocomplete="tel">
+            </div>
+          </div>
+          <div class="ck-fld">
+            <label class="ck-lbl" for="co-direccion">Direccion <span class="ck-req">*</span></label>
+            <input class="ck-inp" id="co-direccion" type="text" placeholder="Calle, numero, apto / suite" autocomplete="street-address" required>
+          </div>
+          <div class="ck-g2">
+            <div class="ck-fld">
+              <label class="ck-lbl" for="co-ciudad">Ciudad <span class="ck-req">*</span></label>
+              <input class="ck-inp" id="co-ciudad" type="text" placeholder="Ciudad" autocomplete="address-level2" required>
+            </div>
+            <div class="ck-fld">
+              <label class="ck-lbl" for="co-estado">Estado</label>
+              <input class="ck-inp" id="co-estado" type="text" placeholder="FL, TX, NY..." autocomplete="address-level1">
+            </div>
+          </div>
+          <div class="ck-g2z">
+            <div class="ck-fld">
+              <label class="ck-lbl" for="co-zip">Codigo postal (ZIP)</label>
+              <input class="ck-inp" id="co-zip" type="text" placeholder="33101" autocomplete="postal-code">
+            </div>
+            <div class="ck-fld">
+              <label class="ck-lbl" for="co-pais">Pais</label>
+              <input class="ck-inp" id="co-pais" type="text" value="Estados Unidos" autocomplete="country-name">
+            </div>
+          </div>
+          <p id="co-error" class="ck-err"></p>
+
+          <!-- Seleccion de metodo de pago -->
+          <div class="ck-pay-sel">
+            <div class="ck-pay-sel-ttl">Metodo de pago</div>
+            <div class="ck-pay-opts">
+              <div class="ck-pay-opt ck-pay-opt--active" id="opt-tarjeta" onclick="selPago('tarjeta')">
+                <div class="ck-pay-opt-ic">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                    <rect x="1" y="5" width="22" height="14" rx="2"/>
+                    <path d="M1 10h22" stroke-linecap="round"/>
+                  </svg>
+                </div>
+                <div class="ck-pay-opt-t">Pagar con tarjeta</div>
+                <div class="ck-pay-opt-s">Visa · Mastercard · Amex</div>
+              </div>
+              <div class="ck-pay-opt" id="opt-wu" onclick="selPago('western_union')">
+                <div class="ck-pay-opt-ic">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                    <path d="M2 7l10-5 10 5-10 5z" stroke-linejoin="round"/>
+                    <path d="M2 12l10 5 10-5M2 17l10 5 10-5" stroke-linecap="round"/>
+                  </svg>
+                </div>
+                <div class="ck-pay-opt-t">Western Union</div>
+                <div class="ck-pay-opt-s">Giro en efectivo</div>
+              </div>
+            </div>
+            <!-- Panel instrucciones Western Union -->
+            <div class="ck-wu-panel" id="wu-panel">
+              <div class="ck-wu-ttl">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f5a623" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
+                Instrucciones Western Union
+              </div>
+              <div class="ck-wu-steps">
+                1. Ve a cualquier agente Western Union<br>
+                <strong>Beneficiario:</strong> <em><!-- TODO: nombre del negocio --></em><br>
+                <strong>Pais destino:</strong> <em><!-- TODO: pais del negocio --></em><br>
+                2. Realiza el giro por el monto exacto del pedido<br>
+                3. Guarda el <strong>numero de control (MTCN)</strong> del comprobante<br>
+                4. Ingresalo abajo — tu pedido se procesa al verificar el pago
+              </div>
+              <label class="ck-wu-ref-lbl" for="co-wu-ref">
+                Numero de control MTCN <span class="ck-req">*</span>
+              </label>
+              <input class="ck-wu-ref" id="co-wu-ref" type="text"
+                placeholder="Ej. 123-456-7890" maxlength="60" autocomplete="off">
+            </div>
+          </div>
+
+          <!-- Garantia de devolucion -->
+          <div class="ck-guarantee">
+            <svg class="ck-guar-ic" width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <path d="M9 1.5L2.25 4.5v4.5c0 4.2 2.9 7.35 6.75 8.25C12.85 16.35 15.75 13.2 15.75 9V4.5z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+              <path d="M6 9l2.1 2.4 3.9-3.9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <div>
+              <div class="ck-guar-t">Garantia de devolucion de 30 dias</div>
+              <div class="ck-guar-s">Si no estas satisfecho, te devolvemos tu dinero. Compra sin riesgo.</div>
+            </div>
+          </div>
+
+          <!-- Boton principal -->
+          <button type="submit" id="co-submit-btn" class="ck-btn" style="margin-top:12px">
+            <svg width="15" height="17" viewBox="0 0 15 17" fill="none">
+              <rect x="1" y="7.5" width="13" height="9" rx="1.5" fill="currentColor"/>
+              <path d="M3.5 7.5V5.5a4 4 0 018 0v2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+            </svg>
+            Confirmar pedido
+          </button>
+
+          <!-- Linea SSL bajo el boton -->
+          <div class="ck-ssl-line">
+            <svg width="12" height="13" viewBox="0 0 12 13" fill="none">
+              <rect x=".5" y="5.5" width="11" height="7" rx="1.2" stroke="currentColor" stroke-width="1.2"/>
+              <path d="M2.5 5.5V4a3.5 3.5 0 017 0v1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+            </svg>
+            Conexion segura SSL &middot; Tus datos estan encriptados y protegidos
+          </div>
+
+          <!-- Metodos de pago -->
+          <div class="ck-pay-zone">
+            <span class="ck-pay-lbl">Pagos procesados de forma segura</span>
+            <div class="ck-pay-row">
+              <div class="ck-pay-ic">
+                <svg width="40" height="13" viewBox="0 0 40 13"><rect width="40" height="13" rx="2" fill="#1a1f71"/><text x="20" y="9.5" font-family="Arial,sans-serif" font-size="7.5" font-weight="bold" font-style="italic" fill="white" text-anchor="middle" letter-spacing="1.2">VISA</text></svg>
+              </div>
+              <div class="ck-pay-ic" style="padding:2px 4px">
+                <svg width="36" height="22" viewBox="0 0 36 22"><circle cx="12.5" cy="11" r="10" fill="#eb001b"/><circle cx="23.5" cy="11" r="10" fill="#f79e1b" opacity=".9"/><path d="M18 2.8a10 10 0 010 16.4 10 10 0 010-16.4z" fill="#ff5f00"/></svg>
+              </div>
+              <div class="ck-pay-ic">
+                <svg width="42" height="13" viewBox="0 0 42 13"><rect width="42" height="13" rx="2" fill="#006fcf"/><text x="21" y="9.5" font-family="Arial,sans-serif" font-size="7" font-weight="bold" fill="white" text-anchor="middle" letter-spacing=".8">AMEX</text></svg>
+              </div>
+              <div class="ck-pay-ic" style="padding:2px 6px">
+                <svg width="46" height="14" viewBox="0 0 46 14"><text x="0" y="10.5" font-family="Arial,sans-serif" font-size="10" font-weight="bold" fill="#003087">Pay</text><text x="21" y="10.5" font-family="Arial,sans-serif" font-size="10" font-weight="bold" fill="#009cde">Pal</text></svg>
+              </div>
+            </div>
+          </div>
+
+          <!-- Prueba social -->
+          <div class="ck-social">
+            <span class="ck-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</span>
+            <span>Mas de 10,000 clientes satisfechos</span>
+          </div>
+        </form>
+
+        <!-- Opcion asesor por WhatsApp -->
+        <div class="ck-asesor-wrap" id="co-asesor-wrap">
+          <div class="ck-asesor-divider">o prefiero otra opcion</div>
+          <button type="button" id="co-asesor-btn" class="ck-asesor-btn" onclick="abrirAsesorWA()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+              <path d="M12 0C5.373 0 0 5.373 0 12c0 2.136.561 4.14 1.541 5.873L0 24l6.315-1.518A11.937 11.937 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818a9.788 9.788 0 01-5.028-1.384l-.36-.214-3.732.898.931-3.618-.235-.372A9.784 9.784 0 012.182 12C2.182 6.57 6.57 2.182 12 2.182c5.43 0 9.818 4.388 9.818 9.818 0 5.43-4.388 9.818-9.818 9.818z"/>
+            </svg>
+            Prefiero hablar con un asesor
+          </button>
+          <p id="co-asesor-msg" class="ck-asesor-msg"></p>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: order summary -->
+  <div class="ck-right">
+    <div class="ck-card">
+      <div class="ck-card-hd">Resumen del pedido</div>
+      <!-- Imagen del producto (full-width) -->
+      <div class="ck-prod-img-area" id="co-img-wrap"></div>
+      <!-- Info del producto -->
+      <div class="ck-prod-info">
+        <div class="ck-urgency">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L4.5 13.5H11L10 22l9.5-12H13.5z"/></svg>
+          Oferta por tiempo limitado
+        </div>
+        <div class="ck-prod-name" id="co-nombre-prod">Cargando...</div>
+        <div class="ck-stock-badge" id="co-stock-badge" style="display:none">
+          <span class="ck-stock-dot"></span>
+          Stock disponible
+        </div>
+        <div class="ck-no-precio" id="co-no-precio" style="display:none">Un asesor confirmara el precio final</div>
+      </div>
+      <div class="ck-tots">
+        <div class="ck-trow" id="co-row-subtotal">
+          <span>Subtotal</span>
+          <span id="co-subtotal-val">—</span>
+        </div>
+        <div class="ck-trow" id="co-row-envio">
+          <span>Envio</span>
+          <span class="ck-ship-free">Gratis</span>
+        </div>
+        <div class="ck-trow ck-trow--total">
+          <span>Total</span>
+          <span id="co-precio-prod">—</span>
+        </div>
+      </div>
+      <div class="ck-trust">
+        <div class="ck-tr">
+          <svg class="ck-tr-ic" width="15" height="15" viewBox="0 0 15 15" fill="none">
+            <path d="M7.5 1L1.5 4v5c0 2.8 2.5 4.9 6 5.8 3.5-.9 6-3 6-5.8V4z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+            <path d="M5 7.5l2 2 3.5-3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <div><div class="ck-tr-t">Pago SSL seguro</div><div class="ck-tr-s">Datos encriptados</div></div>
+        </div>
+        <div class="ck-tr">
+          <svg class="ck-tr-ic" width="15" height="15" viewBox="0 0 15 15" fill="none">
+            <circle cx="7.5" cy="7.5" r="6" stroke="currentColor" stroke-width="1.4"/>
+            <path d="M4.5 7.5l2 2 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <div><div class="ck-tr-t">Garantia</div><div class="ck-tr-s">Satisfaccion asegurada</div></div>
+        </div>
+        <div class="ck-tr">
+          <svg class="ck-tr-ic" width="15" height="15" viewBox="0 0 15 15" fill="none">
+            <rect x="1" y="6" width="13" height="8" rx="1.5" stroke="currentColor" stroke-width="1.4"/>
+            <path d="M1 9.5h13M5 6V4a2.5 2.5 0 015 0v2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+          </svg>
+          <div><div class="ck-tr-t">Envio rastreado</div><div class="ck-tr-s">Seguimiento incluido</div></div>
+        </div>
+        <div class="ck-tr">
+          <svg class="ck-tr-ic" width="15" height="15" viewBox="0 0 15 15" fill="none">
+            <path d="M13 10.2c0 .45-.15.88-.44 1.22-.29.34-.7.56-1.14.56-1.72 0-3.44-.62-4.86-1.85L5.15 8.6C3.83 7.07 3.2 5.4 3.2 3.68c0-.44.2-.87.54-1.17.34-.3.8-.46 1.27-.44l1.1.07c.77.06 1.45.55 1.72 1.26l.75 1.88c.28.65.1 1.39-.46 1.82l-.76.7c.83 1.2 2.03 2.24 3.38 2.83l.7-.74c.43-.49 1.18-.65 1.82-.4l1.54.62c.71.28 1.19.9 1.26 1.64l.54-.56z" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <div><div class="ck-tr-t">Soporte</div><div class="ck-tr-s">Atencion personalizada</div></div>
+        </div>
+      </div>
+    </div>
+    <p class="ck-note" style="margin-top:12px">Tus datos estan protegidos. Nunca compartimos tu informacion con terceros.</p>
+  </div>
+
+</div>
+
+<script>
+var _slug = '', _ref = '', _precio = 0, _metodoPago = 'tarjeta';
+
+(function init(){
+  var p = new URLSearchParams(window.location.search);
+  _slug = p.get('slug') || '';
+  _ref  = p.get('ref')  || '';
+
+  var loadEl = document.getElementById('co-loading');
+  var mainEl = document.getElementById('co-main');
+  loadEl.style.display = 'block';
+
+  if (!_slug) {
+    loadEl.innerHTML = '<p style="color:#c0392b">Enlace invalido. Vuelve a la pagina del producto.</p>';
+    return;
+  }
+
+  fetch('/api/checkout/info?slug=' + encodeURIComponent(_slug))
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      loadEl.style.display = 'none';
+      if (!d.ok) { loadEl.style.display='block'; loadEl.innerHTML='<p style="color:#c0392b">Producto no disponible.</p>'; return; }
+
+      // ── Aplicar color de acento de la página de venta ──
+      var accent = (d.color_principal && /^#[0-9a-fA-F]{6}$/.test(d.color_principal)) ? d.color_principal : '#b89368';
+      function _h2(n){var h=Math.min(255,Math.max(0,Math.round(n))).toString(16);return h.length<2?'0'+h:h;}
+      function _drk(hx,f){return '#'+[1,3,5].map(function(i){return _h2(parseInt(hx.slice(i,i+2),16)*f);}).join('');}
+      function _rgba(hx,a){return 'rgba('+parseInt(hx.slice(1,3),16)+','+parseInt(hx.slice(3,5),16)+','+parseInt(hx.slice(5,7),16)+','+a+')';}
+      var root = document.documentElement;
+      root.style.setProperty('--accent', accent);
+      root.style.setProperty('--accent-dk', _drk(accent, 0.84));
+      root.style.setProperty('--accent-shadow', _rgba(accent, 0.13));
+
+      _precio = d.precio || 0;
+      var nombre = d.nombre_producto || 'Producto';
+      document.getElementById('co-nombre-prod').textContent = nombre;
+
+      // Imagen del producto (full-width)
+      var iw = document.getElementById('co-img-wrap');
+      if (d.imagen) {
+        // Usar createElement para evitar XSS si la URL tuviera caracteres especiales
+        var _imgEl = document.createElement('img');
+        _imgEl.src = d.imagen;
+        _imgEl.alt = nombre;
+        iw.innerHTML = '';
+        iw.appendChild(_imgEl);
+      } else {
+        iw.innerHTML = '<div class="ck-prod-img-ph"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>';
+      }
+
+      // Stock badge: siempre visible al cargar
+      var stockEl = document.getElementById('co-stock-badge');
+      if (stockEl) stockEl.style.display = 'flex';
+
+      // Precio o fallback
+      if (_precio > 0) {
+        var fmt = '$' + Number(_precio).toLocaleString('en-US');
+        document.getElementById('co-precio-prod').textContent = fmt;
+        document.getElementById('co-subtotal-val').textContent = fmt;
+      } else {
+        document.getElementById('co-precio-prod').textContent = 'A confirmar';
+        var rowSub = document.getElementById('co-row-subtotal');
+        var rowEnv = document.getElementById('co-row-envio');
+        if (rowSub) rowSub.style.display = 'none';
+        if (rowEnv) rowEnv.style.display = 'none';
+        var noPrecioEl = document.getElementById('co-no-precio');
+        if (noPrecioEl) noPrecioEl.style.display = 'block';
+      }
+
+      mainEl.style.display = 'flex';
+    })
+    .catch(function(){
+      loadEl.style.display='block';
+      loadEl.innerHTML='<p style="color:#c0392b">Error al cargar. Intenta de nuevo.</p>';
+    });
+})();
+
+function selPago(metodo) {
+  _metodoPago = metodo;
+  document.getElementById('opt-tarjeta').classList.toggle('ck-pay-opt--active', metodo === 'tarjeta');
+  document.getElementById('opt-wu').classList.toggle('ck-pay-opt--active', metodo === 'western_union');
+  var wuPanel = document.getElementById('wu-panel');
+  if (wuPanel) wuPanel.classList.toggle('visible', metodo === 'western_union');
+}
+
+function coSubmit(e){
+  e.preventDefault();
+  var errEl = document.getElementById('co-error');
+  var btnEl = document.getElementById('co-submit-btn');
+  errEl.style.display = 'none';
+
+  var nombre   = (document.getElementById('co-nombre').value   || '').trim();
+  var email    = (document.getElementById('co-email').value    || '').trim();
+  var telefono = (document.getElementById('co-telefono').value || '').trim();
+  var dir      = (document.getElementById('co-direccion').value|| '').trim();
+  var ciudad   = (document.getElementById('co-ciudad').value   || '').trim();
+  var estado   = (document.getElementById('co-estado').value   || '').trim();
+  var zip      = (document.getElementById('co-zip').value      || '').trim();
+  var pais     = (document.getElementById('co-pais').value     || '').trim() || 'Estados Unidos';
+
+  if (!nombre || !email || !telefono || !dir || !ciudad) {
+    errEl.textContent = 'Por favor completa todos los campos obligatorios (*)';
+    errEl.style.display = 'block';
+    errEl.scrollIntoView({behavior:'smooth',block:'nearest'});
+    return;
+  }
+
+  // Validar campo MTCN si elige Western Union
+  var comprobante = '';
+  if (_metodoPago === 'western_union') {
+    var wuRef = document.getElementById('co-wu-ref');
+    comprobante = wuRef ? wuRef.value.trim() : '';
+    if (!comprobante) {
+      errEl.textContent = 'Por favor ingresa el numero de control MTCN de tu giro Western Union.';
+      errEl.style.display = 'block';
+      if (wuRef) wuRef.focus();
+      return;
+    }
+  }
+
+  btnEl.disabled = true;
+  btnEl.textContent = 'Enviando...';
+
+  fetch('/api/pedidos/crear', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      slug: _slug, ref: _ref, precio: _precio,
+      nombre: nombre, email: email, telefono: telefono,
+      direccion: dir, ciudad: ciudad, estado_region: estado,
+      zip: zip, pais: pais,
+      metodo_pago: _metodoPago,
+      comprobante_pago: comprobante || null
+    })
+  })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (!d.ok) throw new Error(d.error || 'Error al registrar pedido.');
+      document.getElementById('co-main').style.display = 'none';
+      document.getElementById('co-confirm-nombre').textContent = nombre;
+      // Mensaje dinamico segun metodo de pago
+      var msgEl  = document.getElementById('co-confirm-msg');
+      var boxEl  = document.getElementById('co-confirm-box');
+      if (_metodoPago === 'western_union') {
+        if (msgEl) msgEl.innerHTML = 'Recibimos tu pedido y tu numero de comprobante.<br>' +
+          '<strong>Una vez verifiquemos tu pago por Western Union, procesaremos tu envio.</strong>';
+        if (boxEl) boxEl.textContent = 'Te contactaremos para confirmar la recepcion del giro. Guarda tu comprobante.';
+      } else {
+        if (msgEl) msgEl.innerHTML = 'Recibimos tu pedido.<br>Te contactaremos para coordinar el pago y el envio.';
+        if (boxEl) boxEl.textContent = 'Revisa tu email para la confirmacion. Si tienes dudas, contactanos por WhatsApp.';
+      }
+      document.getElementById('co-confirm').style.display = 'block';
+      window.scrollTo(0,0);
+    })
+    .catch(function(er){
+      errEl.textContent = er.message;
+      errEl.style.display = 'block';
+      errEl.scrollIntoView({behavior:'smooth',block:'nearest'});
+      btnEl.disabled = false;
+      btnEl.innerHTML = '<svg width="15" height="17" viewBox="0 0 15 17" fill="none"><rect x="1" y="7.5" width="13" height="9" rx="1.5" fill="currentColor"/><path d="M3.5 7.5V5.5a4 4 0 018 0v2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg> Confirmar pedido';
+    });
+}
+
+function abrirAsesorWA() {
+  var btn = document.getElementById('co-asesor-btn');
+  var msg = document.getElementById('co-asesor-msg');
+  if (!_ref) {
+    if (msg) { msg.style.color = 'var(--err)'; msg.textContent = 'No hay código de vendedor en este enlace.'; }
+    return;
+  }
+  if (btn) btn.disabled = true;
+  if (msg) { msg.style.color = 'var(--txt-lt)'; msg.textContent = 'Conectando con tu asesor...'; }
+
+  fetch('/api/checkout/asesor?slug=' + encodeURIComponent(_slug) + '&ref=' + encodeURIComponent(_ref))
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (btn) btn.disabled = false;
+      if (!d.ok || !d.whatsapp) {
+        if (msg) { msg.style.color = 'var(--err)'; msg.textContent = d.error || 'Este asesor aún no tiene WhatsApp configurado.'; }
+        return;
+      }
+      var numero  = d.whatsapp.replace(/[^\d+]/g, '');
+      if (numero.charAt(0) === '+') numero = numero.slice(1);
+      var producto = d.nombre_producto || 'el producto';
+      var texto   = 'Hola, estoy interesado/a en ' + producto + '. (Ref: ' + _ref + ')';
+      var waUrl   = 'https://wa.me/' + numero + '?text=' + encodeURIComponent(texto);
+      if (msg) msg.textContent = '';
+      window.open(waUrl, '_blank', 'noopener,noreferrer');
+    })
+    .catch(function(){
+      if (btn) btn.disabled = false;
+      if (msg) { msg.style.color = 'var(--err)'; msg.textContent = 'Error al conectar. Intenta de nuevo.'; }
+    });
+}
+</script>
+</body>
+</html>`);
+});
+
+// ── Crear pedido ──────────────────────────────────────────────────────────────
+app.post('/api/pedidos/crear', async (req, res) => {
+  // 'precio' del cliente se IGNORA completamente — el monto siempre se obtiene de Supabase
+  const { slug, ref, nombre, email, telefono, direccion, ciudad, estado_region, zip, pais,
+          metodo_pago, comprobante_pago } = req.body || {};
+  if (!nombre || !email || !telefono || !direccion || !ciudad) {
+    return res.status(400).json({ ok: false, error: 'Faltan campos obligatorios.' });
+  }
+  try {
+    // Buscar página y producto — precio y utilidad SIEMPRE desde Supabase, nunca del cliente
+    let producto_id    = null;
+    let nombre_producto = slug || 'Producto';
+    let monto          = null; // se asigna SOLO desde la base de datos
+
+    const { data: pagina } = await supabase
+      .from('paginas_venta').select('id, nombre, producto_id').eq('slug', slug).single();
+    if (pagina) {
+      nombre_producto = pagina.nombre;
+      if (pagina.producto_id) {
+        producto_id = pagina.producto_id;
+        const { data: prod } = await supabase
+          .from('productos').select('nombre, precio, utilidad').eq('id', pagina.producto_id).single();
+        if (prod) {
+          nombre_producto = prod.nombre;
+          monto           = prod.precio ?? null;  // precio real, ignoramos cualquier valor del cliente
+        }
+      }
+    }
+
+    // Si no se encontró el precio real del producto, rechazar el pedido sin crearlo
+    if (monto === null || monto === undefined) {
+      console.warn('[pedidos/crear] Precio no determinado para slug:', slug);
+      return res.status(400).json({ ok: false, error: 'No se pudo determinar el precio del producto.' });
+    }
+
+    // Buscar vendedor por código (ref)
+    let vendedor_id = null;
+    if (ref) {
+      const { data: vend } = await supabase
+        .from('usuarios').select('id').eq('codigo', ref).single();
+      if (vend) vendedor_id = vend.id;
+    }
+
+    // TODO: aqui ira el pago con Stripe antes de confirmar el pedido
+
+    const pedido = {
+      producto_id,
+      vendedor_id,
+      pagina_slug:      slug || null,
+      ref_vendedor:     ref || null,
+      nombre_producto,
+      cliente_nombre:   nombre,
+      cliente_email:    email,
+      cliente_telefono: telefono,
+      direccion,
+      ciudad,
+      estado_region:    estado_region || null,
+      zip:              zip || null,
+      pais:             pais || 'Estados Unidos',
+      monto,
+      estado:           'Pendiente',
+      estado_pago:      'pendiente',                          // siempre pendiente al crear
+      metodo_pago:      metodo_pago || 'tarjeta',
+      comprobante_pago: comprobante_pago || null,
+      fecha:            new Date().toISOString()
+    };
+
+    console.log('[pedidos/crear] Registrando pedido:', nombre_producto, '- Cliente:', nombre);
+    const { data: pedidoData, error } = await supabase.from('pedidos').insert(pedido).select('id').single();
+    if (error) throw error;
+    console.log('[pedidos/crear] OK — id:', pedidoData?.id);
+
+    res.json({ ok: true, pedido_id: pedidoData?.id });
+  } catch (e) {
+    console.error('[pedidos/crear] ERROR:', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ── Admin: Pedidos ────────────────────────────────────────────────────────────
+
+// GET /api/admin/pedidos  — lista todos los pedidos ordenados por fecha desc
+app.get('/api/admin/pedidos', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('pedidos')
+      .select('id, nombre_producto, cliente_nombre, cliente_email, cliente_telefono, direccion, ciudad, estado_region, zip, pais, monto, estado, ref_vendedor, vendedor_id, fecha, pagina_slug')
+      .order('fecha', { ascending: false });
+    if (error) throw error;
+    res.json({ ok: true, pedidos: data || [] });
+  } catch (e) {
+    console.error('[admin/pedidos GET]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// POST /api/admin/pedidos/actualizar  — cambia el estado de un pedido
+app.post('/api/admin/pedidos/actualizar', async (req, res) => {
+  const { id, estado } = req.body || {};
+  if (!id || !estado) return res.status(400).json({ ok: false, error: 'Se requiere id y estado.' });
+  const estadosValidos = ['Pendiente', 'Procesado', 'Enviado', 'Cancelado'];
+  if (!estadosValidos.includes(estado)) return res.status(400).json({ ok: false, error: 'Estado invalido.' });
+  try {
+    const { error } = await supabase.from('pedidos').update({ estado }).eq('id', id);
+    if (error) throw error;
+    console.log(`[admin/pedidos/actualizar] id=${id} → estado=${estado}`);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[admin/pedidos/actualizar]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ── Ventas por usuario (vendedor) ─────────────────────────────────────────────
+app.get('/api/ventas/usuario/:usuario_id', async (req, res) => {
+  const { usuario_id } = req.params;
+  try {
+    const { data: pedidos, error: errP } = await supabase
+      .from('pedidos')
+      .select('id, nombre_producto, producto_id, monto, estado, estado_pago, ref_vendedor, fecha, cliente_nombre')
+      .eq('vendedor_id', usuario_id)
+      .order('fecha', { ascending: false });
+    if (errP) throw errP;
+
+    const listaP = pedidos || [];
+
+    // Obtener % utilidad de cada producto involucrado
+    const pids = [...new Set(listaP.map(p => p.producto_id).filter(Boolean))];
+    const utilMap = {};
+    if (pids.length > 0) {
+      const { data: prods } = await supabase
+        .from('productos').select('id, utilidad').in('id', pids);
+      (prods || []).forEach(p => { utilMap[p.id] = Number(p.utilidad) || 0; });
+    }
+
+    const ventas = listaP.map(p => {
+      const utilPct = utilMap[p.producto_id] || 0;
+      const utilidadGanada = p.estado_pago === 'pagado'
+        ? Math.round((p.monto || 0) * utilPct / 100 * 100) / 100
+        : 0;
+      return {
+        id: p.id,
+        producto: p.nombre_producto || '—',
+        monto: p.monto || 0,
+        utilidad_pct: utilPct,
+        utilidad_ganada: utilidadGanada,
+        estado: p.estado || 'pendiente',
+        estado_pago: p.estado_pago || 'pendiente',
+        fecha: p.fecha,
+        cliente: p.cliente_nombre || '—'
+      };
+    });
+
+    const pagadas    = ventas.filter(v => v.estado_pago === 'pagado');
+    const pendientes = ventas.filter(v => v.estado_pago !== 'pagado');
+    const resumen = {
+      total_ventas:          ventas.length,
+      ventas_pagadas:        pagadas.length,
+      ventas_pendientes:     pendientes.length,
+      total_vendido:         ventas.reduce((s, v) => s + v.monto, 0),
+      total_comision_ganada: pagadas.reduce((s, v) => s + v.utilidad_ganada, 0),
+      pendiente_confirmacion: pendientes.reduce((s, v) => s + v.monto, 0)
+    };
+
+    console.log(`[ventas/usuario] id=${usuario_id} total=${ventas.length} pagadas=${pagadas.length}`);
+    res.json({ ok: true, ventas, resumen });
+  } catch (e) {
+    console.error('[ventas/usuario]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ── Resumen de ventas por vendedor (admin) ─────────────────────────────────────
+app.get('/api/admin/ventas-por-vendedor', async (req, res) => {
+  try {
+    const { data: pedidos, error: errP } = await supabase
+      .from('pedidos')
+      .select('vendedor_id, ref_vendedor, monto, estado_pago, producto_id')
+      .not('vendedor_id', 'is', null);
+    if (errP) throw errP;
+
+    const listaP = pedidos || [];
+
+    const pids = [...new Set(listaP.map(p => p.producto_id).filter(Boolean))];
+    const utilMap = {};
+    if (pids.length > 0) {
+      const { data: prods } = await supabase
+        .from('productos').select('id, utilidad').in('id', pids);
+      (prods || []).forEach(p => { utilMap[p.id] = Number(p.utilidad) || 0; });
+    }
+
+    const mapaVend = {};
+    listaP.forEach(p => {
+      const vid = p.vendedor_id;
+      if (!mapaVend[vid]) {
+        mapaVend[vid] = {
+          vendedor_id:   vid,
+          codigo:        p.ref_vendedor || '—',
+          ventas:        0,
+          total_vendido: 0,
+          total_comision: 0,
+          pagado:        0   // se llenará cuando haya tabla de pagos
+        };
+      }
+      const v = mapaVend[vid];
+      v.ventas++;
+      v.total_vendido += p.monto || 0;
+      if (p.estado_pago === 'pagado') {
+        const utilPct = utilMap[p.producto_id] || 0;
+        v.total_comision += Math.round((p.monto || 0) * utilPct / 100 * 100) / 100;
+      }
+    });
+
+    const vendedores = Object.values(mapaVend).map(v => ({
+      ...v,
+      saldo_pendiente: Math.round((v.total_comision - v.pagado) * 100) / 100
+    }));
+
+    const resumen_global = {
+      total_ventas:   vendedores.reduce((s, v) => s + v.ventas, 0),
+      total_vendido:  vendedores.reduce((s, v) => s + v.total_vendido, 0),
+      total_comision: vendedores.reduce((s, v) => s + v.total_comision, 0)
+    };
+
+    console.log(`[admin/ventas-por-vendedor] vendedores=${vendedores.length}`);
+    res.json({ ok: true, vendedores, resumen_global });
+  } catch (e) {
+    console.error('[admin/ventas-por-vendedor]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ── Costos por motor de IA (ajustables) ───────────────────────────────────────
+const COSTO_MOTOR_IA = {
+  'viral-tendencias':     50,
+  'viral-desarrollar':     0,   // incluido en viral-tendencias
+  'modular':              40,
+  'editor-video':         30,
+  'editor-reaccion':      30,
+  'contenido-organico':   20,
+  'contenido-anuncio':    20,
+  'contenido-avatar':     40
+};
+
+// GET /api/creditos/:usuario_id — saldo actual
+app.get('/api/creditos/:usuario_id', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('usuarios').select('creditos_ia').eq('id', req.params.usuario_id).single();
+    if (error) throw error;
+    res.json({ ok: true, creditos: data.creditos_ia ?? 0 });
+  } catch (e) {
+    console.error('[creditos/get]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// POST /api/creditos/descontar — verifica y descuenta (requiere sesion de usuario)
+app.post('/api/creditos/descontar', requireUsuario, async (req, res) => {
+  const { usuario_id, cantidad, motor, descripcion } = req.body || {};
+  if (!usuario_id || !cantidad || Number(cantidad) <= 0) {
+    return res.status(400).json({ ok: false, error: 'Parametros invalidos' });
+  }
+  const cant = Number(cantidad);
+  try {
+    const { data: usr, error: errL } = await supabase
+      .from('usuarios').select('creditos_ia').eq('id', usuario_id).single();
+    if (errL) throw errL;
+
+    const actuales = Number(usr.creditos_ia) || 0;
+    if (actuales < cant) {
+      return res.json({ ok: false, error: 'Creditos insuficientes', creditos_actuales: actuales });
+    }
+
+    const nuevos = actuales - cant;
+    const { error: errU } = await supabase
+      .from('usuarios').update({ creditos_ia: nuevos }).eq('id', usuario_id);
+    if (errU) throw errU;
+
+    // Registro en movimientos_creditos (fire-and-forget)
+    supabase.from('movimientos_creditos').insert({
+      usuario_id,
+      tipo:          'consumo',
+      cantidad:      cant,
+      motor:         motor        || 'desconocido',
+      descripcion:   descripcion  || '',
+      saldo_despues: nuevos,
+      fecha:         new Date().toISOString()
+    }).then(() => {}).catch(e2 => console.warn('[movimientos_creditos]', e2.message));
+
+    console.log(`[creditos/descontar] uid=${usuario_id} motor=${motor} -${cant} restantes=${nuevos}`);
+    res.json({ ok: true, creditos_restantes: nuevos });
+  } catch (e) {
+    console.error('[creditos/descontar]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ── Métricas: más vendidos ─────────────────────────────────────────────────────
+app.get('/api/admin/metricas/mas-vendidos', async (req, res) => {
+  try {
+    // Incluye todos los pedidos (TODO: cambiar a estado_pago='pagado' cuando haya más datos reales)
+    const { data: pedidos, error } = await supabase
+      .from('pedidos')
+      .select('nombre_producto, monto, estado_pago');
+    if (error) throw error;
+
+    const prodMap = {};
+    (pedidos || []).forEach(p => {
+      const k = p.nombre_producto || 'Desconocido';
+      if (!prodMap[k]) prodMap[k] = { nombre: k, unidades: 0, total_vendido: 0 };
+      prodMap[k].unidades++;
+      prodMap[k].total_vendido = Math.round((prodMap[k].total_vendido + (p.monto || 0)) * 100) / 100;
+    });
+
+    const productos = Object.values(prodMap)
+      .sort((a, b) => b.unidades - a.unidades);
+
+    console.log(`[metricas/mas-vendidos] productos=${productos.length}`);
+    res.json({ ok: true, productos });
+  } catch (e) {
+    console.error('[metricas/mas-vendidos]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ── Métricas: más vistos ───────────────────────────────────────────────────────
+app.get('/api/admin/metricas/mas-vistos', async (req, res) => {
+  try {
+    const { data: paginas, error } = await supabase
+      .from('paginas_venta')
+      .select('nombre, slug, vistas, producto_id')
+      .order('vistas', { ascending: false });
+    if (error) throw error;
+
+    const pids = [...new Set((paginas || []).map(p => p.producto_id).filter(Boolean))];
+    const prodMap = {};
+    if (pids.length > 0) {
+      const { data: prods } = await supabase
+        .from('productos').select('id, nombre').in('id', pids);
+      (prods || []).forEach(p => { prodMap[p.id] = p.nombre; });
+    }
+
+    const paginasList = (paginas || []).map(p => ({
+      nombre:   p.nombre || p.slug || '—',
+      slug:     p.slug,
+      vistas:   p.vistas || 0,
+      producto: prodMap[p.producto_id] || null
+    }));
+
+    console.log(`[metricas/mas-vistos] paginas=${paginasList.length}`);
+    res.json({ ok: true, paginas: paginasList });
+  } catch (e) {
+    console.error('[metricas/mas-vistos]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ── Página pública de venta  GET /p/:slug ─────────────────────────────────────
+// SEGURIDAD: el HTML del vendedor se aísla en un <iframe sandbox="allow-scripts allow-forms">
+// para prevenir XSS. El checkout se comunica por postMessage hacia la ventana padre.
+app.get('/p/:slug', async (req, res) => {
+  const { slug } = req.params;
+  const ref = req.query.ref ? String(req.query.ref).slice(0, 120) : '';
+  try {
+    const { data, error } = await supabase
+      .from('paginas_venta').select('id, html, activa, vistas').eq('slug', slug).single();
+    if (error || !data || !data.activa) {
+      return res.status(404).send('<!DOCTYPE html><html><body style="font-family:sans-serif;padding:40px;text-align:center"><h2>Pagina no encontrada</h2><p>Este link no esta disponible.</p></body></html>');
+    }
+    // Incrementar vistas (fire-and-forget)
+    supabase.from('paginas_venta').update({ vistas: (data.vistas || 0) + 1 }).eq('id', data.id).then(() => {}).catch(() => {});
+
+    // Extraer <title> de la página para mostrarlo en la pestaña del browser
+    const titleMatch = (data.html || '').match(/<title[^>]*>([^<]*)<\/title>/i);
+    const pageTitle  = titleMatch ? titleMatch[1].trim() : slug;
+
+    // URL del contenido real (sin iframe) — incluye ref si viene en el link
+    const innerSrc = '/p-inner/' + encodeURIComponent(slug) + (ref ? '?ref=' + encodeURIComponent(ref) : '');
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(`<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${pageTitle.replace(/</g,'&lt;')}</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:100%;height:100%;overflow:hidden;background:#fff}
+  #pf{position:fixed;top:0;left:0;width:100%;height:100%;border:0}
+</style>
+</head>
+<body>
+<!-- sandbox: allow-scripts (countdown, animaciones), allow-forms (formularios internos)
+     SIN allow-same-origin → el iframe no puede acceder a cookies ni localStorage del padre -->
+<iframe
+  id="pf"
+  src="${innerSrc}"
+  sandbox="allow-scripts allow-forms"
+  referrerpolicy="no-referrer"
+  frameborder="0"
+  scrolling="yes"
+></iframe>
+<script>
+// Recibe el mensaje del botón de compra dentro del iframe y navega la ventana real
+window.addEventListener('message', function(e) {
+  var d = e.data;
+  if (!d || typeof d.ea_checkout_url !== 'string') return;
+  // Validar que el destino sea solo nuestra ruta de checkout (nunca un URL externo)
+  if (!/^\/checkout\?/.test(d.ea_checkout_url)) return;
+  window.location.href = d.ea_checkout_url;
+});
+</script>
+</body>
+</html>`);
+  } catch (e) {
+    console.error('[/p/:slug]', e.message);
+    res.status(500).send('Error interno.');
+  }
+});
+
+// ── Contenido interior de la página de venta  GET /p-inner/:slug ──────────────
+// Este endpoint sirve el HTML real del vendedor SOLO para ser cargado dentro del iframe.
+// No increments views (ya lo hizo /p/:slug). Inyecta el script de checkout adaptado a postMessage.
+app.get('/p-inner/:slug', async (req, res) => {
+  const { slug } = req.params;
+  const ref = req.query.ref ? String(req.query.ref).slice(0, 120) : '';
+  try {
+    const { data, error } = await supabase
+      .from('paginas_venta').select('html, activa').eq('slug', slug).single();
+    if (error || !data || !data.activa) {
+      return res.status(404).send('Pagina no encontrada.');
+    }
+
+    // Script de checkout: en vez de window.location.href usa postMessage al padre.
+    // El padre (/p/:slug) escucha el mensaje y navega la ventana real al checkout.
+    const safeSlug = slug.replace(/'/g, "\\'");
+    const safeRef  = ref.replace(/'/g, "\\'");
+    const checkoutScript = `<script>
+(function(){
+  var _slug = '${safeSlug}';
+  var _ref  = '${safeRef}';
+  function _irAlCheckout() {
+    var url = '/checkout?slug=' + encodeURIComponent(_slug);
+    if (_ref) url += '&ref=' + encodeURIComponent(_ref);
+    // postMessage a la ventana padre (la que tiene el iframe) para que ella navegue
+    window.parent.postMessage({ ea_checkout_url: url }, '*');
+  }
+  // Enlazar al cargar
+  function _enlazar() {
+    document.querySelectorAll('.btn-comprar-ea').forEach(function(btn){
+      btn.addEventListener('click', _irAlCheckout);
+    });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _enlazar);
+  } else {
+    _enlazar();
+  }
+})();
+<\/script>`;
+
+    const htmlOut = data.html.includes('</body>')
+      ? data.html.replace(/<\/body>/i, checkoutScript + '\n</body>')
+      : data.html + '\n' + checkoutScript;
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    // Permitir que solo nuestro propio servidor cargue este endpoint en un iframe
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.send(htmlOut);
+  } catch (e) {
+    console.error('[/p-inner/:slug]', e.message);
+    res.status(500).send('Error interno.');
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// IA PROXY — endpoints que reenvían al modelo sin exponer la API key al frontend
+// ════════════════════════════════════════════════════════════════════════════
+
+const GROQ_MODEL_DEFAULT  = 'llama-3.3-70b-versatile';
+const GEMINI_API_KEY      = process.env.GEMINI_API_KEY || '';
+
+// POST /api/ia/groq
+// Recibe { prompt?, messages?, system?, max_tokens?, temperature? }
+// Llama a Groq con la key del .env y devuelve { ok:true, texto }
+app.post('/api/ia/groq', requireUsuario, async (req, res) => {
+  const { prompt, messages, system, max_tokens, temperature } = req.body || {};
+  try {
+    const groqMessages = [];
+    if (system) groqMessages.push({ role: 'system', content: system });
+    if (messages && messages.length > 0) {
+      groqMessages.push(...messages);
+    } else if (prompt) {
+      groqMessages.push({ role: 'user', content: String(prompt) });
+    }
+    if (groqMessages.length === 0) {
+      return res.status(400).json({ ok: false, error: 'Falta prompt o messages' });
+    }
+
+    const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + process.env.GROQ_API_KEY
+      },
+      body: JSON.stringify({
+        model: GROQ_MODEL_DEFAULT,
+        messages: groqMessages,
+        max_tokens: max_tokens || 1500,
+        temperature: temperature != null ? temperature : 0.8
+      })
+    });
+    const data = await resp.json();
+    if (!data.choices || !data.choices[0]) {
+      const errMsg = data.error?.message || 'Respuesta invalida de Groq';
+      return res.status(502).json({ ok: false, error: errMsg });
+    }
+    res.json({ ok: true, texto: data.choices[0].message.content });
+  } catch (e) {
+    console.error('[ia/groq]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// POST /api/ia/gemini-imagen
+// Recibe { prompt } — prueba los modelos de imagen de Gemini/Imagen en orden
+// Devuelve { ok:true, imagen } donde imagen es un data URL base64
+app.post('/api/ia/gemini-imagen', requireUsuario, async (req, res) => {
+  const { prompt } = req.body || {};
+  if (!prompt) return res.status(400).json({ ok: false, error: 'Falta prompt' });
+  if (!GEMINI_API_KEY) return res.status(500).json({ ok: false, error: 'GEMINI_API_KEY no configurada en el motor' });
+
+  const models = [
+    {
+      url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${GEMINI_API_KEY}`,
+      type: 'gemini',
+      body: { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseModalities: ['TEXT', 'IMAGE'] } }
+    },
+    {
+      url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=${GEMINI_API_KEY}`,
+      type: 'gemini',
+      body: { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseModalities: ['TEXT', 'IMAGE'] } }
+    },
+    {
+      url: `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${GEMINI_API_KEY}`,
+      type: 'imagen',
+      body: { instances: [{ prompt }], parameters: { sampleCount: 1, aspectRatio: '1:1', addWatermark: false } }
+    }
+  ];
+
+  for (const model of models) {
+    try {
+      const resp = await fetch(model.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(model.body)
+      });
+      if (resp.status === 429 || resp.status === 503) continue;
+      const data = await resp.json();
+      if (data.error) continue;
+
+      if (model.type === 'imagen' && data.predictions?.[0]?.bytesBase64Encoded) {
+        return res.json({ ok: true, imagen: 'data:image/png;base64,' + data.predictions[0].bytesBase64Encoded });
+      }
+      if (model.type === 'gemini') {
+        const parts = data.candidates?.[0]?.content?.parts;
+        const imgPart = parts?.find(p => p.inlineData);
+        if (imgPart) {
+          return res.json({ ok: true, imagen: 'data:' + imgPart.inlineData.mimeType + ';base64,' + imgPart.inlineData.data });
+        }
+      }
+    } catch (e) { continue; }
+  }
+  res.status(502).json({ ok: false, error: 'No se pudo generar la imagen con ninguno de los modelos disponibles' });
+});
+
+// POST /api/ia/gemini-vision
+// Recibe { contents, system_instruction?, generationConfig? } — formato nativo de Gemini
+// Llama a gemini-2.5-flash y devuelve { ok:true, texto }
+app.post('/api/ia/gemini-vision', requireUsuario, async (req, res) => {
+  const { contents, system_instruction, generationConfig } = req.body || {};
+  if (!contents) return res.status(400).json({ ok: false, error: 'Falta contents' });
+  if (!GEMINI_API_KEY) return res.status(500).json({ ok: false, error: 'GEMINI_API_KEY no configurada en el motor' });
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+  try {
+    const body = { contents };
+    if (system_instruction) body.system_instruction = system_instruction;
+    if (generationConfig)   body.generationConfig   = generationConfig;
+
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    if (data.error) return res.status(502).json({ ok: false, error: data.error.message || 'Error de Gemini' });
+    const texto = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    res.json({ ok: true, texto });
+  } catch (e) {
+    console.error('[ia/gemini-vision]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
   }
 });
 
@@ -1396,6 +3452,39 @@ app.listen(PORT, () => {
   console.log(`[motor]   GET  http://localhost:${PORT}/api/ventas/qr`);
   console.log(`[motor]   POST http://localhost:${PORT}/api/ventas/desconectar-whatsapp`);
   console.log(`[motor]   POST http://localhost:${PORT}/api/ventas/probar-telegram`);
+  console.log(`[motor]   POST http://localhost:${PORT}/api/login`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/api/supabase/test`);
+  console.log(`[motor]   POST http://localhost:${PORT}/api/mis-productos/agregar`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/api/mis-productos/:usuario_id`);
+  console.log(`[motor]   POST http://localhost:${PORT}/api/mis-productos/quitar`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/api/catalogo`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/api/admin/paginas`);
+  console.log(`[motor]   POST http://localhost:${PORT}/api/admin/paginas`);
+  console.log(`[motor]   POST http://localhost:${PORT}/api/admin/paginas/actualizar`);
+  console.log(`[motor]   POST http://localhost:${PORT}/api/admin/paginas/eliminar`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/api/admin/paginas/:id`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/p/:slug        (publica - wrapper iframe sandbox)`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/p-inner/:slug  (contenido iframe interno)`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/checkout  (formulario de envio)`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/api/checkout/info?slug=`);
+  console.log(`[motor]   POST http://localhost:${PORT}/api/pedidos/crear`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/api/admin/pedidos`);
+  console.log(`[motor]   POST http://localhost:${PORT}/api/admin/pedidos/actualizar`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/api/ventas/usuario/:usuario_id`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/api/admin/ventas-por-vendedor`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/api/admin/metricas/mas-vendidos`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/api/admin/metricas/mas-vistos`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/api/creditos/:usuario_id`);
+  console.log(`[motor]   POST http://localhost:${PORT}/api/creditos/descontar`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/ea-checkout.js`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/api/admin/productos`);
+  console.log(`[motor]   POST http://localhost:${PORT}/api/admin/productos`);
+  console.log(`[motor]   POST http://localhost:${PORT}/api/admin/productos/actualizar`);
+  console.log(`[motor]   POST http://localhost:${PORT}/api/admin/productos/eliminar`);
+  console.log(`[motor]   POST http://localhost:${PORT}/api/usuario/nombre`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/api/admin/usuarios`);
+  console.log(`[motor]   POST http://localhost:${PORT}/api/admin/usuarios/activar`);
+  console.log(`[motor]   POST http://localhost:${PORT}/api/admin/usuarios/desactivar`);
 
   // ══ OBJETIVO 3: Limpieza de seguridad cada 30 minutos ═════════════════════
   // Borra archivos de temp/ y outputs/ con mas de 1 hora de antiguedad.

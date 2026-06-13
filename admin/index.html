@@ -10,6 +10,27 @@
 </head>
 <body>
 
+  <!-- ===== LOGIN SCREEN ===== -->
+  <div id="adm-login-screen" style="display:none;position:fixed;inset:0;background:#faf8f5;z-index:9999;align-items:center;justify-content:center;">
+    <div style="background:#fff;border:1px solid #e8ddd0;border-radius:8px;padding:52px 44px;width:100%;max-width:380px;text-align:center;box-shadow:0 4px 28px rgba(184,147,104,0.10);">
+      <div style="font-family:'Syne',sans-serif;font-size:17px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:#1a1a1a;margin-bottom:4px;">EcommerceAgent</div>
+      <div style="font-family:'Syne',sans-serif;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#b89368;margin-bottom:36px;">Panel de Administrador</div>
+      <div id="adm-login-error" style="display:none;background:#fdf0ed;border:1px solid #e8b4a8;border-radius:4px;padding:10px 14px;font-family:'Syne',sans-serif;font-size:12px;color:#c0392b;margin-bottom:14px;text-align:left;"></div>
+      <input type="password" id="adm-login-password" placeholder="Contraseña de administrador"
+        style="width:100%;box-sizing:border-box;border:1px solid #d4c9b8;border-radius:4px;padding:12px 16px;font-size:14px;font-family:'Syne',sans-serif;background:#faf8f5;outline:none;margin-bottom:14px;transition:border-color .2s;"
+        onkeydown="if(event.key==='Enter')adminLogin()"
+        onfocus="this.style.borderColor='#b89368'" onblur="this.style.borderColor='#d4c9b8'" />
+      <button onclick="adminLogin()" id="adm-login-btn"
+        style="width:100%;padding:13px;background:#1a1a1a;color:#fff;border:none;border-radius:4px;font-family:'Syne',sans-serif;font-size:10px;letter-spacing:2.5px;text-transform:uppercase;cursor:pointer;font-weight:600;transition:background .2s;"
+        onmouseover="this.style.background='#b89368'" onmouseout="this.style.background='#1a1a1a'">
+        Entrar al panel
+      </button>
+    </div>
+  </div>
+
+  <!-- ===== PANEL PRINCIPAL (se muestra tras login) ===== -->
+  <div id="adm-main-content" style="display:none;">
+
   <!-- NAVBAR -->
   <header class="adm-navbar">
     <div class="adm-navbar-inner">
@@ -20,6 +41,12 @@
       </div>
       <div class="adm-navbar-right">
         <span class="adm-navbar-badge">Admin</span>
+        <button onclick="adminLogout()" title="Cerrar sesion de administrador"
+          style="margin-left:12px;font-family:'Syne',sans-serif;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;background:transparent;border:1px solid rgba(255,255,255,0.25);color:rgba(255,255,255,0.65);padding:5px 12px;border-radius:3px;cursor:pointer;transition:all .2s;"
+          onmouseover="this.style.borderColor='rgba(255,255,255,0.6)';this.style.color='#fff'"
+          onmouseout="this.style.borderColor='rgba(255,255,255,0.25)';this.style.color='rgba(255,255,255,0.65)'">
+          Salir
+        </button>
       </div>
     </div>
   </header>
@@ -81,16 +108,6 @@
               <input type="file" id="inv-f-imagenes" accept="image/*" multiple
                 onchange="invAgregarImagenes(this)" hidden>
               <p class="adm-form-hint">Minimo 1 imagen requerida &middot; Las demas imagenes estaran disponibles para que los vendedores descarguen y usen en su contenido.</p>
-            </div>
-            <div class="adm-form-group">
-              <label class="adm-form-label" for="inv-f-categoria">Categoria</label>
-              <select id="inv-f-categoria" class="adm-form-select">
-                <option value="Belleza">Belleza</option>
-                <option value="Tecnologia">Tecnologia</option>
-                <option value="Hogar">Hogar</option>
-                <option value="Alimentacion">Alimentacion</option>
-                <option value="Otro">Otro</option>
-              </select>
             </div>
             <div class="adm-form-group">
               <label class="adm-form-label" for="inv-f-precio">Precio de venta ($)</label>
@@ -191,6 +208,15 @@
                 placeholder="Ej. Landing Rizador Nova v2">
             </div>
             <div class="adm-form-group adm-form-group--full">
+              <label class="adm-form-label" for="pag-producto-id">
+                Producto asociado
+                <span style="font-weight:400;color:#8a7a68;font-size:12px">(opcional — para mostrar imagen y precio real en el checkout)</span>
+              </label>
+              <select id="pag-producto-id" class="adm-form-input">
+                <option value="">— Sin producto asociado —</option>
+              </select>
+            </div>
+            <div class="adm-form-group adm-form-group--full">
               <div class="adm-html-label-row">
                 <label class="adm-form-label" for="pag-html-code">Codigo HTML de la pagina</label>
                 <button type="button" class="adm-btn adm-btn--sm adm-btn--outline"
@@ -203,8 +229,9 @@
 
           <div class="adm-form-footer">
             <button type="button" class="adm-btn adm-btn--outline" onclick="pagPrevisualizar()">Previsualizar</button>
-            <button type="button" class="adm-btn adm-btn--primary" onclick="pagCrearHtml()">Crear pagina</button>
+            <button type="button" id="pag-crear-btn" class="adm-btn adm-btn--primary" onclick="pagCrearHtml()">Crear pagina</button>
             <p id="pag-html-error" class="adm-form-error" hidden></p>
+            <p id="pag-html-success" class="adm-form-success" hidden></p>
           </div>
 
           <!-- iframe de preview -->
@@ -339,6 +366,8 @@
     </div>
   </div>
 
-  <script src="assets/js/admin.js"></script>
+  </div><!-- /adm-main-content -->
+
+  <script src="assets/js/admin.js?v=8"></script>
 </body>
 </html>

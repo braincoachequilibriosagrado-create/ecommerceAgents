@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>EcommerceAgent — Elite Commerce Network</title>
+<title>EcommerceAgents — Elite Commerce Network</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,300;1,400&family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/styles.css">
@@ -16,12 +16,13 @@
 <div id="page-home" class="page active">
   <div class="landing-bg"></div>
   <div class="grid-overlay"></div>
+  <canvas id="landing-sand" aria-hidden="true"></canvas>
 
   <header class="landing-nav">
-    <a href="#landing-top" class="landing-nav-logo" onclick="event.preventDefault(); document.getElementById('landing-top').scrollIntoView({behavior:'smooth',block:'start'});"><span class="landing-nav-e">Ecommerce</span><span class="landing-nav-a">Agent</span></a>
+    <a href="#landing-top" class="landing-nav-logo" onclick="event.preventDefault(); document.getElementById('landing-top').scrollIntoView({behavior:'smooth',block:'start'});"><span class="landing-nav-e">Ecommerce</span><span class="landing-nav-a">Agents</span></a>
     <nav class="landing-nav-links" aria-label="Principal">
       <button type="button" class="landing-nav-secondary" onclick="window.open('https://wa.me/573001234567', '_blank')">Contáctanos</button>
-      <button type="button" class="landing-nav-cta" onclick="showPage('page-token')">Acceder</button>
+      <button type="button" class="landing-nav-cta" onclick="showPage('page-login')">Acceder</button>
     </nav>
   </header>
 
@@ -33,14 +34,14 @@
   <section class="landing-hero" id="landing-top">
     <div class="landing-hero-inner">
       <div class="landing-hero-copy">
-        <div class="landing-badge"><span>Elite Commerce Network</span></div>
-        <h1 class="landing-title">Ecommerce<br><span>Agent</span></h1>
+        <div class="landing-badge"><span>Vende · Gana en Dolares</span></div>
+        <h1 class="landing-title">Ecommerce<br><span>Agents</span></h1>
         <div class="landing-subtitle-line"></div>
         <p class="landing-tagline">
           La red de comercio que conecta talento colombiano<br>con el mercado más grande del mundo.
         </p>
         <p class="landing-desc">Dropshipping · Estados Unidos · Red de Agentes</p>
-        <button type="button" class="landing-cta" onclick="showPage('page-token')">
+        <button type="button" class="landing-cta" onclick="showPage('page-login')">
           Ingresar a la Plataforma
           <span class="landing-cta-arrow">→</span>
         </button>
@@ -55,7 +56,7 @@
         <div class="mock-stack mock-stack--float">
           <div class="mock-premium-frame">
             <img
-              src="assets/img/mis-ventas-premium.png?v=4"
+              src="assets/img/mis-ventas-premium.png?v=5"
               alt="Catálogo y Mis ventas"
               class="mock-premium-img"
               loading="lazy"
@@ -87,55 +88,48 @@
       <h2 class="landing-section-title landing-section-title--plain" id="informacion-title">Información</h2>
       <div class="landing-info-grid">
         <article class="landing-info-card">
-          <span class="landing-info-emoji" aria-hidden="true">📋</span>
+          <span class="landing-info-emoji" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
+          </span>
           <h3 class="landing-info-card-title">Términos y Condiciones</h3>
           <p class="landing-info-card-text">Conoce las reglas, comisiones y políticas de nuestra red de agentes antes de unirte.</p>
-          <button type="button" class="landing-info-btn landing-info-btn--outline" onclick="alert('Aquí van los términos y condiciones.')">Leer términos →</button>
+          <button type="button" class="landing-info-btn landing-info-btn--outline" onclick="showPage('page-terminos')">Leer términos →</button>
         </article>
         <article class="landing-info-card">
-          <span class="landing-info-emoji" aria-hidden="true">💬</span>
+          <span class="landing-info-emoji" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          </span>
           <h3 class="landing-info-card-title">Contáctanos</h3>
           <p class="landing-info-card-text">¿Tienes preguntas? Escríbenos directamente por WhatsApp y te respondemos en minutos.</p>
           <button type="button" class="landing-info-btn landing-info-btn--gold" onclick="window.open('https://wa.me/573001234567', '_blank')">Escribir por WhatsApp →</button>
         </article>
         <article class="landing-info-card">
-          <span class="landing-info-emoji" aria-hidden="true">🏢</span>
+          <span class="landing-info-emoji" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          </span>
           <h3 class="landing-info-card-title">Quiénes Somos</h3>
           <p class="landing-info-card-text">Somos una red de comercio que conecta talento colombiano con el mercado americano a través del dropshipping inteligente.</p>
-          <button type="button" class="landing-info-btn landing-info-btn--outline" onclick="alert('Aquí va la información de quiénes somos.')">Conocer más →</button>
+          <button type="button" class="landing-info-btn landing-info-btn--outline" onclick="showPage('page-quienes-somos')">Conocer más →</button>
         </article>
       </div>
     </div>
   </section>
 
-  <section class="landing-section" id="productos-landing" aria-labelledby="productos-landing-title">
-    <div class="landing-section-inner">
-      <h2 class="landing-section-title" id="productos-landing-title">Productos <span>destacados</span></h2>
-      <p class="landing-section-lead">Ejemplos reales del catálogo disponible para tu negocio.</p>
-      <div class="landing-product-grid">
-        <article class="landing-product-card">
-          <div class="landing-product-img-wrap">
-            <img src="assets/img/products/rizador-nova.png" alt="" width="800" height="600" loading="lazy" decoding="async" />
-          </div>
-          <h3 class="landing-product-name">Rizador Pinza Ondulador Espiral Nova</h3>
-          <p class="landing-product-meta">Belleza · Stock alto</p>
-        </article>
-        <article class="landing-product-card">
-          <div class="landing-product-img-wrap">
-            <img src="assets/img/products/airpods-pantalla.png" alt="" width="800" height="600" loading="lazy" decoding="async" />
-          </div>
-          <h3 class="landing-product-name">Airpods Segunda Generación Con Pantalla</h3>
-          <p class="landing-product-meta">Tecnología · Demanda fuerte</p>
-        </article>
-        <article class="landing-product-card">
-          <div class="landing-product-img-wrap">
-            <img src="assets/img/products/combo-bioaqua.png" alt="" width="800" height="600" loading="lazy" decoding="async" />
-          </div>
-          <h3 class="landing-product-name">Combo Hidratación Intensiva Bioaqu</h3>
-          <p class="landing-product-meta">Belleza · Catálogo vivo</p>
-        </article>
+  <!-- Infinite product carousel — populated by initLandingCarousel() in app.js -->
+  <section class="lp-carousel-section" id="productos-landing" aria-labelledby="productos-landing-title">
+    <div class="lp-carousel-header">
+      <h2 class="landing-section-title" id="productos-landing-title">Catalogo <span>disponible</span></h2>
+      <p class="landing-section-lead">Dropshipping hacia EE. UU. — Sin stock propio, margenes reales.</p>
+    </div>
+    <div class="lp-carousel-outer" role="region" aria-label="Productos del catalogo en movimiento">
+      <div class="lp-carousel-track" id="lp-carousel-track">
+        <!-- Cards injected by JS -->
       </div>
-      <button type="button" class="landing-cta landing-cta--section" onclick="showPage('page-token')">Ver catálogo completo en la plataforma <span class="landing-cta-arrow">→</span></button>
+    </div>
+    <div class="lp-carousel-cta">
+      <button type="button" class="landing-cta landing-cta--section" onclick="showPage('page-login')">
+        Ver catalogo completo en la plataforma <span class="landing-cta-arrow">→</span>
+      </button>
     </div>
   </section>
 
@@ -165,7 +159,7 @@
           <p class="landing-benefit-text">Seguimiento de ventas, comisiones y movimientos.</p>
         </div>
       </div>
-      <button type="button" class="landing-cta landing-cta--section" onclick="showPage('page-token')">Quiero empezar <span class="landing-cta-arrow">→</span></button>
+      <button type="button" class="landing-cta landing-cta--section" onclick="showPage('page-login')">Quiero empezar <span class="landing-cta-arrow">→</span></button>
     </div>
   </section>
 
@@ -173,24 +167,280 @@
     <div class="landing-cta-band-inner">
       <h2 class="landing-cta-band-title">¿Listo para ganar en dólares?</h2>
       <p class="landing-cta-band-text">Solicita tu token y accede al catálogo, links con ref y tu balance de comisiones.</p>
-      <button type="button" class="landing-cta landing-cta--on-dark" onclick="showPage('page-token')">Comenzar ahora <span class="landing-cta-arrow">→</span></button>
+      <button type="button" class="landing-cta landing-cta--on-dark" onclick="showPage('page-login')">Comenzar ahora <span class="landing-cta-arrow">→</span></button>
     </div>
   </section>
 
   <footer class="landing-footer" id="contacto">
     <div class="landing-footer-inner">
       <div class="landing-footer-brand">
-        <div class="landing-footer-logo">Ecommerce<span>Agent</span></div>
-        <p class="landing-footer-tag">Elite Commerce Network</p>
+        <div class="landing-footer-logo">Ecommerce<span>Agents</span></div>
+        <p class="landing-footer-tag">Red de Comercio · Ibagué, Colombia</p>
+        <div class="landing-footer-legal" style="margin-top:14px">
+          <button type="button" class="landing-footer-legal-link" onclick="showPage('page-quienes-somos')">Quiénes Somos</button>
+          <span style="color:#ddd5c8;font-size:11px">·</span>
+          <button type="button" class="landing-footer-legal-link" onclick="showPage('page-terminos')">Términos y Condiciones</button>
+          <span style="color:#ddd5c8;font-size:11px">·</span>
+          <button type="button" class="landing-footer-legal-link" onclick="showPage('page-privacidad')">Política de Privacidad</button>
+        </div>
       </div>
       <div class="landing-footer-block">
         <h3 class="landing-footer-heading">Contacto</h3>
         <p class="landing-footer-line"><a href="mailto:hola@ecommerceagent.com" class="landing-footer-link">hola@ecommerceagent.com</a></p>
-        <p class="landing-footer-line muted">Horario: Lun — Vie · 9:00 — 18:00 (COL)</p>
+        <p class="landing-footer-line muted">Ibagué, Colombia</p>
+        <p class="landing-footer-line muted">Lun — Vie · 9:00 — 18:00 (COL)</p>
+      </div>
+      <div class="landing-footer-block">
+        <h3 class="landing-footer-heading">Plataforma</h3>
+        <p class="landing-footer-line"><button type="button" class="landing-footer-legal-link" onclick="showPage('page-login')" style="font-size:13px">Acceder al panel</button></p>
+        <p class="landing-footer-line"><button type="button" class="landing-footer-legal-link" onclick="window.open('https://wa.me/573001234567','_blank')" style="font-size:13px">WhatsApp soporte</button></p>
       </div>
     </div>
-    <p class="landing-footer-copy">© EcommerceAgent. Plataforma de comercio para agentes.</p>
+    <p class="landing-footer-copy">© 2026 EcommerceAgents · Ibagué, Colombia · Dropshipping hacia Estados Unidos.</p>
   </footer>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- PAGE: QUIÉNES SOMOS                                    -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div id="page-quienes-somos" class="page">
+  <nav class="legal-nav">
+    <button type="button" class="legal-back" onclick="showPage('page-home')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      Volver
+    </button>
+    <div class="legal-nav-logo">Ecommerce<span>Agents</span></div>
+  </nav>
+  <div class="legal-content">
+    <div class="legal-hero">
+      <h1 class="legal-title">Quiénes <span>Somos</span></h1>
+      <p class="legal-subtitle">Una empresa colombiana que conecta talento local con el mercado más grande del mundo.</p>
+    </div>
+
+    <div class="legal-section">
+      <h2 class="legal-section-title"><span class="legal-section-num">01</span> Nuestra empresa</h2>
+      <p class="legal-p"><strong>EcommerceAgents</strong> es una empresa con sede en Ibagué, Colombia, dedicada a conectar vendedores independientes — nuestros <em>agentes</em> — con productos de alta demanda para comercializar en el mercado de Estados Unidos a través del modelo de dropshipping.</p>
+      <p class="legal-p">Operamos como una red de comercio directa: seleccionamos productos, gestionamos la logística y brindamos a nuestros agentes todas las herramientas digitales que necesitan para vender sin tener inventario propio. Tú vendes, nosotros despachamos.</p>
+    </div>
+
+    <div class="qs-blocks">
+      <div class="qs-block">
+        <span class="qs-block-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>
+        <div class="qs-block-title">Misión</div>
+        <div class="qs-block-text">Democratizar el acceso al comercio internacional, permitiendo que cualquier persona con talento para las ventas pueda construir un negocio propio y ganar en dólares desde Colombia.</div>
+      </div>
+      <div class="qs-block">
+        <span class="qs-block-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></span>
+        <div class="qs-block-title">Visión</div>
+        <div class="qs-block-text">Ser la red de agentes de dropshipping más confiable y rentable de Latinoamérica, referente en transparencia, tecnología y resultados reales para nuestros vendedores.</div>
+      </div>
+      <div class="qs-block">
+        <span class="qs-block-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>
+        <div class="qs-block-title">Valores</div>
+        <div class="qs-block-text">Transparencia en comisiones, honestidad en el negocio, tecnología al servicio del agente, crecimiento basado en ventas reales de producto — nunca en reclutamiento.</div>
+      </div>
+    </div>
+
+    <div class="legal-rule"></div>
+
+    <div class="legal-section">
+      <h2 class="legal-section-title"><span class="legal-section-num">02</span> Cómo funciona</h2>
+      <p class="legal-p">El modelo es simple: el agente se registra en la plataforma, accede al catálogo de productos con márgenes claros, y comienza a vender usando sus links personalizados. Cada vez que un cliente compra a través de su link, el agente gana una comisión sobre el precio de venta.</p>
+      <div class="legal-highlight">Los agentes ganan exclusivamente por las ventas de productos que generan. Las comisiones son proporcionales al volumen de ventas reales, no por reclutar a otras personas.</div>
+      <p class="legal-p">Nosotros nos encargamos del almacenamiento, el empaque y el envío directo al cliente en Estados Unidos. El agente solo necesita su teléfono, sus redes sociales y las ganas de vender.</p>
+    </div>
+
+    <div class="legal-section">
+      <h2 class="legal-section-title"><span class="legal-section-num">03</span> Nuestra sede</h2>
+      <p class="legal-p">EcommerceAgents opera desde <strong>Ibagué, Tolima, Colombia</strong>. Toda nuestra operación logística, soporte al agente y gestión de pagos se coordina desde Colombia, mientras nuestros productos son despachados hacia clientes en el mercado estadounidense.</p>
+      <p class="legal-p">Para contactarnos: <a href="mailto:hola@ecommerceagent.com" style="color:var(--gold)">hola@ecommerceagent.com</a> · WhatsApp soporte disponible Lun–Vie, 9:00–18:00 (hora Colombia).</p>
+    </div>
+
+    <div style="text-align:center;margin-top:48px">
+      <button type="button" class="landing-cta" onclick="showPage('page-login')" style="display:inline-flex">
+        Unirme a la red <span class="landing-cta-arrow">→</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- PAGE: TÉRMINOS Y CONDICIONES                           -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div id="page-terminos" class="page">
+  <nav class="legal-nav">
+    <button type="button" class="legal-back" onclick="showPage('page-home')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      Volver
+    </button>
+    <div class="legal-nav-logo">Ecommerce<span>Agents</span></div>
+  </nav>
+  <div class="legal-content">
+    <div class="legal-hero">
+      <h1 class="legal-title">Términos y <span>Condiciones</span></h1>
+      <p class="legal-subtitle">Última actualización: junio 2026 · EcommerceAgents · Ibagué, Colombia</p>
+    </div>
+
+    <div class="legal-section">
+      <h2 class="legal-section-title"><span class="legal-section-num">1</span> Aceptación de términos</h2>
+      <p class="legal-p">Al registrarse y utilizar la plataforma EcommerceAgents, el usuario (en adelante "Agente") acepta íntegramente estos Términos y Condiciones. Si no está de acuerdo con alguno de los términos aquí establecidos, no debe acceder ni utilizar la plataforma.</p>
+      <p class="legal-p">EcommerceAgents se reserva el derecho de modificar estos términos en cualquier momento, notificando a los agentes activos con al menos 15 días de anticipación.</p>
+    </div>
+
+    <div class="legal-rule"></div>
+    <div class="legal-section">
+      <h2 class="legal-section-title"><span class="legal-section-num">2</span> Descripción del servicio</h2>
+      <p class="legal-p">EcommerceAgents es una plataforma de comercio electrónico bajo el modelo de dropshipping que permite a los agentes comercializar productos físicos hacia el mercado de Estados Unidos sin necesidad de mantener inventario propio.</p>
+      <p class="legal-p">El servicio incluye: acceso al catálogo de productos, generación de links de venta personalizados, panel de seguimiento de ventas y comisiones, y herramientas de inteligencia artificial para la generación de contenido de ventas.</p>
+      <div class="legal-highlight">Las comisiones se generan exclusivamente por la venta efectiva de productos a clientes finales. EcommerceAgents NO es un esquema de referidos ni de reclutamiento: ganar dinero en la plataforma depende únicamente de las ventas de productos reales que el agente genere.</div>
+    </div>
+
+    <div class="legal-rule"></div>
+    <div class="legal-section">
+      <h2 class="legal-section-title"><span class="legal-section-num">3</span> Registro y cuentas</h2>
+      <p class="legal-p">El acceso a la plataforma requiere un código de usuario y un código de seguridad asignados por EcommerceAgents. Las cuentas son personales e intransferibles. El agente es responsable de mantener la confidencialidad de sus credenciales.</p>
+      <p class="legal-p">La activación de la cuenta está sujeta a la aprobación de EcommerceAgents. La empresa se reserva el derecho de rechazar solicitudes de registro o desactivar cuentas que incumplan estos términos.</p>
+    </div>
+
+    <div class="legal-rule"></div>
+    <div class="legal-section">
+      <h2 class="legal-section-title"><span class="legal-section-num">4</span> Modelo de pagos y comisiones</h2>
+      <p class="legal-p"><strong>Cuota de ingreso:</strong> Para acceder a la plataforma puede aplicar una cuota de activación única, la cual será informada al momento del registro. Esta cuota cubre el acceso inicial a la plataforma y materiales de capacitación.</p>
+      <p class="legal-p"><strong>Mensualidad (si aplica):</strong> El mantenimiento de la cuenta activa puede requerir el pago de una mensualidad, cuyo monto será notificado previamente al agente.</p>
+      <p class="legal-p"><strong>Comisiones por ventas:</strong> El agente recibe un porcentaje del margen de cada venta confirmada y entregada. El porcentaje varía según el producto y se muestra claramente en el catálogo. Las comisiones se calculan sobre el precio de venta al cliente final, descontando el costo del producto y la logística.</p>
+      <div class="legal-highlight">El ingreso del agente depende directamente de su volumen de ventas de productos. No existe ningún mecanismo de pago por reclutar a otras personas.</div>
+    </div>
+
+    <div class="legal-rule"></div>
+    <div class="legal-section">
+      <h2 class="legal-section-title"><span class="legal-section-num">5</span> Pagos a agentes</h2>
+      <p class="legal-p">Los pagos de comisiones se realizan de forma <strong>quincenal</strong> (cada 15 días), sujeto a que el monto acumulado supere el mínimo de retiro establecido. El agente debe solicitar el pago a través de la plataforma.</p>
+      <p class="legal-p">Los métodos de pago disponibles incluyen transferencia bancaria, Nequi, Daviplata u otros medios habilitados por EcommerceAgents. Solo se pagan comisiones de ventas cuya entrega al cliente final haya sido confirmada.</p>
+    </div>
+
+    <div class="legal-rule"></div>
+    <div class="legal-section">
+      <h2 class="legal-section-title"><span class="legal-section-num">6</span> Envíos y entregas</h2>
+      <p class="legal-p">EcommerceAgents gestiona el envío de productos físicos desde sus bodegas hacia clientes en Estados Unidos. Los tiempos de entrega estimados son de 7 a 21 días hábiles, sujetos a variaciones por operadores logísticos.</p>
+      <p class="legal-p">El agente es responsable de proporcionar información de envío correcta y completa al momento de registrar una venta. EcommerceAgents no se responsabiliza por demoras originadas en dirección incorrecta o información incompleta proporcionada por el agente.</p>
+    </div>
+
+    <div class="legal-rule"></div>
+    <div class="legal-section">
+      <h2 class="legal-section-title"><span class="legal-section-num">7</span> Devoluciones y reembolsos</h2>
+      <p class="legal-p">Los clientes finales pueden solicitar devolución dentro de los 15 días siguientes a la recepción del producto, siempre que el artículo se encuentre en condiciones originales y el motivo sea un defecto de fabricación o error en el envío.</p>
+      <p class="legal-p">En caso de devolución aceptada, la comisión del agente correspondiente a esa venta será descontada en el siguiente ciclo de pagos.</p>
+    </div>
+
+    <div class="legal-rule"></div>
+    <div class="legal-section">
+      <h2 class="legal-section-title"><span class="legal-section-num">8</span> Pagos de clientes</h2>
+      <p class="legal-p">Los clientes finales en USA pueden realizar sus pagos a través de los métodos habilitados en la página de venta (transferencia bancaria, Zelle, PayPal, Venmo u otros métodos aceptados). EcommerceAgents no procesa pagos con tarjeta de crédito directamente en esta etapa.</p>
+      <p class="legal-p">El agente no debe recibir pagos en su nombre personal por ventas de la plataforma, a menos que EcommerceAgents lo autorice expresamente.</p>
+    </div>
+
+    <div class="legal-rule"></div>
+    <div class="legal-section">
+      <h2 class="legal-section-title"><span class="legal-section-num">9</span> Protección de datos personales</h2>
+      <p class="legal-p">EcommerceAgents trata los datos personales de agentes y clientes de acuerdo con la Ley 1581 de 2012 de Protección de Datos Personales de Colombia y sus decretos reglamentarios. Consulta nuestra Política de Privacidad para conocer los detalles sobre recolección, uso y almacenamiento de datos.</p>
+    </div>
+
+    <div class="legal-rule"></div>
+    <div class="legal-section">
+      <h2 class="legal-section-title"><span class="legal-section-num">10</span> Limitación de responsabilidad</h2>
+      <p class="legal-p">EcommerceAgents no garantiza un nivel mínimo de ingresos al agente, ya que los resultados dependen exclusivamente del esfuerzo de ventas individual. La plataforma se ofrece "tal cual" y puede presentar interrupciones técnicas ocasionales.</p>
+      <p class="legal-p">EcommerceAgents no se responsabiliza por pérdidas indirectas, daño emergente o lucro cesante derivados del uso o imposibilidad de uso de la plataforma.</p>
+    </div>
+
+    <div class="legal-rule"></div>
+    <div class="legal-section">
+      <h2 class="legal-section-title"><span class="legal-section-num">11</span> Jurisdicción</h2>
+      <p class="legal-p">Estos términos se rigen por las leyes de la República de Colombia. Cualquier controversia derivada de su interpretación o cumplimiento será sometida a la jurisdicción de los tribunales competentes de la ciudad de Ibagué, Tolima, Colombia.</p>
+    </div>
+
+    <div class="legal-rule"></div>
+    <div class="legal-section">
+      <h2 class="legal-section-title"><span class="legal-section-num">12</span> Modificaciones</h2>
+      <p class="legal-p">EcommerceAgents puede modificar estos Términos y Condiciones en cualquier momento. Los cambios serán notificados a los agentes activos con al menos 15 días de anticipación. El uso continuado de la plataforma tras la notificación implica la aceptación de los nuevos términos.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- PAGE: POLÍTICA DE PRIVACIDAD                          -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div id="page-privacidad" class="page">
+  <nav class="legal-nav">
+    <button type="button" class="legal-back" onclick="showPage('page-home')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      Volver
+    </button>
+    <div class="legal-nav-logo">Ecommerce<span>Agents</span></div>
+  </nav>
+  <div class="legal-content">
+    <div class="legal-hero">
+      <h1 class="legal-title">Política de <span>Privacidad</span></h1>
+      <p class="legal-subtitle">Última actualización: junio 2026 · EcommerceAgents · Ibagué, Colombia</p>
+    </div>
+
+    <div class="legal-section">
+      <h2 class="legal-section-title"><span class="legal-section-num">1</span> Responsable del tratamiento</h2>
+      <p class="legal-p">EcommerceAgents, con domicilio en Ibagué, Tolima, Colombia, es el responsable del tratamiento de los datos personales recopilados a través de esta plataforma. Contacto: hola@ecommerceagent.com</p>
+    </div>
+
+    <div class="legal-rule"></div>
+    <div class="legal-section">
+      <h2 class="legal-section-title"><span class="legal-section-num">2</span> Datos que recopilamos</h2>
+      <p class="legal-p"><strong>De los agentes:</strong> nombre completo, documento de identidad, información de contacto (correo electrónico, teléfono), datos bancarios para el pago de comisiones, y datos de actividad en la plataforma (ventas, sesiones, interacciones).</p>
+      <p class="legal-p"><strong>De los clientes finales:</strong> nombre, dirección de envío, correo electrónico, teléfono e información de la transacción. Estos datos son recopilados al momento de completar una compra.</p>
+    </div>
+
+    <div class="legal-rule"></div>
+    <div class="legal-section">
+      <h2 class="legal-section-title"><span class="legal-section-num">3</span> Finalidades del tratamiento</h2>
+      <p class="legal-p">Los datos de agentes se usan para: gestionar la cuenta, calcular y pagar comisiones, brindar soporte, enviar comunicaciones operativas y mejorar la plataforma.</p>
+      <p class="legal-p">Los datos de clientes finales se usan exclusivamente para: procesar y entregar el pedido, coordinar la logística de envío, y gestionar devoluciones o reclamaciones.</p>
+    </div>
+
+    <div class="legal-rule"></div>
+    <div class="legal-section">
+      <h2 class="legal-section-title"><span class="legal-section-num">4</span> Bases legales</h2>
+      <p class="legal-p">El tratamiento de datos se realiza bajo las bases legales de consentimiento del titular (Ley 1581 de 2012) y ejecución de un contrato. Los datos bancarios para pagos de comisiones se tratan bajo la base de obligación legal y ejecución contractual.</p>
+    </div>
+
+    <div class="legal-rule"></div>
+    <div class="legal-section">
+      <h2 class="legal-section-title"><span class="legal-section-num">5</span> Compartición de datos</h2>
+      <p class="legal-p">EcommerceAgents no vende ni alquila datos personales a terceros. Los datos pueden ser compartidos con: operadores logísticos (para la entrega de pedidos), procesadores de pago, y proveedores de servicios tecnológicos que actúan como encargados del tratamiento bajo confidencialidad.</p>
+      <div class="legal-highlight">Los datos de clientes finales (dirección, teléfono) son compartidos con el agente que generó la venta, únicamente para coordinar la entrega. Este es un uso legítimo y necesario para el cumplimiento del contrato de compraventa.</div>
+    </div>
+
+    <div class="legal-rule"></div>
+    <div class="legal-section">
+      <h2 class="legal-section-title"><span class="legal-section-num">6</span> Almacenamiento y seguridad</h2>
+      <p class="legal-p">Los datos se almacenan en servidores con medidas técnicas de seguridad (cifrado SSL/TLS, control de acceso, copias de seguridad periódicas). EcommerceAgents aplica medidas razonables para proteger la información contra acceso no autorizado, pérdida o alteración.</p>
+      <p class="legal-p">Los datos se conservan mientras la cuenta del agente esté activa y por un período adicional de 5 años para cumplir obligaciones legales y fiscales.</p>
+    </div>
+
+    <div class="legal-rule"></div>
+    <div class="legal-section">
+      <h2 class="legal-section-title"><span class="legal-section-num">7</span> Derechos del titular</h2>
+      <p class="legal-p">De acuerdo con la Ley 1581 de 2012, los titulares de datos tienen derecho a: conocer, actualizar y rectificar sus datos; solicitar prueba de la autorización otorgada; ser informados sobre el uso de sus datos; presentar quejas ante la Superintendencia de Industria y Comercio; y solicitar la supresión de sus datos cuando corresponda.</p>
+      <p class="legal-p">Para ejercer estos derechos, escribir a: hola@ecommerceagent.com</p>
+    </div>
+
+    <div class="legal-rule"></div>
+    <div class="legal-section">
+      <h2 class="legal-section-title"><span class="legal-section-num">8</span> Cookies y tecnologías de seguimiento</h2>
+      <p class="legal-p">La plataforma puede utilizar cookies de sesión para mantener el inicio de sesión activo. No se utilizan cookies de rastreo publicitario de terceros. El usuario puede configurar su navegador para rechazar cookies, aunque esto puede afectar la funcionalidad de la plataforma.</p>
+    </div>
+
+    <div class="legal-rule"></div>
+    <div class="legal-section">
+      <h2 class="legal-section-title"><span class="legal-section-num">9</span> Modificaciones a esta política</h2>
+      <p class="legal-p">EcommerceAgents puede actualizar esta Política de Privacidad. Los cambios se notificarán a los agentes registrados con al menos 15 días de anticipación. Se recomienda revisar esta página periódicamente.</p>
+    </div>
+  </div>
 </div>
 
 <!-- ══════════════════════════════════════════════════════ -->
@@ -199,7 +449,7 @@
 <div id="page-token" class="page">
   <div class="landing-bg"></div>
   <div class="token-card">
-    <div class="token-logo">Ecommerce<span>Agent</span></div>
+    <div class="token-logo">Ecommerce<span>Agents</span></div>
     <div class="token-divider"></div>
     <h2 class="token-heading">Acceso con Token</h2>
     <p class="token-subtext">
@@ -232,7 +482,7 @@
 <div id="page-register" class="page">
   <div class="landing-bg"></div>
   <div class="token-card" style="max-width:520px;">
-    <div class="token-logo">Ecommerce<span>Agent</span></div>
+    <div class="token-logo">Ecommerce<span>Agents</span></div>
     <div class="token-divider"></div>
     <h2 class="token-heading">Crear Cuenta</h2>
     <p class="token-subtext">Token verificado. Completa tu registro para acceder al catálogo.</p>
@@ -262,7 +512,7 @@
     <button class="btn-primary" onclick="goToDashboard('agent')">Crear Cuenta y Entrar</button>
 
     <div class="token-footer">
-      Al registrarte aceptas los términos y condiciones de EcommerceAgent
+      Al registrarte aceptas los términos y condiciones de EcommerceAgents
     </div>
   </div>
 </div>
@@ -271,31 +521,54 @@
 <!-- PAGE 4: LOGIN                                          -->
 <!-- ══════════════════════════════════════════════════════ -->
 <div id="page-login" class="page">
-  <div class="landing-bg"></div>
-  <div class="token-card">
-    <div class="token-logo">Ecommerce<span>Agent</span></div>
-    <div class="token-divider"></div>
-    <h2 class="token-heading">Iniciar Sesión</h2>
-    <p class="token-subtext">Accede con tu usuario y contraseña registrados.</p>
+  <div class="ea-login-wrap">
+    <div class="ea-login-card">
+      <div class="ea-login-brand">Ecommerce<span>Agents</span></div>
+      <div class="ea-login-slogan">Tu plataforma de ventas con IA</div>
+      <div class="ea-login-rule"></div>
 
-    <div class="form-group">
-      <label class="form-label">Tu nombre</label>
-      <input type="text" class="form-input" id="login-name" name="given-name" autocomplete="given-name" placeholder="Cómo te llamamos" />
-    </div>
-    <div class="form-group">
-      <label class="form-label">Correo Electrónico</label>
-      <input type="email" class="form-input" id="login-email" placeholder="correo@ejemplo.com" />
-    </div>
-    <div class="form-group">
-      <label class="form-label">Contraseña</label>
-      <input type="password" class="form-input" id="login-pass" placeholder="••••••••" />
-    </div>
+      <div class="ea-login-field">
+        <label class="ea-login-label" for="ea-login-nombre">Tu nombre</label>
+        <input type="text" id="ea-login-nombre" class="ea-login-input"
+          placeholder="Como quieres que te llamemos"
+          autocomplete="name" autocapitalize="words" maxlength="40">
+      </div>
+      <div class="ea-login-field">
+        <label class="ea-login-label" for="ea-login-codigo">Codigo de usuario</label>
+        <input type="text" id="ea-login-codigo" class="ea-login-input"
+          placeholder="Ej. OXJV039" autocomplete="username"
+          autocapitalize="characters" maxlength="12"
+          oninput="this.value=this.value.toUpperCase()">
+      </div>
+      <div class="ea-login-field">
+        <label class="ea-login-label" for="ea-login-clave">Codigo de seguridad</label>
+        <div class="ea-login-pwd-wrap">
+          <input type="password" id="ea-login-clave" class="ea-login-input ea-login-input--pwd"
+            placeholder="Tu codigo de seguridad" autocomplete="current-password">
+          <button type="button" class="ea-login-eye" id="ea-login-eye-btn"
+            onclick="toggleLoginClave()" aria-label="Mostrar/ocultar contraseña" tabindex="-1">
+            <!-- ojo abierto (estado inicial) -->
+            <svg id="ea-eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            <!-- ojo tachado (oculto por defecto) -->
+            <svg id="ea-eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+          </button>
+        </div>
+      </div>
 
-    <button class="btn-primary" onclick="goToDashboard('agent')" style="margin-bottom:10px;">Ingresar como Agente</button>
-    <button class="btn-secondary" onclick="goToDashboard('admin')">Ingresar como Admin</button>
+      <div class="ea-login-remember-row">
+        <label class="ea-login-remember-label">
+          <input type="checkbox" id="ea-login-remember" class="ea-login-remember-check">
+          <span class="ea-login-remember-box"></span>
+          <span class="ea-login-remember-text">Recordar mi usuario</span>
+        </label>
+      </div>
 
-    <div class="token-footer">
-      ← <span onclick="showPage('page-token')" style="cursor:pointer; text-decoration:underline;">Registrarme con token</span>
+      <div id="ea-login-error" class="ea-login-error" hidden></div>
+
+      <button type="button" id="ea-login-btn" class="ea-login-btn"
+        onclick="loginConSupabase()">Entrar</button>
+
+      <p class="ea-login-footer">Si no tienes acceso, contacta al administrador.</p>
     </div>
   </div>
 </div>
@@ -310,11 +583,11 @@
       <div class="agent-dashboard-inner agent-topbar-inner">
         <div class="agent-topbar-side agent-topbar-side--left" aria-hidden="true"></div>
         <div class="agent-topbar-logo">
-          <div class="logo-text">Ecommerce<span>Agent</span></div>
+          <div class="logo-text">Ecommerce<span>Agents</span></div>
           <div class="logo-sub">No es automatizacion. Es evolucion.</div>
         </div>
         <div class="agent-topbar-side agent-topbar-side--right">
-          <button type="button" class="agent-topbar-logout" onclick="showPage('page-home')">Cerrar Sesion</button>
+          <button type="button" class="agent-topbar-logout" onclick="cerrarSesion()">Cerrar Sesion</button>
         </div>
       </div>
     </header>
@@ -1167,6 +1440,21 @@
                   placeholder="Ej: Eres Laura, una asesora cercana y alegre que ama ayudar a las personas a sentirse bien. Hablas con calidez, usas un lenguaje sencillo y colombiano. Antes de vender, escuchas lo que el cliente necesita. Nunca presionas, generas confianza. Conoces a fondo cada producto y explicas con ejemplos de la vida real..."
                 ></textarea>
               </div>
+
+              <!-- Numero de contacto personal — usado en boton "Hablar con asesor" del checkout -->
+              <div class="form-group ventas-wa-contacto-group">
+                <label class="form-label" for="ventas-wa-contacto">
+                  Tu numero de WhatsApp personal
+                  <span class="ventas-wa-contacto-badge">Para clientes</span>
+                </label>
+                <p class="av-help-text" style="margin-bottom:8px">
+                  Cuando un cliente pulse <strong>"Hablar con asesor"</strong> en tu pagina de venta, llegara directo a este numero. Incluye codigo de pais (ej. <strong>+57 300 1234567</strong> o <strong>+1 555 000 0000</strong>).
+                </p>
+                <input type="tel" class="form-input" id="ventas-wa-contacto"
+                  placeholder="+57 300 1234567"
+                  autocomplete="tel" maxlength="20" spellcheck="false" />
+              </div>
+
               <div class="av-footer-row">
                 <p class="av-result-msg" id="ventas-cfg-msg"></p>
                 <button type="button" class="btn-primary" id="ventas-cfg-save-btn" onclick="ventasGuardarConfig()">Guardar configuracion</button>
@@ -1592,7 +1880,7 @@
   <div id="admin-dashboard-shell" class="admin-dashboard-shell" hidden>
     <aside class="sidebar">
       <div class="sidebar-logo">
-        <div class="logo-text">Ecommerce<span>Agent</span></div>
+        <div class="logo-text">Ecommerce<span>Agents</span></div>
         <div class="logo-sub">Elite Commerce Network</div>
       </div>
       <div class="sidebar-user sidebar-profile">
@@ -1615,7 +1903,7 @@
         </div>
       </nav>
       <div class="sidebar-bottom">
-        <button class="btn-logout" onclick="showPage('page-home')">Cerrar Sesión</button>
+        <button class="btn-logout" onclick="cerrarSesion()">Cerrar Sesion</button>
       </div>
     </aside>
     <main class="dashboard-main" id="dashboard-main">
@@ -1628,7 +1916,7 @@
           <div class="welcome-banner">
             <div class="welcome-content">
               <div class="welcome-greeting">Panel de Control</div>
-              <h2 class="welcome-title">Visión general de toda la red EcommerceAgent</h2>
+              <h2 class="welcome-title">Visión general de toda la red EcommerceAgents</h2>
             </div>
           </div>
           <div class="cards-grid">
@@ -1688,8 +1976,7 @@
 
 </div>
 
-<script src="assets/js/config.js"></script>
-<script src="assets/js/app.js"></script>
+<script src="assets/js/app.js?v=13"></script>
 
 <!-- ALBUM DE IMAGENES DEL PRODUCTO -->
 <div id="album-modal" class="album-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="album-nombre">
