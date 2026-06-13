@@ -339,6 +339,116 @@
       <!-- Cards de resumen -->
       <div class="adm-summary-row" id="ped-summary-row"></div>
 
+      <!-- ── Cargar venta manual ─────────────────────────────────── -->
+      <div class="adm-section adm-manual-section">
+        <div class="adm-section-toolbar adm-manual-header" onclick="manualToggleForm()">
+          <h3 class="adm-section-title" style="margin:0">
+            <span class="adm-manual-icon">＋</span>
+            Cargar venta manual
+          </h3>
+          <span class="adm-manual-hint">Efectivo, WhatsApp, Western Union, etc.</span>
+          <span class="adm-manual-toggle-icon" id="adm-manual-toggle-icon">▼</span>
+        </div>
+
+        <div id="adm-manual-form-wrap" class="adm-manual-form-wrap" hidden>
+          <div class="adm-manual-form">
+
+            <!-- Fila 1: Vendedor + Producto -->
+            <div class="adm-manual-row">
+              <div class="adm-manual-field">
+                <label class="adm-field-label" for="adm-m-vendedor">Codigo del vendedor <span class="adm-req">*</span></label>
+                <input type="text" id="adm-m-vendedor" class="adm-input" placeholder="Ej: ABCD020" maxlength="20" style="text-transform:uppercase" />
+              </div>
+              <div class="adm-manual-field">
+                <label class="adm-field-label" for="adm-m-producto">Producto</label>
+                <select id="adm-m-producto" class="adm-input" onchange="manualOnProductoChange(this)">
+                  <option value="">— Seleccionar del catalogo —</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Fila 2: Nombre producto manual + Precio -->
+            <div class="adm-manual-row">
+              <div class="adm-manual-field">
+                <label class="adm-field-label" for="adm-m-nombre-prod">Nombre del producto (si no esta en catalogo)</label>
+                <input type="text" id="adm-m-nombre-prod" class="adm-input" placeholder="Ej: Crema hidratante premium" />
+              </div>
+              <div class="adm-manual-field adm-manual-field--sm">
+                <label class="adm-field-label" for="adm-m-precio">Precio <span class="adm-req">*</span></label>
+                <input type="number" id="adm-m-precio" class="adm-input" placeholder="0.00" min="0" step="0.01" />
+              </div>
+            </div>
+
+            <!-- Fila 3: Datos del cliente -->
+            <div class="adm-manual-row">
+              <div class="adm-manual-field">
+                <label class="adm-field-label" for="adm-m-cli-nombre">Nombre del cliente <span class="adm-req">*</span></label>
+                <input type="text" id="adm-m-cli-nombre" class="adm-input" placeholder="Nombre completo" />
+              </div>
+              <div class="adm-manual-field">
+                <label class="adm-field-label" for="adm-m-cli-tel">Telefono del cliente <span class="adm-req">*</span></label>
+                <input type="tel" id="adm-m-cli-tel" class="adm-input" placeholder="+57 300 1234567" />
+              </div>
+            </div>
+
+            <!-- Fila 4: Direccion -->
+            <div class="adm-manual-row">
+              <div class="adm-manual-field adm-manual-field--wide">
+                <label class="adm-field-label" for="adm-m-dir">Direccion de envio</label>
+                <input type="text" id="adm-m-dir" class="adm-input" placeholder="Calle, numero, apto" />
+              </div>
+              <div class="adm-manual-field">
+                <label class="adm-field-label" for="adm-m-ciudad">Ciudad</label>
+                <input type="text" id="adm-m-ciudad" class="adm-input" placeholder="Bogota" />
+              </div>
+            </div>
+
+            <!-- Fila 5: Estado, ZIP, Pais -->
+            <div class="adm-manual-row">
+              <div class="adm-manual-field">
+                <label class="adm-field-label" for="adm-m-estado">Estado / Region</label>
+                <input type="text" id="adm-m-estado" class="adm-input" placeholder="Cundinamarca" />
+              </div>
+              <div class="adm-manual-field adm-manual-field--sm">
+                <label class="adm-field-label" for="adm-m-zip">ZIP / CP</label>
+                <input type="text" id="adm-m-zip" class="adm-input" placeholder="110111" />
+              </div>
+              <div class="adm-manual-field adm-manual-field--sm">
+                <label class="adm-field-label" for="adm-m-pais">Pais</label>
+                <input type="text" id="adm-m-pais" class="adm-input" value="Colombia" />
+              </div>
+            </div>
+
+            <!-- Fila 6: Metodo de pago + Comprobante -->
+            <div class="adm-manual-row">
+              <div class="adm-manual-field">
+                <label class="adm-field-label" for="adm-m-metodo">Metodo de pago</label>
+                <select id="adm-m-metodo" class="adm-input">
+                  <option value="efectivo">Efectivo</option>
+                  <option value="western_union">Western Union</option>
+                  <option value="transferencia">Transferencia bancaria</option>
+                  <option value="otro">Otro</option>
+                </select>
+              </div>
+              <div class="adm-manual-field">
+                <label class="adm-field-label" for="adm-m-comprobante">Comprobante / Nota (opcional)</label>
+                <input type="text" id="adm-m-comprobante" class="adm-input" placeholder="Nro de transferencia, recibo, etc." />
+              </div>
+            </div>
+
+            <!-- Footer: mensaje + boton -->
+            <div class="adm-manual-footer">
+              <p class="adm-manual-msg" id="adm-manual-msg"></p>
+              <button type="button" class="adm-btn adm-btn--primary adm-manual-save-btn"
+                id="adm-manual-save-btn" onclick="manualGuardarVenta()">
+                Guardar venta
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
       <!-- Filtro de estado -->
       <div class="adm-section">
         <div class="adm-section-toolbar" style="justify-content:space-between;flex-wrap:wrap;gap:10px">
@@ -368,6 +478,6 @@
 
   </div><!-- /adm-main-content -->
 
-  <script src="assets/js/admin.js?v=8"></script>
+  <script src="assets/js/admin.js?v=9"></script>
 </body>
 </html>

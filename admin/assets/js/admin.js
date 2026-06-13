@@ -1525,6 +1525,130 @@ function pedFiltrar(valor) {
   if (_pedCache) renderPedidosTabla(_pedCache);
 }
 
+/* ============================================================
+   VENTA MANUAL
+   ============================================================ */
+
+var _manualFormOpen = false;
+var _manualProductos = []; // cache de productos para el dropdown
+
+function manualToggleForm() {
+  _manualFormOpen = !_manualFormOpen;
+  var wrap = document.getElementById('adm-manual-form-wrap');
+  var icon = document.getElementById('adm-manual-toggle-icon');
+  if (wrap) wrap.hidden = !_manualFormOpen;
+  if (icon) icon.textContent = _manualFormOpen ? '▲' : '▼';
+  if (_manualFormOpen && _manualProductos.length === 0) _manualCargarProductos();
+}
+
+function _manualCargarProductos() {
+  _adminFetch(MOTOR_URL + '/api/admin/productos')
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d.ok) return;
+      _manualProductos = d.productos || [];
+      var sel = document.getElementById('adm-m-producto');
+      if (!sel) return;
+      var opts = '<option value="">— Seleccionar del catalogo —</option>';
+      _manualProductos.forEach(function (p) {
+        opts += '<option value="' + _esc(p.id) + '" data-precio="' + Number(p.precio || 0) + '">' +
+                _esc(p.nombre) + ' — $' + Number(p.precio || 0).toLocaleString('es-CO') + '</option>';
+      });
+      sel.innerHTML = opts;
+    })
+    .catch(function () {});
+}
+
+function manualOnProductoChange(sel) {
+  var opt = sel.options[sel.selectedIndex];
+  var precioEl = document.getElementById('adm-m-precio');
+  var nombreEl = document.getElementById('adm-m-nombre-prod');
+  if (opt && opt.value && precioEl) {
+    var p = Number(opt.getAttribute('data-precio') || 0);
+    if (p > 0) precioEl.value = p;
+    if (nombreEl) nombreEl.value = ''; // usar nombre del catalogo
+  }
+}
+
+function _manualLimpiarForm() {
+  ['adm-m-vendedor','adm-m-nombre-prod','adm-m-precio','adm-m-cli-nombre',
+   'adm-m-cli-tel','adm-m-dir','adm-m-ciudad','adm-m-estado','adm-m-zip','adm-m-comprobante']
+    .forEach(function (id) { var el = document.getElementById(id); if (el) el.value = ''; });
+  var pais = document.getElementById('adm-m-pais'); if (pais) pais.value = 'Colombia';
+  var prod = document.getElementById('adm-m-producto'); if (prod) prod.selectedIndex = 0;
+  var met  = document.getElementById('adm-m-metodo');  if (met)  met.selectedIndex  = 0;
+  var msg  = document.getElementById('adm-manual-msg');
+  if (msg) { msg.textContent = ''; msg.className = 'adm-manual-msg'; }
+}
+
+function manualGuardarVenta() {
+  var btn   = document.getElementById('adm-manual-save-btn');
+  var msg   = document.getElementById('adm-manual-msg');
+  var _g    = function (id) { var e = document.getElementById(id); return e ? e.value.trim() : ''; };
+
+  var codigo_vendedor  = _g('adm-m-vendedor').toUpperCase();
+  var prodSel          = document.getElementById('adm-m-producto');
+  var producto_id      = prodSel && prodSel.value ? prodSel.value : null;
+  var nombre_producto  = _g('adm-m-nombre-prod');
+  var precio           = parseFloat(_g('adm-m-precio')) || 0;
+  var cliente_nombre   = _g('adm-m-cli-nombre');
+  var cliente_telefono = _g('adm-m-cli-tel');
+  var direccion        = _g('adm-m-dir');
+  var ciudad           = _g('adm-m-ciudad');
+  var estado_region    = _g('adm-m-estado');
+  var zip              = _g('adm-m-zip');
+  var pais             = _g('adm-m-pais') || 'Colombia';
+  var metodo_pago      = _g('adm-m-metodo') || 'efectivo';
+  var comprobante      = _g('adm-m-comprobante');
+
+  // Validaciones básicas
+  if (!codigo_vendedor) {
+    if (msg) { msg.className = 'adm-manual-msg adm-manual-msg--err'; msg.textContent = 'El codigo del vendedor es obligatorio.'; }
+    return;
+  }
+  if (!cliente_nombre || !cliente_telefono) {
+    if (msg) { msg.className = 'adm-manual-msg adm-manual-msg--err'; msg.textContent = 'Nombre y telefono del cliente son obligatorios.'; }
+    return;
+  }
+  if (!producto_id && !nombre_producto && precio <= 0) {
+    if (msg) { msg.className = 'adm-manual-msg adm-manual-msg--err'; msg.textContent = 'Selecciona un producto del catalogo o ingresa nombre y precio.'; }
+    return;
+  }
+  if (precio <= 0 && !producto_id) {
+    if (msg) { msg.className = 'adm-manual-msg adm-manual-msg--err'; msg.textContent = 'El precio es obligatorio cuando no seleccionas un producto del catalogo.'; }
+    return;
+  }
+
+  if (btn) btn.disabled = true;
+  if (msg) { msg.className = 'adm-manual-msg'; msg.textContent = 'Guardando...'; }
+
+  _adminFetch(MOTOR_URL + '/api/admin/pedidos/manual', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      codigo_vendedor, producto_id, nombre_producto, precio: precio || undefined,
+      cliente_nombre, cliente_telefono,
+      direccion, ciudad, estado_region, zip, pais,
+      metodo_pago, comprobante
+    })
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (btn) btn.disabled = false;
+      if (!d.ok) throw new Error(d.error || 'Error al guardar.');
+      if (msg) { msg.className = 'adm-manual-msg adm-manual-msg--ok'; msg.textContent = '✓ Venta registrada correctamente. Suma a la comision del vendedor.'; }
+      _manualLimpiarForm();
+      // Refrescar lista de pedidos
+      renderPedidos();
+    })
+    .catch(function (e) {
+      if (btn) btn.disabled = false;
+      if (msg) { msg.className = 'adm-manual-msg adm-manual-msg--err'; msg.textContent = e.message || 'Error al guardar la venta.'; }
+    });
+}
+
+/* ── Pedidos ─────────────────────────────────────────────── */
+
 function renderPedidos() {
   _pedFiltroActivo = 'todos';
   document.querySelectorAll('.ped-filtro-btn').forEach(function (b) {
@@ -1575,7 +1699,9 @@ function renderPedidosTabla(arr) {
   }
 
   var rows = filtered.map(function (p) {
-    var vendedor = p.ref_vendedor ? p.ref_vendedor : 'Directo';
+    var vendedor  = p.ref_vendedor ? p.ref_vendedor : 'Directo';
+    var esManual  = p.origen === 'manual';
+    var manualTag = esManual ? '<span class="adm-badge-manual">Manual</span>' : '';
 
     var accionHtml = '';
     if (p.estado === 'Pendiente') {
@@ -1588,8 +1714,8 @@ function renderPedidosTabla(arr) {
       accionHtml = '<span class="adm-td-muted" style="font-size:11px">—</span>';
     }
 
-    return '<tr id="ped-row-' + p.id + '">' +
-      '<td class="adm-td-strong">' + _esc(p.nombre_producto || '—') + '</td>' +
+    return '<tr id="ped-row-' + p.id + '"' + (esManual ? ' class="ped-row-manual"' : '') + '>' +
+      '<td class="adm-td-strong">' + _esc(p.nombre_producto || '—') + ' ' + manualTag + '</td>' +
       '<td class="adm-td-strong">' + _fmt(p.monto || 0) + '</td>' +
       '<td class="adm-td-usr">' +
         '<div class="adm-usr-name">' + _esc(p.cliente_nombre || '—') + '</div>' +
@@ -1599,6 +1725,7 @@ function renderPedidosTabla(arr) {
       '<td class="adm-td-muted adm-td-dir">' + _esc(_fmtDir(p)) + '</td>' +
       '<td class="adm-td-usr">' +
         '<div class="adm-usr-name">' + _esc(vendedor) + '</div>' +
+        (p.metodo_pago ? '<div class="adm-usr-code">' + _esc(p.metodo_pago) + '</div>' : '') +
       '</td>' +
       '<td>' + _badgePedido(p.estado || 'Pendiente') + '</td>' +
       '<td class="adm-td-muted">' + _fmtFecha(p.fecha) + '</td>' +

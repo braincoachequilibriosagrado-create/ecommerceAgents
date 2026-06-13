@@ -2912,7 +2912,7 @@ app.get('/api/admin/pedidos', async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('pedidos')
-      .select('id, nombre_producto, cliente_nombre, cliente_email, cliente_telefono, direccion, ciudad, estado_region, zip, pais, monto, estado, ref_vendedor, vendedor_id, fecha, pagina_slug')
+      .select('id, nombre_producto, cliente_nombre, cliente_email, cliente_telefono, direccion, ciudad, estado_region, zip, pais, monto, estado, estado_pago, metodo_pago, origen, ref_vendedor, vendedor_id, fecha, pagina_slug')
       .order('fecha', { ascending: false });
     if (error) throw error;
     res.json({ ok: true, pedidos: data || [] });
@@ -2940,6 +2940,93 @@ app.post('/api/admin/pedidos/actualizar', async (req, res) => {
 });
 
 // ── Ventas por usuario (vendedor) ─────────────────────────────────────────────
+// POST /api/admin/pedidos/manual  — registra una venta hecha fuera de la plataforma
+// El admin confirma que el pago ya fue cobrado; queda estado_pago='pagado' y suma a comisiones.
+app.post('/api/admin/pedidos/manual', async (req, res) => {
+  const {
+    codigo_vendedor,
+    producto_id,
+    nombre_producto: nombre_prod_manual,
+    precio,
+    cliente_nombre,
+    cliente_telefono,
+    direccion, ciudad, estado_region, zip, pais,
+    metodo_pago,
+    comprobante
+  } = req.body || {};
+
+  if (!codigo_vendedor || !cliente_nombre || !cliente_telefono) {
+    return res.status(400).json({ ok: false, error: 'Campos obligatorios: codigo_vendedor, cliente_nombre, cliente_telefono.' });
+  }
+
+  try {
+    // 1. Buscar vendedor por código
+    const { data: vend, error: vErr } = await supabase
+      .from('usuarios')
+      .select('id, nombre')
+      .eq('codigo', String(codigo_vendedor).trim().toUpperCase())
+      .maybeSingle();
+    if (vErr) throw vErr;
+    if (!vend) return res.status(404).json({ ok: false, error: 'Vendedor no encontrado. Verifica el código.' });
+
+    // 2. Resolver producto y precio
+    let prod_id         = null;
+    let nombre_producto = nombre_prod_manual || 'Venta manual';
+    let monto           = precio ? Number(precio) : null;
+
+    if (producto_id) {
+      const { data: prod } = await supabase
+        .from('productos')
+        .select('id, nombre, precio')
+        .eq('id', producto_id)
+        .maybeSingle();
+      if (prod) {
+        prod_id         = prod.id;
+        nombre_producto = prod.nombre;
+        if (!monto || monto <= 0) monto = prod.precio;
+      }
+    }
+
+    if (!monto || monto <= 0) {
+      return res.status(400).json({ ok: false, error: 'El precio es obligatorio y debe ser mayor a 0.' });
+    }
+
+    // 3. Insertar pedido como venta confirmada (estado_pago='pagado', origen='manual')
+    const pedido = {
+      producto_id:      prod_id || null,
+      vendedor_id:      vend.id,
+      ref_vendedor:     String(codigo_vendedor).trim().toUpperCase(),
+      pagina_slug:      null,
+      nombre_producto,
+      cliente_nombre,
+      cliente_email:    null,
+      cliente_telefono,
+      direccion:        direccion   || null,
+      ciudad:           ciudad      || null,
+      estado_region:    estado_region || null,
+      zip:              zip         || null,
+      pais:             pais        || 'Colombia',
+      monto,
+      estado:           'Procesado',
+      estado_pago:      'pagado',
+      metodo_pago:      metodo_pago || 'efectivo',
+      comprobante_pago: comprobante || null,
+      origen:           'manual',
+      fecha:            new Date().toISOString()
+    };
+
+    const { data: pd, error: pErr } = await supabase
+      .from('pedidos').insert(pedido).select().single();
+    if (pErr) throw pErr;
+
+    console.log(`[admin/pedidos/manual] ${nombre_producto} | vendedor=${codigo_vendedor} | monto=${monto}`);
+    res.json({ ok: true, pedido: pd });
+  } catch (e) {
+    console.error('[admin/pedidos/manual]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 app.get('/api/ventas/usuario/:usuario_id', async (req, res) => {
   const { usuario_id } = req.params;
   try {
