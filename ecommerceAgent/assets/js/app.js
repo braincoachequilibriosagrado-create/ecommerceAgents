@@ -84,7 +84,7 @@ function cargarDatosEnEstrategia() {
 
 // Dirección del motor backend. Cambiar aquí para apuntar a otro entorno.
 // TODO: cuando el dominio esté listo, cambiar por: https://motor.ecommerceagents.store
-const MOTOR_URL    = 'http://104.248.61.107:3002';
+const MOTOR_URL    = 'https://motor.ecommerceagents.store';
 const MOTOR_IA_URL = MOTOR_URL; // alias para compatibilidad con llamadas de IA
 
 function getProductData() {

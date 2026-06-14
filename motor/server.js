@@ -110,17 +110,13 @@ const uploadAvatarFields   = upload.fields([{ name: 'fotoAvatar', maxCount: 1 },
 
 // ── CORS — lista blanca de orígenes permitidos ────────────────────────────────
 // Editar aquí para agregar dominios de producción / Vercel / staging.
-// TODO: cuando se despliegue en Vercel, agregar también la URL asignada
-//   (ej. 'https://ecommerceagents.vercel.app') mientras no apuntes el dominio propio.
 const ORIGENES_PERMITIDOS = [
   'http://localhost:3000',  // app usuario (local)
   'http://localhost:3001',  // admin       (local)
-  'http://localhost:3002',  // el motor mismo (peticiones internas / iframe)
+  'http://localhost:3002',  // motor local
   'https://ecommerceagents.store',
   'https://www.ecommerceagents.store',
   'https://ecommerce-agents-mauve.vercel.app', // app en Vercel
-  // TODO: agregar URL de admin en Vercel cuando esté desplegado
-  // TODO: cuando se apunte el dominio propio, agregar: 'https://app.ecommerceagents.store'
 ];
 
 const _corsOpts = {

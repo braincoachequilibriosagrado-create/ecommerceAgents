@@ -39,7 +39,7 @@ function adminLogin() {
   if (errEl) errEl.style.display = 'none';
   if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Verificando...'; }
 
-  fetch((window.MOTOR_URL_LOGIN || 'http://104.248.61.107:3002') + '/api/admin/login', {
+  fetch((window.MOTOR_URL_LOGIN || 'https://motor.ecommerceagents.store') + '/api/admin/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ password: pw })
@@ -1022,7 +1022,7 @@ function renderPaginas() {
    ============================================================ */
 
 // TODO: cuando el dominio esté listo, cambiar por: https://motor.ecommerceagents.store
-var MOTOR_URL      = 'http://104.248.61.107:3002';
+var MOTOR_URL      = 'https://motor.ecommerceagents.store';
 var PUBLIC_BASE_URL = MOTOR_URL; // misma base; cambiar junto con MOTOR_URL cuando haya dominio
 
 // Cache en memoria para no recargar en cada re-render dentro de la misma sesión
