@@ -2449,36 +2449,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-seri
                 <div class="ck-pay-opt-t">Pagar con tarjeta</div>
                 <div class="ck-pay-opt-s">Visa · Mastercard · Amex</div>
               </div>
-              <div class="ck-pay-opt" id="opt-wu" onclick="selPago('western_union')">
+              <div class="ck-pay-opt" id="opt-asesor" onclick="selPago('asesor')">
                 <div class="ck-pay-opt-ic">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
-                    <path d="M2 7l10-5 10 5-10 5z" stroke-linejoin="round"/>
-                    <path d="M2 12l10 5 10-5M2 17l10 5 10-5" stroke-linecap="round"/>
-                  </svg>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 </div>
-                <div class="ck-pay-opt-t">Western Union</div>
-                <div class="ck-pay-opt-s">Giro en efectivo</div>
+                <div class="ck-pay-opt-t">Hablar con asesor</div>
+                <div class="ck-pay-opt-s">Coordina tu compra por WhatsApp</div>
               </div>
             </div>
-            <!-- Panel instrucciones Western Union -->
-            <div class="ck-wu-panel" id="wu-panel">
-              <div class="ck-wu-ttl">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f5a623" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
-                Instrucciones Western Union
-              </div>
-              <div class="ck-wu-steps">
-                1. Ve a cualquier agente Western Union<br>
-                <strong>Beneficiario:</strong> <em><!-- TODO: nombre del negocio --></em><br>
-                <strong>Pais destino:</strong> <em><!-- TODO: pais del negocio --></em><br>
-                2. Realiza el giro por el monto exacto del pedido<br>
-                3. Guarda el <strong>numero de control (MTCN)</strong> del comprobante<br>
-                4. Ingresalo abajo — tu pedido se procesa al verificar el pago
-              </div>
-              <label class="ck-wu-ref-lbl" for="co-wu-ref">
-                Numero de control MTCN <span class="ck-req">*</span>
-              </label>
-              <input class="ck-wu-ref" id="co-wu-ref" type="text"
-                placeholder="Ej. 123-456-7890" maxlength="60" autocomplete="off">
+            <div class="ck-wu-panel" id="asesor-panel">
+              <div class="ck-wu-steps">Al continuar, se abrira WhatsApp con tu asesor para coordinar el pago y el envio de forma personal.</div>
             </div>
           </div>
 
@@ -2703,9 +2683,9 @@ var _slug = '', _ref = '', _precio = 0, _metodoPago = 'tarjeta';
 function selPago(metodo) {
   _metodoPago = metodo;
   document.getElementById('opt-tarjeta').classList.toggle('ck-pay-opt--active', metodo === 'tarjeta');
-  document.getElementById('opt-wu').classList.toggle('ck-pay-opt--active', metodo === 'western_union');
-  var wuPanel = document.getElementById('wu-panel');
-  if (wuPanel) wuPanel.classList.toggle('visible', metodo === 'western_union');
+  document.getElementById('opt-asesor').classList.toggle('ck-pay-opt--active', metodo === 'asesor');
+  var asesorPanel = document.getElementById('asesor-panel');
+  if (asesorPanel) asesorPanel.classList.toggle('visible', metodo === 'asesor');
 }
 
 function coSubmit(e){
@@ -2723,24 +2703,22 @@ function coSubmit(e){
   var zip      = (document.getElementById('co-zip').value      || '').trim();
   var pais     = (document.getElementById('co-pais').value     || '').trim() || 'Estados Unidos';
 
+  if (_metodoPago === 'asesor') {
+    if (!nombre || !telefono) {
+      errEl.textContent = 'Por favor ingresa tu nombre y telefono para contactar al asesor.';
+      errEl.style.display = 'block';
+      errEl.scrollIntoView({behavior:'smooth',block:'nearest'});
+      return;
+    }
+    abrirAsesorWA();
+    return;
+  }
+
   if (!nombre || !email || !telefono || !dir || !ciudad) {
     errEl.textContent = 'Por favor completa todos los campos obligatorios (*)';
     errEl.style.display = 'block';
     errEl.scrollIntoView({behavior:'smooth',block:'nearest'});
     return;
-  }
-
-  // Validar campo MTCN si elige Western Union
-  var comprobante = '';
-  if (_metodoPago === 'western_union') {
-    var wuRef = document.getElementById('co-wu-ref');
-    comprobante = wuRef ? wuRef.value.trim() : '';
-    if (!comprobante) {
-      errEl.textContent = 'Por favor ingresa el numero de control MTCN de tu giro Western Union.';
-      errEl.style.display = 'block';
-      if (wuRef) wuRef.focus();
-      return;
-    }
   }
 
   btnEl.disabled = true;
@@ -2754,8 +2732,7 @@ function coSubmit(e){
       nombre: nombre, email: email, telefono: telefono,
       direccion: dir, ciudad: ciudad, estado_region: estado,
       zip: zip, pais: pais,
-      metodo_pago: _metodoPago,
-      comprobante_pago: comprobante || null
+      metodo_pago: _metodoPago
     })
   })
     .then(function(r){ return r.json(); })
@@ -2763,17 +2740,10 @@ function coSubmit(e){
       if (!d.ok) throw new Error(d.error || 'Error al registrar pedido.');
       document.getElementById('co-main').style.display = 'none';
       document.getElementById('co-confirm-nombre').textContent = nombre;
-      // Mensaje dinamico segun metodo de pago
       var msgEl  = document.getElementById('co-confirm-msg');
       var boxEl  = document.getElementById('co-confirm-box');
-      if (_metodoPago === 'western_union') {
-        if (msgEl) msgEl.innerHTML = 'Recibimos tu pedido y tu numero de comprobante.<br>' +
-          '<strong>Una vez verifiquemos tu pago por Western Union, procesaremos tu envio.</strong>';
-        if (boxEl) boxEl.textContent = 'Te contactaremos para confirmar la recepcion del giro. Guarda tu comprobante.';
-      } else {
-        if (msgEl) msgEl.innerHTML = 'Recibimos tu pedido.<br>Te contactaremos para coordinar el pago y el envio.';
-        if (boxEl) boxEl.textContent = 'Revisa tu email para la confirmacion. Si tienes dudas, contactanos por WhatsApp.';
-      }
+      if (msgEl) msgEl.innerHTML = 'Recibimos tu pedido.<br>Te contactaremos para coordinar el pago y el envio.';
+      if (boxEl) boxEl.textContent = 'Revisa tu email para la confirmacion. Si tienes dudas, contactanos por WhatsApp.';
       document.getElementById('co-confirm').style.display = 'block';
       window.scrollTo(0,0);
     })
@@ -2787,12 +2757,17 @@ function coSubmit(e){
 }
 
 function abrirAsesorWA() {
-  var btn = document.getElementById('co-asesor-btn');
+  var errEl = document.getElementById('co-error');
   var msg = document.getElementById('co-asesor-msg');
+  var btn = document.getElementById('co-asesor-btn');
+
   if (!_ref) {
-    if (msg) { msg.style.color = 'var(--err)'; msg.textContent = 'No hay código de vendedor en este enlace.'; }
+    var noRefMsg = 'No hay codigo de vendedor en este enlace.';
+    if (errEl) { errEl.textContent = noRefMsg; errEl.style.display = 'block'; errEl.scrollIntoView({behavior:'smooth',block:'nearest'}); }
+    if (msg) { msg.style.color = 'var(--err)'; msg.textContent = noRefMsg; }
     return;
   }
+
   if (btn) btn.disabled = true;
   if (msg) { msg.style.color = 'var(--txt-lt)'; msg.textContent = 'Conectando con tu asesor...'; }
 
@@ -2800,21 +2775,23 @@ function abrirAsesorWA() {
     .then(function(r){ return r.json(); })
     .then(function(d){
       if (btn) btn.disabled = false;
+      if (msg) msg.textContent = '';
       if (!d.ok || !d.whatsapp) {
-        if (msg) { msg.style.color = 'var(--err)'; msg.textContent = d.error || 'Este asesor aún no tiene WhatsApp configurado.'; }
+        var errMsg = d.error || 'Este asesor aun no tiene WhatsApp configurado.';
+        if (errEl) { errEl.textContent = errMsg; errEl.style.display = 'block'; errEl.scrollIntoView({behavior:'smooth',block:'nearest'}); }
+        if (msg) { msg.style.color = 'var(--err)'; msg.textContent = errMsg; }
         return;
       }
-      var numero  = d.whatsapp.replace(/[^\d+]/g, '');
-      if (numero.charAt(0) === '+') numero = numero.slice(1);
+      var numero = d.whatsapp.replace(/[^0-9]/g, '');
       var producto = d.nombre_producto || 'el producto';
-      var texto   = 'Hola, estoy interesado/a en ' + producto + '. (Ref: ' + _ref + ')';
-      var waUrl   = 'https://wa.me/' + numero + '?text=' + encodeURIComponent(texto);
-      if (msg) msg.textContent = '';
-      window.open(waUrl, '_blank', 'noopener,noreferrer');
+      var texto = 'Hola, estoy interesado en ' + producto + '. (Ref: ' + _ref + ')';
+      window.open('https://wa.me/' + numero + '?text=' + encodeURIComponent(texto), '_blank', 'noopener,noreferrer');
     })
     .catch(function(){
       if (btn) btn.disabled = false;
-      if (msg) { msg.style.color = 'var(--err)'; msg.textContent = 'Error al conectar. Intenta de nuevo.'; }
+      var errMsg = 'Error al conectar. Intenta de nuevo.';
+      if (errEl) { errEl.textContent = errMsg; errEl.style.display = 'block'; errEl.scrollIntoView({behavior:'smooth',block:'nearest'}); }
+      if (msg) { msg.style.color = 'var(--err)'; msg.textContent = errMsg; }
     });
 }
 </script>
