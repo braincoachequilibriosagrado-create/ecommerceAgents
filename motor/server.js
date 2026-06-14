@@ -3267,10 +3267,86 @@ app.get('/api/admin/metricas/mas-vistos', async (req, res) => {
   }
 });
 
+// ── Limpieza de HTML del vendedor (handlers inline rotos) ─────────────────────
+// Repara markup exterior + JS roto dentro de <script> (URLs sin comillas).
+function _sanitizeHtmlTags(fragment) {
+  if (!fragment) return fragment;
+  var s = fragment;
+
+  // Quitar handlers inline (onclick/onload/etc.) — causa tipica del error "Invalid regex flags"
+  s = s.replace(/\s+on(click|load|error|submit|dblclick|mousedown|mouseup|keydown|keyup|focus|blur|change|mouseover|mouseout)\s*=\s*"[^"]*"/gi, '');
+  s = s.replace(/\s+on(click|load|error|submit|dblclick|mousedown|mouseup|keydown|keyup|focus|blur|change|mouseover|mouseout)\s*=\s*'[^']*'/gi, '');
+  s = s.replace(/\s+on(click|load|error|submit|dblclick|mousedown|mouseup|keydown|keyup|focus|blur|change|mouseover|mouseout)\s*=\s*[^\s>"']+/gi, '');
+
+  // Neutralizar href de checkout (con o sin comillas) en enlaces
+  s = s.replace(/\shref\s*=\s*"[^"]*\/checkout[^"]*"/gi, ' href="#"');
+  s = s.replace(/\shref\s*=\s*'[^']*\/checkout[^']*'/gi, " href='#'");
+  s = s.replace(/\shref\s*=\s*\/checkout[^\s>]*/gi, ' href="#"');
+
+  // href sin comillas que empiezan con / (invalidos y pueden romper el parser/JS)
+  s = s.replace(/\shref\s*=\s*(\/[^\s>"']+)/gi, function (_m, path) {
+    if (/^\/\//.test(path)) return _m; // protocol-relative externo — dejar
+    return ' href="#"';
+  });
+
+  // javascript: inline en href con URLs sin comillas (location.href=/checkout...)
+  s = s.replace(/\shref\s*=\s*"javascript:[^"]*\/checkout[^"]*"/gi, ' href="#"');
+  s = s.replace(/\shref\s*=\s*'javascript:[^']*\/checkout[^']*'/gi, " href='#'");
+
+  return s;
+}
+
+// Repara asignaciones de navegacion con URL sin comillas dentro de bloques <script>.
+// Ej: location.href=/checkout?slug=x  ->  location.href="/checkout?slug=x"
+var _NAV_URL_SIN_COMILLAS_RE = /(\blocation\.href|\bwindow\.location\.href|\bwindow\.location)(\s*=\s*)(?!["'])(\/[^\s;"'\n)]+)/g;
+
+function _escaparUrlParaComillas(url) {
+  return url.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+function _repararJsRoto(js) {
+  if (!js) return js;
+  return js.replace(_NAV_URL_SIN_COMILLAS_RE, function (_m, prop, eq, url) {
+    return prop + eq + '"' + _escaparUrlParaComillas(url) + '"';
+  });
+}
+
+function _repararScriptBlock(scriptTag) {
+  var match = scriptTag.match(/^(\<script\b[^>]*\>)([\s\S]*?)(\<\/script\>)$/i);
+  if (!match) return scriptTag;
+  var open  = match[1];
+  var body  = match[2];
+  var close = match[3];
+  var fixed = _repararJsRoto(body);
+  if (fixed === body) return scriptTag;
+  return open + fixed + close;
+}
+
+function _sanitizeVendorHtml(html) {
+  var src = String(html || '');
+  if (!src) return src;
+
+  var out = '';
+  var lastIdx = 0;
+  var scriptRe = /<script\b[\s\S]*?<\/script>/gi;
+  var m;
+
+  while ((m = scriptRe.exec(src)) !== null) {
+    out += _sanitizeHtmlTags(src.slice(lastIdx, m.index));
+    out += _repararScriptBlock(m[0]);
+    lastIdx = m.index + m[0].length;
+  }
+  out += _sanitizeHtmlTags(src.slice(lastIdx));
+  return out;
+}
+
 // ── Helpers: inyeccion segura del script de checkout en paginas de venta ───────
 function _injectCheckoutScript(html, slug, ref) {
+  // Limpiar handlers inline rotos del HTML del vendedor antes de inyectar checkout
+  var clean = _sanitizeVendorHtml(html);
+
   // Quitar ea-checkout.js embebido en el HTML del vendedor (evita doble binding)
-  var clean = String(html || '').replace(
+  clean = clean.replace(
     /<script[^>]*\ssrc=["'][^"']*ea-checkout\.js[^"']*["'][^>]*>\s*<\/script>/gi,
     ''
   );
