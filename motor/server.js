@@ -3497,12 +3497,48 @@ app.get('/p-inner/:slug', async (req, res) => {
 
 const GROQ_MODEL_DEFAULT  = 'llama-3.3-70b-versatile';
 const GEMINI_API_KEY      = process.env.GEMINI_API_KEY || '';
+const CHAT_AGENTS_LIMITE_DIARIO = 30;
+
+function _fechaHoyYYYYMMDD() {
+  return new Date().toISOString().slice(0, 10);
+}
 
 // POST /api/ia/groq
-// Recibe { prompt?, messages?, system?, max_tokens?, temperature? }
+// Recibe { prompt?, messages?, system?, max_tokens?, temperature?, es_chat_agents? }
+// es_chat_agents=true aplica limite diario (chat_uso_diario). Otros motores IA no se limitan.
 // Llama a Groq con la key del .env y devuelve { ok:true, texto }
 app.post('/api/ia/groq', requireUsuario, async (req, res) => {
-  const { prompt, messages, system, max_tokens, temperature } = req.body || {};
+  const { prompt, messages, system, max_tokens, temperature, es_chat_agents } = req.body || {};
+  const usuario_id = req.usuario_id;
+  const esChatAgents = es_chat_agents === true;
+  let chatUsoActual = 0;
+
+  if (esChatAgents) {
+    const fecha = _fechaHoyYYYYMMDD();
+    try {
+      const { data: uso, error: usoErr } = await supabase
+        .from('chat_uso_diario')
+        .select('cantidad')
+        .eq('usuario_id', String(usuario_id))
+        .eq('fecha', fecha)
+        .maybeSingle();
+      if (usoErr) {
+        console.error('[ia/groq] chat_uso_diario read:', usoErr.message);
+      } else {
+        chatUsoActual = uso ? Number(uso.cantidad) || 0 : 0;
+        if (chatUsoActual >= CHAT_AGENTS_LIMITE_DIARIO) {
+          return res.status(200).json({
+            ok: false,
+            limite: true,
+            error: 'Has alcanzado tu limite de mensajes de hoy. Vuelve manana.'
+          });
+        }
+      }
+    } catch (e) {
+      console.error('[ia/groq] chat_uso_diario:', e.message);
+    }
+  }
+
   try {
     const groqMessages = [];
     if (system) groqMessages.push({ role: 'system', content: system });
@@ -3533,6 +3569,23 @@ app.post('/api/ia/groq', requireUsuario, async (req, res) => {
       const errMsg = data.error?.message || 'Respuesta invalida de Groq';
       return res.status(502).json({ ok: false, error: errMsg });
     }
+
+    if (esChatAgents) {
+      const fecha = _fechaHoyYYYYMMDD();
+      const uid = String(usuario_id);
+      try {
+        const { error: upErr } = await supabase
+          .from('chat_uso_diario')
+          .upsert(
+            { usuario_id: uid, fecha, cantidad: chatUsoActual + 1 },
+            { onConflict: 'usuario_id,fecha' }
+          );
+        if (upErr) console.error('[ia/groq] chat_uso_diario increment:', upErr.message);
+      } catch (e) {
+        console.error('[ia/groq] chat_uso_diario increment:', e.message);
+      }
+    }
+
     res.json({ ok: true, texto: data.choices[0].message.content });
   } catch (e) {
     console.error('[ia/groq]', e.message);

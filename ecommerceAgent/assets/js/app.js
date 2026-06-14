@@ -6619,11 +6619,14 @@ var SYSTEM_PROMPT = [
   '- No repitas ideas ni menciones iniciar sesion salvo que sea necesario.',
   '- Responde siempre en espanol latino, tono profesional pero cercano.',
   '',
-  'NUNCA te presentes ni digas tu nombre ni saludes con \'Hola\' en tus respuestas. El usuario YA recibio tu saludo de bienvenida al abrir el chat. Responde directo a lo que pregunta, sin saludar de nuevo, sin decir \'Hola soy Agents\'. Solo di tu nombre si te lo preguntan explicitamente.'
+  'NUNCA te presentes ni digas tu nombre ni saludes con \'Hola\' en tus respuestas. El usuario YA recibio tu saludo de bienvenida al abrir el chat. Responde directo a lo que pregunta, sin saludar de nuevo, sin decir \'Hola soy Agents\'. Solo di tu nombre si te lo preguntan explicitamente.',
+  '',
+  'IMPORTANTE: solo respondes temas relacionados con EcommerceAgents, ventas, dropshipping, productos, marketing y como ganar dinero en la plataforma. Si el usuario pregunta algo NO relacionado (temas personales, tareas, codigo, cosas ajenas al negocio), responde amablemente que solo puedes ayudar con ventas y la plataforma, y reconduce: pregunta en que puedes ayudarlo a vender. No respondas preguntas fuera del negocio aunque insistan.'
 ].join('\n');
 
 var _chatHistorial = [];
 var _chatEnviando = false;
+var _chatLimiteAlcanzado = false;
 
 function refreshChatAgentsTab() {
   var msgs = document.getElementById('ea-chat-messages');
@@ -6655,12 +6658,23 @@ function chatSetTyping(visible) {
   }
 }
 
+function chatSetLimiteDiario(bloqueado) {
+  _chatLimiteAlcanzado = bloqueado;
+  var inp = document.getElementById('ea-chat-input');
+  var btn = document.getElementById('ea-chat-send');
+  if (inp) {
+    inp.disabled = bloqueado;
+    if (bloqueado) inp.placeholder = 'Limite diario alcanzado. Vuelve manana.';
+  }
+  if (btn) btn.disabled = bloqueado;
+}
+
 function chatSetEnviando(enviando) {
   _chatEnviando = enviando;
   var btn = document.getElementById('ea-chat-send');
   var inp = document.getElementById('ea-chat-input');
-  if (btn) btn.disabled = enviando;
-  if (inp) inp.disabled = enviando;
+  if (btn) btn.disabled = enviando || _chatLimiteAlcanzado;
+  if (inp) inp.disabled = enviando || _chatLimiteAlcanzado;
   chatSetTyping(enviando);
 }
 
@@ -6675,7 +6689,8 @@ function chatLlamarGroq(historial) {
       system: SYSTEM_PROMPT,
       messages: historial,
       max_tokens: 500,
-      temperature: 0.8
+      temperature: 0.8,
+      es_chat_agents: true
     })
   }).then(function (r) {
     if (r.status === 401) {
@@ -6690,7 +6705,7 @@ function chatLlamarGroq(historial) {
 
 function chatEnviarMensaje(ev) {
   if (ev) ev.preventDefault();
-  if (_chatEnviando) return;
+  if (_chatEnviando || _chatLimiteAlcanzado) return;
 
   var inp = document.getElementById('ea-chat-input');
   if (!inp) return;
@@ -6711,6 +6726,12 @@ function chatEnviarMensaje(ev) {
 
   chatLlamarGroq(_chatHistorial.slice())
     .then(function (d) {
+      if (d && d.limite) {
+        chatAgregarMensaje('assistant', d.error || 'Has alcanzado tu limite de mensajes de hoy. Vuelve manana.');
+        _chatHistorial.pop();
+        chatSetLimiteDiario(true);
+        return;
+      }
       if (!d || !d.ok) {
         var errMsg = (d && d.error) ? d.error : 'No pudimos obtener respuesta. Intenta de nuevo en un momento.';
         chatAgregarMensaje('error', errMsg);
@@ -6727,6 +6748,6 @@ function chatEnviarMensaje(ev) {
     })
     .finally(function () {
       chatSetEnviando(false);
-      if (inp) inp.focus();
+      if (inp && !_chatLimiteAlcanzado) inp.focus();
     });
 }
