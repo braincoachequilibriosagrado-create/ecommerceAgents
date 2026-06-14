@@ -603,7 +603,7 @@
       </div>
 
       <div class="agent-tabs-wrap">
-      <nav class="agent-tabs agent-tabs--seven" role="tablist" aria-label="Secciones del dashboard">
+      <nav class="agent-tabs agent-tabs--eight" role="tablist" aria-label="Secciones del dashboard">
         <button type="button" class="agent-tab active" id="agent-tab-btn-catalogo" role="tab" aria-selected="true" aria-controls="agent-tab-catalogo" onclick="switchAgentTab('catalogo')">Catalogo</button>
         <button type="button" class="agent-tab" id="agent-tab-btn-mis-productos" role="tab" aria-selected="false" aria-controls="agent-tab-mis-productos" onclick="switchAgentTab('mis-productos')">Mis Productos</button>
         <button type="button" class="agent-tab" id="agent-tab-btn-monetizacion" role="tab" aria-selected="false" aria-controls="agent-tab-monetizacion" onclick="switchAgentTab('monetizacion')">Monetizacion</button>
@@ -611,6 +611,7 @@
         <button type="button" class="agent-tab" id="agent-tab-btn-ads" role="tab" aria-selected="false" aria-controls="agent-tab-ads" onclick="switchAgentTab('ads')">Agents Ads</button>
         <button type="button" class="agent-tab" id="agent-tab-btn-ventas" role="tab" aria-selected="false" aria-controls="agent-tab-ventas" onclick="switchAgentTab('ventas')">Agents Ventas</button>
         <button type="button" class="agent-tab" id="agent-tab-btn-cuentas" role="tab" aria-selected="false" aria-controls="agent-tab-cuentas" onclick="switchAgentTab('cuentas')">Cuentas</button>
+        <button type="button" class="agent-tab" id="agent-tab-btn-chat-agents" role="tab" aria-selected="false" aria-controls="agent-tab-chat-agents" onclick="switchAgentTab('chat-agents')">Chat Agents</button>
       </nav>
       </div>
 
@@ -1813,6 +1814,23 @@
 
         </div>
       </div>
+
+      <div id="agent-tab-chat-agents" class="agent-tab-panel" role="tabpanel" hidden>
+        <div class="agent-panel-center agent-panel-center--wide">
+          <div class="ea-chat-tab">
+            <header class="ea-chat-tab-header">
+              <h2 class="ea-chat-tab-title">Asistente de ventas</h2>
+            </header>
+            <div id="ea-chat-messages" class="ea-chat-messages" aria-live="polite"></div>
+            <div id="ea-chat-typing" class="ea-chat-typing" hidden>Escribiendo...</div>
+            <form id="ea-chat-form" class="ea-chat-form" onsubmit="chatEnviarMensaje(event)">
+              <input type="text" id="ea-chat-input" class="ea-chat-input" placeholder="Escribe tu pregunta..." maxlength="2000" autocomplete="off">
+              <button type="submit" id="ea-chat-send" class="ea-chat-send">Enviar</button>
+            </form>
+          </div>
+        </div>
+      </div>
+
       </div>
     </main>
 
@@ -1976,7 +1994,7 @@
 
 </div>
 
-<script src="assets/js/app.js?v=15"></script>
+<script src="assets/js/app.js?v=16"></script>
 
 <!-- ALBUM DE IMAGENES DEL PRODUCTO -->
 <div id="album-modal" class="album-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="album-nombre">
@@ -2010,34 +2028,6 @@
   <div class="album-backdrop" onclick="cerrarAlbumProducto()"></div>
 </div>
 <!-- FIN ALBUM -->
-
-<!-- ASISTENTE IA FLOTANTE (Jarvis) -->
-<div id="ea-jarvis-root" class="ea-jarvis-root" aria-live="polite">
-  <div id="ea-jarvis-panel" class="ea-jarvis-panel" hidden aria-hidden="true" role="dialog" aria-labelledby="ea-jarvis-title">
-    <header class="ea-jarvis-header">
-      <div class="ea-jarvis-header-info">
-        <span class="ea-jarvis-header-dot" aria-hidden="true"></span>
-        <h2 id="ea-jarvis-title" class="ea-jarvis-title">Asistente EcommerceAgents</h2>
-      </div>
-      <button type="button" id="ea-jarvis-close" class="ea-jarvis-close" aria-label="Cerrar chat">&times;</button>
-    </header>
-    <div id="ea-jarvis-messages" class="ea-jarvis-messages"></div>
-    <div id="ea-jarvis-typing" class="ea-jarvis-typing" hidden>Escribiendo...</div>
-    <form id="ea-jarvis-form" class="ea-jarvis-form" onsubmit="jarvisEnviarMensaje(event)">
-      <input type="text" id="ea-jarvis-input" class="ea-jarvis-input" placeholder="Escribe tu pregunta..." maxlength="2000" autocomplete="off">
-      <button type="submit" id="ea-jarvis-send" class="ea-jarvis-send">Enviar</button>
-    </form>
-  </div>
-  <button type="button" id="ea-jarvis-fab" class="ea-jarvis-fab" aria-label="Abrir asistente EcommerceAgents" aria-expanded="false" aria-controls="ea-jarvis-panel">
-    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/>
-      <path d="M12 7v2M12 15v2M7 12h2M15 12h2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-      <path d="M8.5 8.5c1.2-1 2.8-1.5 4.5-1.2 2.2.4 3.8 2.2 4 4.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-      <path d="M9 16c1.5 1 3.4 1.4 5.2.8 1.6-.5 2.9-1.8 3.4-3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-    </svg>
-  </button>
-</div>
-<!-- FIN ASISTENTE IA -->
 
 </body>
 </html>
