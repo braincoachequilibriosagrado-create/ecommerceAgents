@@ -995,6 +995,8 @@ function renderPagActivas() {
 
 function renderPaginas() {
   _pagCache = null; // forzar fetch fresco
+  // El sub-tab "Crear pagina" esta activo por defecto: cargar el dropdown de productos ya.
+  pagCargarProductos();
   _adminFetch(MOTOR_URL + '/api/admin/paginas')
     .then(function (r) { return r.json(); })
     .then(function (data) {
