@@ -3269,29 +3269,54 @@ app.get('/api/admin/metricas/mas-vistos', async (req, res) => {
 
 // ── Limpieza de HTML del vendedor (handlers inline rotos) ─────────────────────
 // Repara markup exterior + JS roto dentro de <script> (URLs sin comillas).
+var _INLINE_EVENT_ATTRS =
+  'onclick|onmousedown|onmouseup|onmouseover|onmouseout|onload|onchange|onsubmit|ontouchstart|ontouchend';
+
+function _normalizeTagMarkup(s) {
+  return s.replace(/<([^>]+)>/g, function (_full, inner) {
+    var n = inner.replace(/\s{2,}/g, ' ').replace(/^\s+|\s+$/g, '');
+    return '<' + n + '>';
+  });
+}
+
+function _fixAnchorHrefAttrs(attrs) {
+  var a = attrs;
+
+  // href entre comillas dobles: conservar solo http(s), # o /
+  a = a.replace(/\bhref\s*=\s*"([^"]*)"/gi, function (_m, val) {
+    if (/^(https?:|#|\/)/i.test(val)) return ' href="' + val + '"';
+    return ' href="#"';
+  });
+
+  // href entre comillas simples
+  a = a.replace(/\bhref\s*=\s*'([^']*)'/gi, function (_m, val) {
+    if (/^(https?:|#|\/)/i.test(val)) return " href='" + val + "'";
+    return ' href="#"';
+  });
+
+  // href sin comillas (href=/..., href=javascript:..., etc.)
+  a = a.replace(/\bhref\s*=\s*[^\s>"']+/gi, ' href="#"');
+
+  return a;
+}
+
 function _sanitizeHtmlTags(fragment) {
   if (!fragment) return fragment;
   var s = fragment;
 
-  // Quitar handlers inline (onclick/onload/etc.) — causa tipica del error "Invalid regex flags"
-  s = s.replace(/\s+on(click|load|error|submit|dblclick|mousedown|mouseup|keydown|keyup|focus|blur|change|mouseover|mouseout)\s*=\s*"[^"]*"/gi, '');
-  s = s.replace(/\s+on(click|load|error|submit|dblclick|mousedown|mouseup|keydown|keyup|focus|blur|change|mouseover|mouseout)\s*=\s*'[^']*'/gi, '');
-  s = s.replace(/\s+on(click|load|error|submit|dblclick|mousedown|mouseup|keydown|keyup|focus|blur|change|mouseover|mouseout)\s*=\s*[^\s>"']+/gi, '');
+  // 1. Eliminar por completo atributos de evento inline (comillas dobles, simples o sin comillas)
+  s = s.replace(new RegExp('\\s+(?:' + _INLINE_EVENT_ATTRS + ')\\s*=\\s*"[^"]*"', 'gi'), '');
+  s = s.replace(new RegExp("\\s+(?:" + _INLINE_EVENT_ATTRS + ")\\s*=\\s*'[^']*'", 'gi'), '');
+  // Sin comillas: valor hasta espacio, > o fin de atributo
+  s = s.replace(new RegExp('\\s+(?:' + _INLINE_EVENT_ATTRS + ')\\s*=\\s*[^\\s>"\']+', 'gi'), '');
 
-  // Neutralizar href de checkout (con o sin comillas) en enlaces
-  s = s.replace(/\shref\s*=\s*"[^"]*\/checkout[^"]*"/gi, ' href="#"');
-  s = s.replace(/\shref\s*=\s*'[^']*\/checkout[^']*'/gi, " href='#'");
-  s = s.replace(/\shref\s*=\s*\/checkout[^\s>]*/gi, ' href="#"');
-
-  // href sin comillas que empiezan con / (invalidos y pueden romper el parser/JS)
-  s = s.replace(/\shref\s*=\s*(\/[^\s>"']+)/gi, function (_m, path) {
-    if (/^\/\//.test(path)) return _m; // protocol-relative externo — dejar
-    return ' href="#"';
+  // 2. En <a>, neutralizar href mal formados; conservar href quoted http(s)/#//
+  s = s.replace(/<a\b([^>]*)>/gi, function (_m, attrs) {
+    return '<a' + _fixAnchorHrefAttrs(attrs) + '>';
   });
 
-  // javascript: inline en href con URLs sin comillas (location.href=/checkout...)
-  s = s.replace(/\shref\s*=\s*"javascript:[^"]*\/checkout[^"]*"/gi, ' href="#"');
-  s = s.replace(/\shref\s*=\s*'javascript:[^']*\/checkout[^']*'/gi, " href='#'");
+  // 4. Normalizar espacios duplicados y > mal formados dentro de etiquetas
+  s = _normalizeTagMarkup(s);
 
   return s;
 }
