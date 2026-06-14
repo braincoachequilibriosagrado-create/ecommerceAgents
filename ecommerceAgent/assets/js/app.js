@@ -6590,4 +6590,258 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   setTimeout(initAriaCanvas, 500);
+  initJarvisChat();
 });
+
+// ══════════════════════════════════════════════════════
+// ASISTENTE IA FLOTANTE (Jarvis)
+// ══════════════════════════════════════════════════════
+
+var SYSTEM_PROMPT = [
+  'Eres el asistente experto de EcommerceAgents, un SaaS de dropshipping para Latinoamerica.',
+  'Tu mision es ayudar al vendedor a VENDER MAS: elegir productos del catalogo, promocionarlos con su link de afiliado y ganar la comision (margen de utilidad del producto).',
+  '',
+  'Conoces la plataforma:',
+  '- CATALOGO: productos disponibles para agregar y vender.',
+  '- MIS PRODUCTOS: productos que el vendedor ya selecciono, con su link personal de venta (?ref=codigo).',
+  '- MONETIZACION: herramientas para encontrar tendencias y desarrollar ideas de producto.',
+  '- CONTENIDO: generacion de contenido organico, anuncios y avatar para redes.',
+  '- AGENTS ADS: agentes para crear y optimizar pauta publicitaria.',
+  '- AGENTS VENTAS: agentes para cerrar ventas y seguimiento.',
+  '- CUENTAS: creditos IA, saldo y configuracion del vendedor.',
+  '',
+  'Ayudas con: que productos vender segun nicho y temporada, como crear contenido y anuncios que conviertan en Facebook, TikTok e Instagram, estrategias de WhatsApp para cerrar ventas, copies de venta, objeciones comunes, funnels simples y uso de la plataforma.',
+  '',
+  'Tono: experto, directo, motivador y practico. Respuestas cortas y accionables con pasos concretos. Sin teoria innecesaria.',
+  'Si el usuario no ha iniciado sesion, igual orienta pero recuerdale que debe iniciar sesion para acceder al catalogo, links de afiliado y herramientas completas.',
+  'Responde siempre en espanol. No inventes funciones que no existen en la plataforma.'
+].join('\n');
+
+var _jarvisHistorial = [];
+var _jarvisEnviando = false;
+var _jarvisPanelAbierto = false;
+var _jarvisDragState = null;
+var _jarvisClickSuppressed = false;
+
+function initJarvisChat() {
+  var root = document.getElementById('ea-jarvis-root');
+  var fab  = document.getElementById('ea-jarvis-fab');
+  var closeBtn = document.getElementById('ea-jarvis-close');
+  if (!root || !fab) return;
+
+  fab.addEventListener('mousedown', jarvisIniciarDrag);
+  fab.addEventListener('touchstart', jarvisIniciarDrag, { passive: false });
+  document.addEventListener('mousemove', jarvisMoverDrag);
+  document.addEventListener('touchmove', jarvisMoverDrag, { passive: false });
+  document.addEventListener('mouseup', jarvisFinDrag);
+  document.addEventListener('touchend', jarvisFinDrag);
+
+  fab.addEventListener('click', function () {
+    if (_jarvisClickSuppressed) return;
+    jarvisTogglePanel();
+  });
+
+  if (closeBtn) closeBtn.addEventListener('click', jarvisCerrarPanel);
+
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape' && _jarvisPanelAbierto) jarvisCerrarPanel();
+  });
+}
+
+function jarvisIniciarDrag(ev) {
+  if (ev.type === 'touchstart' && ev.touches.length !== 1) return;
+  var root = document.getElementById('ea-jarvis-root');
+  var fab  = document.getElementById('ea-jarvis-fab');
+  if (!root || !fab) return;
+
+  var pt = ev.touches ? ev.touches[0] : ev;
+  var rect = root.getBoundingClientRect();
+
+  if (root.style.left === '' && root.style.top === '') {
+    root.style.left = rect.left + 'px';
+    root.style.top = rect.top + 'px';
+    root.style.right = 'auto';
+    root.style.bottom = 'auto';
+  }
+
+  _jarvisDragState = {
+    startX: pt.clientX,
+    startY: pt.clientY,
+    origLeft: parseFloat(root.style.left) || rect.left,
+    origTop: parseFloat(root.style.top) || rect.top,
+    moved: false
+  };
+  fab.classList.add('ea-jarvis-fab--dragging');
+  if (ev.type === 'mousedown') ev.preventDefault();
+}
+
+function jarvisMoverDrag(ev) {
+  if (!_jarvisDragState) return;
+  var pt = ev.touches ? ev.touches[0] : ev;
+  var dx = pt.clientX - _jarvisDragState.startX;
+  var dy = pt.clientY - _jarvisDragState.startY;
+
+  if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
+    _jarvisDragState.moved = true;
+  }
+
+  var root = document.getElementById('ea-jarvis-root');
+  if (!root) return;
+
+  var w = root.offsetWidth || 56;
+  var h = root.offsetHeight || 56;
+  var maxL = window.innerWidth - w - 8;
+  var maxT = window.innerHeight - h - 8;
+  var newL = Math.max(8, Math.min(maxL, _jarvisDragState.origLeft + dx));
+  var newT = Math.max(8, Math.min(maxT, _jarvisDragState.origTop + dy));
+
+  root.style.left = newL + 'px';
+  root.style.top = newT + 'px';
+
+  if (ev.type === 'touchmove') ev.preventDefault();
+}
+
+function jarvisFinDrag() {
+  var fab = document.getElementById('ea-jarvis-fab');
+  if (!_jarvisDragState) return;
+  _jarvisClickSuppressed = _jarvisDragState.moved;
+  if (_jarvisClickSuppressed) {
+    setTimeout(function () { _jarvisClickSuppressed = false; }, 80);
+  }
+  _jarvisDragState = null;
+  if (fab) fab.classList.remove('ea-jarvis-fab--dragging');
+}
+
+function jarvisTogglePanel() {
+  if (_jarvisPanelAbierto) jarvisCerrarPanel();
+  else jarvisAbrirPanel();
+}
+
+function jarvisAbrirPanel() {
+  var panel = document.getElementById('ea-jarvis-panel');
+  var fab   = document.getElementById('ea-jarvis-fab');
+  var msgs  = document.getElementById('ea-jarvis-messages');
+  if (!panel || !fab) return;
+
+  panel.hidden = false;
+  panel.setAttribute('aria-hidden', 'false');
+  fab.setAttribute('aria-expanded', 'true');
+  _jarvisPanelAbierto = true;
+
+  if (msgs && msgs.children.length === 0) {
+    jarvisAgregarMensaje('assistant',
+      'Hola. Soy tu asistente de ventas de EcommerceAgents. Puedo ayudarte a elegir productos, crear contenido que convierta y cerrar mas ventas. Que necesitas hoy?');
+  }
+
+  setTimeout(function () {
+    var inp = document.getElementById('ea-jarvis-input');
+    if (inp) inp.focus();
+  }, 120);
+}
+
+function jarvisCerrarPanel() {
+  var panel = document.getElementById('ea-jarvis-panel');
+  var fab   = document.getElementById('ea-jarvis-fab');
+  if (!panel) return;
+  panel.hidden = true;
+  panel.setAttribute('aria-hidden', 'true');
+  if (fab) fab.setAttribute('aria-expanded', 'false');
+  _jarvisPanelAbierto = false;
+}
+
+function jarvisAgregarMensaje(role, text) {
+  var msgs = document.getElementById('ea-jarvis-messages');
+  if (!msgs) return;
+  var el = document.createElement('div');
+  el.className = 'ea-jarvis-msg ea-jarvis-msg--' + (role === 'user' ? 'user' : role === 'error' ? 'error' : 'assistant');
+  el.textContent = text;
+  msgs.appendChild(el);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function jarvisSetTyping(visible) {
+  var el = document.getElementById('ea-jarvis-typing');
+  if (el) el.hidden = !visible;
+  if (visible) {
+    var msgs = document.getElementById('ea-jarvis-messages');
+    if (msgs) msgs.scrollTop = msgs.scrollHeight;
+  }
+}
+
+function jarvisSetEnviando(enviando) {
+  _jarvisEnviando = enviando;
+  var btn = document.getElementById('ea-jarvis-send');
+  var inp = document.getElementById('ea-jarvis-input');
+  if (btn) btn.disabled = enviando;
+  if (inp) inp.disabled = enviando;
+  jarvisSetTyping(enviando);
+}
+
+function jarvisLlamarGroq(historial) {
+  return fetch(MOTOR_URL + '/api/ia/groq', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-usuario-id': _getUsuarioId() || ''
+    },
+    body: JSON.stringify({
+      system: SYSTEM_PROMPT,
+      messages: historial,
+      max_tokens: 1200,
+      temperature: 0.8
+    })
+  }).then(function (r) {
+    if (r.status === 401) {
+      return { ok: false, error: 'Inicia sesion para chatear con tu asistente.', _auth: true };
+    }
+    return r.json().then(function (d) {
+      if (r.status >= 400 && d && d.error) return { ok: false, error: d.error };
+      return d;
+    });
+  });
+}
+
+function jarvisEnviarMensaje(ev) {
+  if (ev) ev.preventDefault();
+  if (_jarvisEnviando) return;
+
+  var inp = document.getElementById('ea-jarvis-input');
+  if (!inp) return;
+  var texto = (inp.value || '').trim();
+  if (!texto) return;
+
+  if (!_jarvisPanelAbierto) jarvisAbrirPanel();
+
+  inp.value = '';
+  jarvisAgregarMensaje('user', texto);
+  _jarvisHistorial.push({ role: 'user', content: texto });
+
+  if (!_getUsuarioId()) {
+    jarvisAgregarMensaje('error', 'Inicia sesion para chatear con tu asistente.');
+    _jarvisHistorial.pop();
+    return;
+  }
+
+  jarvisSetEnviando(true);
+
+  jarvisLlamarGroq(_jarvisHistorial.slice())
+    .then(function (d) {
+      if (!d || !d.ok) {
+        var errMsg = (d && d.error) ? d.error : 'No pudimos obtener respuesta. Intenta de nuevo en un momento.';
+        jarvisAgregarMensaje('error', errMsg);
+        if (d && d._auth) _jarvisHistorial.pop();
+        return;
+      }
+      var respuesta = (d.texto || '').trim() || 'Listo. En que mas puedo ayudarte?';
+      _jarvisHistorial.push({ role: 'assistant', content: respuesta });
+      jarvisAgregarMensaje('assistant', respuesta);
+    })
+    .catch(function () {
+      jarvisAgregarMensaje('error', 'Error de conexion. Verifica tu internet e intenta de nuevo.');
+      _jarvisHistorial.pop();
+    })
+    .finally(function () {
+      jarvisSetEnviando(false);
+      if (inp) inp.focus();
+    });
+}
