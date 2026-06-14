@@ -22,8 +22,7 @@ const app  = express();
 const PORT = process.env.PORT || 3002;
 
 // URL pública base donde el motor sirve las páginas de venta
-// TODO: en producción, cambiar por el dominio real (ej. https://ecommerceagents.com)
-const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || `http://localhost:${PORT}`;
+const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || 'https://motor.ecommerceagents.store';
 
 // ── Autenticación de admin ─────────────────────────────────────────────────────
 const ADMIN_API_KEY  = process.env.ADMIN_API_KEY  || '';
