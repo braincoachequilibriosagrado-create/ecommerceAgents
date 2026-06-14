@@ -3469,7 +3469,7 @@ window.addEventListener('message', function(e) {
   var d = e.data;
   if (!d || typeof d.ea_checkout_url !== 'string') return;
   var url = d.ea_checkout_url;
-  var ok = /^\/checkout\?/.test(url);
+  var ok = url.indexOf('/checkout') === 0;
   if (!ok) {
     try {
       var u = new URL(url);
