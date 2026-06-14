@@ -3267,6 +3267,55 @@ app.get('/api/admin/metricas/mas-vistos', async (req, res) => {
   }
 });
 
+// ── Helpers: inyeccion segura del script de checkout en paginas de venta ───────
+function _injectCheckoutScript(html, slug, ref) {
+  // Quitar ea-checkout.js embebido en el HTML del vendedor (evita doble binding)
+  var clean = String(html || '').replace(
+    /<script[^>]*\ssrc=["'][^"']*ea-checkout\.js[^"']*["'][^>]*>\s*<\/script>/gi,
+    ''
+  );
+
+  // JSON.stringify escapa comillas, backslashes, saltos de linea, etc. de forma segura
+  var checkoutScript = '<script>\n' +
+'(function(){\n' +
+'  var _slug = ' + JSON.stringify(String(slug || '')) + ';\n' +
+'  var _ref  = ' + JSON.stringify(String(ref || '')) + ';\n' +
+'  function _irAlCheckout(e) {\n' +
+'    if (e) { e.preventDefault(); e.stopPropagation(); }\n' +
+'    var url = "/checkout?slug=" + encodeURIComponent(_slug);\n' +
+'    if (_ref) url += "&ref=" + encodeURIComponent(_ref);\n' +
+'    try {\n' +
+'      if (window.parent && window.parent !== window) {\n' +
+'        window.parent.postMessage({ ea_checkout_url: url }, "*");\n' +
+'        return;\n' +
+'      }\n' +
+'    } catch (err) {}\n' +
+'    window.location.href = url;\n' +
+'  }\n' +
+'  function _enlazar() {\n' +
+'    document.querySelectorAll(".btn-comprar-ea, [data-comprar]").forEach(function(btn) {\n' +
+'      if (btn.dataset.eaInyectado) return;\n' +
+'      btn.dataset.eaInyectado = "1";\n' +
+'      btn.removeAttribute("onclick");\n' +
+'      btn.addEventListener("click", _irAlCheckout);\n' +
+'    });\n' +
+'  }\n' +
+'  if (document.readyState === "loading") {\n' +
+'    document.addEventListener("DOMContentLoaded", _enlazar);\n' +
+'  } else {\n' +
+'    _enlazar();\n' +
+'  }\n' +
+'})();\n' +
+'<\/script>';
+
+  var lower = clean.toLowerCase();
+  var idx   = lower.lastIndexOf('</body>');
+  if (idx !== -1) {
+    return clean.slice(0, idx) + checkoutScript + '\n' + clean.slice(idx);
+  }
+  return clean + '\n' + checkoutScript;
+}
+
 // ── Página pública de venta  GET /p/:slug ─────────────────────────────────────
 // SEGURIDAD: el HTML del vendedor se aísla en un <iframe sandbox="allow-scripts allow-forms">
 // para prevenir XSS. El checkout se comunica por postMessage hacia la ventana padre.
@@ -3318,9 +3367,16 @@ app.get('/p/:slug', async (req, res) => {
 window.addEventListener('message', function(e) {
   var d = e.data;
   if (!d || typeof d.ea_checkout_url !== 'string') return;
-  // Validar que el destino sea solo nuestra ruta de checkout (nunca un URL externo)
-  if (!/^\/checkout\?/.test(d.ea_checkout_url)) return;
-  window.location.href = d.ea_checkout_url;
+  var url = d.ea_checkout_url;
+  var ok = /^\/checkout\?/.test(url);
+  if (!ok) {
+    try {
+      var u = new URL(url);
+      ok = u.pathname === '/checkout' && (u.origin === window.location.origin || u.hostname === 'motor.ecommerceagents.store');
+    } catch (_) { ok = false; }
+  }
+  if (!ok) return;
+  window.location.href = url;
 });
 </script>
 </body>
@@ -3344,37 +3400,7 @@ app.get('/p-inner/:slug', async (req, res) => {
       return res.status(404).send('Pagina no encontrada.');
     }
 
-    // Script de checkout: en vez de window.location.href usa postMessage al padre.
-    // El padre (/p/:slug) escucha el mensaje y navega la ventana real al checkout.
-    const safeSlug = slug.replace(/'/g, "\\'");
-    const safeRef  = ref.replace(/'/g, "\\'");
-    const checkoutScript = `<script>
-(function(){
-  var _slug = '${safeSlug}';
-  var _ref  = '${safeRef}';
-  function _irAlCheckout() {
-    var url = '/checkout?slug=' + encodeURIComponent(_slug);
-    if (_ref) url += '&ref=' + encodeURIComponent(_ref);
-    // postMessage a la ventana padre (la que tiene el iframe) para que ella navegue
-    window.parent.postMessage({ ea_checkout_url: url }, '*');
-  }
-  // Enlazar al cargar
-  function _enlazar() {
-    document.querySelectorAll('.btn-comprar-ea').forEach(function(btn){
-      btn.addEventListener('click', _irAlCheckout);
-    });
-  }
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', _enlazar);
-  } else {
-    _enlazar();
-  }
-})();
-<\/script>`;
-
-    const htmlOut = data.html.includes('</body>')
-      ? data.html.replace(/<\/body>/i, checkoutScript + '\n</body>')
-      : data.html + '\n' + checkoutScript;
+    const htmlOut = _injectCheckoutScript(data.html, slug, ref);
 
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     // Permitir que solo nuestro propio servidor cargue este endpoint en un iframe
