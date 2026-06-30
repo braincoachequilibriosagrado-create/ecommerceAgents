@@ -66,7 +66,7 @@
     <button class="adm-tab-btn" id="adm-tab-btn-pedidos" role="tab" aria-selected="false"
       onclick="switchAdminTab('pedidos')">Pedidos</button>
     <button class="adm-tab-btn" id="adm-tab-btn-miniapps" role="tab" aria-selected="false"
-      onclick="switchAdminTab('miniapps')">Mini Apps</button>
+      onclick="switchAdminTab('miniapps')">Activos Digitales</button>
   </nav>
 
   <!-- MAIN CONTENT -->
@@ -465,14 +465,14 @@
       </div>
     </section>
 
-    <!-- ===== 7. MINI APPS ===== -->
+    <!-- ===== 7. ACTIVOS DIGITALES ===== -->
     <section id="adm-panel-miniapps" class="adm-panel" role="tabpanel" hidden>
       <div class="adm-panel-header">
-        <h2 class="adm-panel-title">Mini Apps</h2>
-        <p class="adm-panel-desc">Revisa, aprueba y gestiona las mini apps de los creadores.</p>
+        <h2 class="adm-panel-title">Activos Digitales</h2>
+        <p class="adm-panel-desc">Revisa, aprueba y gestiona los activos digitales de los creadores.</p>
       </div>
 
-      <nav class="ma-subtabs" role="tablist" aria-label="Secciones Mini Apps">
+      <nav class="ma-subtabs" role="tablist" aria-label="Secciones Activos Digitales">
         <button type="button" class="ma-subtab-btn active" id="ma-subtab-btn-por-aprobar"
           onclick="switchMaSubTab('por-aprobar')">Por aprobar</button>
         <button type="button" class="ma-subtab-btn" id="ma-subtab-btn-aprobados"
@@ -481,17 +481,24 @@
           onclick="switchMaSubTab('cuentas')">Cuentas</button>
       </nav>
 
+      <div id="ma-categoria-filtro" class="ma-cat-filtro" role="tablist" aria-label="Filtrar por categoria">
+        <button type="button" class="ma-cat-chip active" id="ma-cat-btn-todas" onclick="switchMaCategoria('')">Todas</button>
+        <button type="button" class="ma-cat-chip" id="ma-cat-btn-infoproducto" onclick="switchMaCategoria('infoproducto')">Infoproductos</button>
+        <button type="button" class="ma-cat-chip" id="ma-cat-btn-contenido_digital" onclick="switchMaCategoria('contenido_digital')">Contenido Digital</button>
+        <button type="button" class="ma-cat-chip" id="ma-cat-btn-miniapp" onclick="switchMaCategoria('miniapp')">Mini Apps</button>
+      </div>
+
       <div class="adm-summary-row" id="ma-summary-row"></div>
 
       <!-- POR APROBAR -->
       <div id="ma-panel-por-aprobar" class="ma-subpanel active">
-        <p class="ma-subpanel-hint">Mini apps pendientes de revision. Verifica el HTML y las fotos antes de aprobar.</p>
+        <p class="ma-subpanel-hint">Activos digitales pendientes de revision. Verifica el HTML y las fotos antes de aprobar.</p>
         <div id="ma-cards-pendientes" class="ma-cards-grid"></div>
       </div>
 
       <!-- APROBADOS -->
       <div id="ma-panel-aprobados" class="ma-subpanel" hidden>
-        <p class="ma-subpanel-hint">Mini apps ya aprobadas y listas para venta. (Proximamente: pagina de venta y mas vendidos.)</p>
+        <p class="ma-subpanel-hint">Activos digitales ya aprobados y listos para venta.</p>
         <div id="ma-cards-aprobados" class="ma-cards-grid"></div>
       </div>
 
@@ -527,6 +534,6 @@
 
   </div><!-- /adm-main-content -->
 
-  <script src="assets/js/admin.js?v=15"></script>
+  <script src="assets/js/admin.js?v=16"></script>
 </body>
 </html>

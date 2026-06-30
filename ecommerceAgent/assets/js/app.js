@@ -2067,6 +2067,24 @@ function updateAgentCuentasPanel() {
    ============================================================ */
 
 const CUENTAS_SUB_TAB_IDS = ['ventas', 'afiliados', 'pagos'];
+const VENTAS_TIPO_TAB_IDS = ['productos', 'digitales'];
+
+function switchVentasTipoTab(tipoId) {
+  VENTAS_TIPO_TAB_IDS.forEach(function (id) {
+    var panel = document.getElementById('ventas-tipo-' + id);
+    var btn   = document.getElementById('ventas-tipo-btn-' + id);
+    var active = id === tipoId;
+    if (panel) {
+      panel.classList.toggle('active', active);
+      panel.hidden = !active;
+    }
+    if (btn) {
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-selected', active ? 'true' : 'false');
+    }
+  });
+  if (tipoId === 'digitales') eaMiniappsComisionesRender();
+}
 
 /* ============================================================
    VENTAS — lee de Supabase vía motor (GET /api/ventas/usuario/:id)
@@ -2233,6 +2251,8 @@ function eaMiniappsComisionesRender() {
 }
 
 function eaVentasRender() {
+  switchVentasTipoTab('productos');
+
   var uid = _getUsuarioId();
   var wrap = document.getElementById('ventas-tabla-wrap');
   var elTotal   = document.getElementById('ventas-mes-total');
@@ -2256,7 +2276,6 @@ function eaVentasRender() {
       _eaVentasCache = data;
       eaVentasRenderResumen(data.resumen);
       eaVentasRenderTabla(data.ventas);
-      eaMiniappsComisionesRender();
     })
     .catch(function () {
       if (wrap) wrap.innerHTML = '<p class="cuentas-empty" style="color:#c0392b">Error al cargar ventas. Verifica que el motor este activo.</p>';

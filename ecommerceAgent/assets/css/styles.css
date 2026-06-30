@@ -5793,6 +5793,30 @@
   margin-bottom: 32px;
 }
 
+.ventas-tipo-tabs-wrap {
+  margin-bottom: 28px;
+}
+
+.ventas-tipo-panel {
+  display: none;
+}
+
+.ventas-tipo-panel.active {
+  display: block;
+}
+
+.ventas-tipo-nota {
+  font-size: 13px;
+  color: #8a7a68;
+  line-height: 1.55;
+  margin: 0 0 24px;
+  padding: 12px 16px;
+  background: #faf8f4;
+  border: 1px solid var(--border);
+  border-left: 3px solid #B8973A;
+  border-radius: 2px;
+}
+
 .cuentas-stat-card {
   background: #FFFFFF;
   border: 1px solid var(--border);

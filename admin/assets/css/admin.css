@@ -1844,7 +1844,64 @@ body {
   margin-bottom: 4px;
 }
 
-/* ── Mini Apps sub-tabs + cards ─────────────────────────── */
+/* ── Activos Digitales sub-tabs + cards ─────────────────────────── */
+.ma-cat-filtro {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 18px 0 22px;
+  padding: 14px 16px;
+  background: var(--adm-surface, #faf9f7);
+  border: 1px solid var(--adm-border, #e8e0d4);
+  border-radius: 2px;
+}
+
+.ma-cat-filtro[hidden] {
+  display: none !important;
+}
+
+.ma-cat-chip {
+  padding: 8px 16px;
+  font-family: var(--adm-font-mono, monospace);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--adm-muted, #8a7a68);
+  background: #fff;
+  border: 1px solid var(--adm-border, #e8e0d4);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+
+.ma-cat-chip:hover {
+  color: var(--adm-gold, #B8973A);
+  border-color: var(--adm-gold, #B8973A);
+}
+
+.ma-cat-chip.active {
+  color: #fff;
+  background: var(--adm-gold, #B8973A);
+  border-color: var(--adm-gold, #B8973A);
+  box-shadow: 0 2px 8px rgba(184, 151, 58, 0.25);
+}
+
+.adm-badge--cat-info {
+  background: #ede8ff;
+  color: #5b3ea6;
+}
+
+.adm-badge--cat-contenido {
+  background: #e6f4ff;
+  color: #1565a8;
+}
+
+.adm-badge--cat-miniapp {
+  background: var(--adm-gold-lt, #f5eed8);
+  color: var(--adm-gold, #B8973A);
+}
+
 .ma-subtabs {
   display: flex;
   gap: 0;

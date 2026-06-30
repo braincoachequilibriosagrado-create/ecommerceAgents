@@ -1797,13 +1797,59 @@ function admCerrarModal() {
   if (overlay) overlay.hidden = true;
 }
 
-/* ── Mini Apps (aprobacion + cuentas) ─────────────────────── */
+/* ── Activos Digitales (aprobacion + cuentas) ─────────────────────── */
 
 var _maCache = [];
 var _maSubTabActivo = 'por-aprobar';
+var _maCategoriaActiva = '';
 var _maCuentasCache = [];
 
 var MA_SUBTABS = ['por-aprobar', 'aprobados', 'cuentas'];
+var MA_CATEGORIAS = ['', 'infoproducto', 'contenido_digital', 'miniapp'];
+
+function _maCategoriaLabel(cat) {
+  var map = {
+    infoproducto:      'Infoproducto',
+    contenido_digital: 'Contenido Digital',
+    miniapp:           'Mini App'
+  };
+  return map[cat] || 'Mini App';
+}
+
+function _maCategoriaBadgeClass(cat) {
+  var map = {
+    infoproducto:      'adm-badge--cat-info',
+    contenido_digital: 'adm-badge--cat-contenido',
+    miniapp:           'adm-badge--cat-miniapp'
+  };
+  return map[cat] || 'adm-badge--cat-miniapp';
+}
+
+function _maFetchUrl() {
+  var url = MOTOR_URL + '/api/admin/miniapps';
+  if (_maCategoriaActiva) {
+    url += '?categoria=' + encodeURIComponent(_maCategoriaActiva);
+  }
+  return url;
+}
+
+function _maUpdateCategoriaFiltroUI() {
+  MA_CATEGORIAS.forEach(function (cat) {
+    var btnId = cat ? 'ma-cat-btn-' + cat : 'ma-cat-btn-todas';
+    var btn = document.getElementById(btnId);
+    if (btn) btn.classList.toggle('active', cat === _maCategoriaActiva);
+  });
+  var filtro = document.getElementById('ma-categoria-filtro');
+  if (filtro) {
+    filtro.hidden = _maSubTabActivo === 'cuentas';
+  }
+}
+
+function switchMaCategoria(cat) {
+  _maCategoriaActiva = cat || '';
+  _maUpdateCategoriaFiltroUI();
+  loadMaData();
+}
 
 function switchMaSubTab(tabId) {
   _maSubTabActivo = tabId;
@@ -1814,6 +1860,7 @@ function switchMaSubTab(tabId) {
     if (panel) { panel.hidden = !active; panel.classList.toggle('active', active); }
     if (btn)   btn.classList.toggle('active', active);
   });
+  _maUpdateCategoriaFiltroUI();
   if (tabId === 'cuentas') {
     renderMaCuentas();
   } else {
@@ -1837,7 +1884,9 @@ function _maCardHtml(m, modo) {
     ? '<span class="adm-badge adm-badge--ok ma-card-badge">Aprobada</span>'
     : '<span class="adm-badge adm-badge--bajo ma-card-badge">Pendiente</span>';
 
-  var tags = '<span class="adm-badge adm-badge--html">' + tipo + '</span>';
+  var tags = '<span class="adm-badge ' + _maCategoriaBadgeClass(m.categoria || 'miniapp') + '">' +
+    _maCategoriaLabel(m.categoria || 'miniapp') + '</span>';
+  tags += ' <span class="adm-badge adm-badge--html">' + tipo + '</span>';
   if (m.usa_ia) tags += ' <span class="adm-badge adm-badge--pagina">Usa IA</span>';
   if (m.disponible_vendedores) {
     tags += ' <span class="adm-badge adm-badge--afiliado">Vendedores ' + Number(m.comision_vendedor || 0) + '%</span>';
@@ -1898,23 +1947,21 @@ function renderMaCards() {
   if (elP) {
     elP.innerHTML = pendientes.length
       ? pendientes.map(function (m) { return _maCardHtml(m, 'pendiente'); }).join('')
-      : '<p class="adm-empty-text">No hay mini apps pendientes de aprobacion.</p>';
+      : '<p class="adm-empty-text">No hay activos digitales pendientes de aprobacion.</p>';
   }
   if (elA) {
     elA.innerHTML = aprobadas.length
       ? aprobadas.map(function (m) { return _maCardHtml(m, 'aprobada'); }).join('')
-      : '<p class="adm-empty-text">Aun no hay mini apps aprobadas.</p>';
+      : '<p class="adm-empty-text">Aun no hay activos digitales aprobados.</p>';
   }
 }
 
-function renderMiniappsAdmin() {
-  _maSubTabActivo = 'por-aprobar';
-  switchMaSubTab('por-aprobar');
+function loadMaData() {
   _setHtml('ma-cards-pendientes', '<p class="adm-empty-text" style="padding:28px">Cargando...</p>');
   _setHtml('ma-cards-aprobados', '');
   _setHtml('ma-summary-row', '');
 
-  _adminFetch(MOTOR_URL + '/api/admin/miniapps')
+  _adminFetch(_maFetchUrl())
     .then(function (r) { return r.json(); })
     .then(function (data) {
       if (!data.ok) throw new Error(data.error || 'Error del servidor.');
@@ -1926,7 +1973,7 @@ function renderMiniappsAdmin() {
       _setHtml('ma-summary-row',
         _statCard('<span style="color:#b8973a">' + pendientes + '</span>', 'Por aprobar') +
         _statCard('<span style="color:#2E7D32">' + aprobadas + '</span>', 'Aprobadas') +
-        _statCard(_maCache.length, 'Total publicadas')
+        _statCard(_maCache.length, 'Total en filtro')
       );
 
       renderMaCards();
@@ -1935,6 +1982,14 @@ function renderMiniappsAdmin() {
       _setHtml('ma-cards-pendientes',
         '<p class="adm-empty-text" style="color:#c0392b;padding:28px">Error: ' + _esc(e.message) + '</p>');
     });
+}
+
+function renderMiniappsAdmin() {
+  _maSubTabActivo = 'por-aprobar';
+  _maCategoriaActiva = '';
+  switchMaSubTab('por-aprobar');
+  _maUpdateCategoriaFiltroUI();
+  loadMaData();
 }
 
 function renderMaCuentas() {

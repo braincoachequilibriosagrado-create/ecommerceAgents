@@ -1546,67 +1546,86 @@
           <!-- ===== VENTAS ===== -->
           <div id="cuentas-sub-ventas" class="mon-sub-panel active" role="tabpanel">
 
-            <!-- Summary cards (rendered by JS from localStorage) -->
-            <div class="cuentas-summary-row">
-              <div class="cuentas-stat-card">
-                <div class="cuentas-stat-value" id="ventas-mes-total">$0</div>
-                <div class="cuentas-stat-label">Ventas del mes</div>
-              </div>
-              <div class="cuentas-stat-card">
-                <div class="cuentas-stat-value" id="ventas-mes-pedidos">0</div>
-                <div class="cuentas-stat-label">Pedidos del mes</div>
-              </div>
-              <div class="cuentas-stat-card">
-                <div class="cuentas-stat-value" id="ventas-mes-ticket">$0</div>
-                <div class="cuentas-stat-label">Ticket promedio</div>
-              </div>
+            <!-- Selector tipo de ventas -->
+            <div class="mon-subtabs-wrap ventas-tipo-tabs-wrap">
+              <nav class="mon-subtabs ventas-tipo-tabs" role="tablist" aria-label="Tipo de ventas">
+                <button type="button" class="mon-subtab active" id="ventas-tipo-btn-productos" role="tab" aria-selected="true" aria-controls="ventas-tipo-productos" onclick="switchVentasTipoTab('productos')">
+                  <span class="mon-subtab-label">Ventas Productos</span>
+                </button>
+                <button type="button" class="mon-subtab" id="ventas-tipo-btn-digitales" role="tab" aria-selected="false" aria-controls="ventas-tipo-digitales" onclick="switchVentasTipoTab('digitales')">
+                  <span class="mon-subtab-label">Ventas Digitales</span>
+                </button>
+              </nav>
             </div>
 
-            <!-- Registrar venta (collapsible inline form) -->
-            <div class="ventas-registrar-wrap">
-              <button type="button" class="ventas-add-btn" id="ventas-toggle-form" onclick="eaVentasToggleForm()">Registrar venta</button>
-              <div id="ventas-form-card" class="ventas-form-card" hidden>
-                <datalist id="ventas-producto-list"></datalist>
-                <div class="ventas-form-grid">
-                  <div class="ventas-form-group">
-                    <label class="ventas-form-label" for="ventas-form-producto">Producto</label>
-                    <input type="text" id="ventas-form-producto" class="ventas-form-input" placeholder="Nombre del producto" list="ventas-producto-list" autocomplete="off">
-                  </div>
-                  <div class="ventas-form-group">
-                    <label class="ventas-form-label" for="ventas-form-monto">Monto ($)</label>
-                    <input type="number" id="ventas-form-monto" class="ventas-form-input" placeholder="0.00" min="0" step="0.01">
-                  </div>
+            <!-- ===== VENTAS PRODUCTOS (fisicos) ===== -->
+            <div id="ventas-tipo-productos" class="ventas-tipo-panel active" role="tabpanel">
+
+              <div class="cuentas-summary-row">
+                <div class="cuentas-stat-card">
+                  <div class="cuentas-stat-value" id="ventas-mes-total">$0</div>
+                  <div class="cuentas-stat-label">Ventas del mes</div>
                 </div>
-                <div class="ventas-form-footer">
-                  <button type="button" class="ventas-save-btn" onclick="eaVentasGuardarNueva()">Guardar venta</button>
-                  <button type="button" class="ventas-cancel-btn" onclick="eaVentasToggleForm()">Cancelar</button>
+                <div class="cuentas-stat-card">
+                  <div class="cuentas-stat-value" id="ventas-mes-pedidos">0</div>
+                  <div class="cuentas-stat-label">Pedidos del mes</div>
                 </div>
-                <p id="ventas-form-error" class="ventas-form-error" hidden></p>
+                <div class="cuentas-stat-card">
+                  <div class="cuentas-stat-value" id="ventas-mes-ticket">$0</div>
+                  <div class="cuentas-stat-label">Ticket promedio</div>
+                </div>
               </div>
+
+              <div class="ventas-registrar-wrap">
+                <button type="button" class="ventas-add-btn" id="ventas-toggle-form" onclick="eaVentasToggleForm()">Registrar venta</button>
+                <div id="ventas-form-card" class="ventas-form-card" hidden>
+                  <datalist id="ventas-producto-list"></datalist>
+                  <div class="ventas-form-grid">
+                    <div class="ventas-form-group">
+                      <label class="ventas-form-label" for="ventas-form-producto">Producto</label>
+                      <input type="text" id="ventas-form-producto" class="ventas-form-input" placeholder="Nombre del producto" list="ventas-producto-list" autocomplete="off">
+                    </div>
+                    <div class="ventas-form-group">
+                      <label class="ventas-form-label" for="ventas-form-monto">Monto ($)</label>
+                      <input type="number" id="ventas-form-monto" class="ventas-form-input" placeholder="0.00" min="0" step="0.01">
+                    </div>
+                  </div>
+                  <div class="ventas-form-footer">
+                    <button type="button" class="ventas-save-btn" onclick="eaVentasGuardarNueva()">Guardar venta</button>
+                    <button type="button" class="ventas-cancel-btn" onclick="eaVentasToggleForm()">Cancelar</button>
+                  </div>
+                  <p id="ventas-form-error" class="ventas-form-error" hidden></p>
+                </div>
+              </div>
+
+              <div class="cuentas-section">
+                <h4 class="cuentas-section-title">Historial del mes</h4>
+                <div id="ventas-tabla-wrap"></div>
+              </div>
+
             </div>
 
-            <!-- Sales table (rendered by JS) -->
-            <!-- TODO: en el futuro las ventas entran automaticamente desde el agente de WhatsApp o el checkout -->
-            <div class="cuentas-section">
-              <h4 class="cuentas-section-title">Historial del mes</h4>
-              <div id="ventas-tabla-wrap"></div>
-            </div>
+            <!-- ===== VENTAS DIGITALES (mini apps) ===== -->
+            <div id="ventas-tipo-digitales" class="ventas-tipo-panel" role="tabpanel" hidden>
 
-            <!-- Comisiones mini apps (activos digitales) -->
-            <div class="cuentas-section" style="margin-top:28px">
-              <h4 class="cuentas-section-title">Comisiones Activos Digitales</h4>
-              <p class="cuentas-section-desc" style="font-size:0.88em;color:#8a7a68;margin:0 0 14px">Estas comisiones se pagan de forma manual desde la empresa.</p>
-              <div class="cuentas-summary-row" style="margin-bottom:16px">
-                <div class="cuentas-stat-card cuentas-stat-card--highlight">
+              <p class="ventas-tipo-nota">Estas comisiones se pagan de forma manual desde la empresa.</p>
+
+              <div class="cuentas-summary-row">
+                <div class="cuentas-stat-card">
                   <div class="cuentas-stat-value" id="ma-com-total">$0</div>
-                  <div class="cuentas-stat-label">Comision acumulada (mini apps)</div>
+                  <div class="cuentas-stat-label">Comision acumulada</div>
                 </div>
                 <div class="cuentas-stat-card">
                   <div class="cuentas-stat-value" id="ma-com-ventas">0</div>
                   <div class="cuentas-stat-label">Ventas mini apps</div>
                 </div>
               </div>
-              <div id="ma-com-tabla-wrap"></div>
+
+              <div class="cuentas-section">
+                <h4 class="cuentas-section-title">Historial de ventas digitales</h4>
+                <div id="ma-com-tabla-wrap"></div>
+              </div>
+
             </div>
 
           </div>
@@ -2034,7 +2053,7 @@
 
 </div>
 
-<script src="assets/js/app.js?v=22"></script>
+<script src="assets/js/app.js?v=23"></script>
 
 <!-- ALBUM DE IMAGENES DEL PRODUCTO -->
 <div id="album-modal" class="album-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="album-nombre">

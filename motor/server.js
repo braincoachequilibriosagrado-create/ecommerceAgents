@@ -4042,14 +4042,15 @@ app.post('/api/admin/pedidos/manual', async (req, res) => {
 // ── Admin: Mini Apps (aprobacion) ─────────────────────────────────────────────
 
 const MINIAPP_APROB_ESTADOS = ['pendiente', 'aprobada', 'rechazada'];
+const MINIAPP_CATEGORIAS = ['infoproducto', 'contenido_digital', 'miniapp'];
 
-// GET /api/admin/miniapps  — lista con datos del creador (?estado=pendiente|aprobada|rechazada)
+// GET /api/admin/miniapps  — lista con datos del creador (?estado= & ?categoria=)
 app.get('/api/admin/miniapps', async (req, res) => {
   try {
     let query = supabase
       .from('miniapps')
       .select(`
-        id, nombre, slug, descripcion, precio, precio_promocion, tipo_producto,
+        id, nombre, slug, descripcion, precio, precio_promocion, tipo_producto, categoria,
         usa_ia, disponible_vendedores, comision_vendedor,
         estado_aprobacion, motivo_rechazo, foto1_key, foto2_key, pagina_venta_slug, creado_en,
         creadores ( nombre, email )
@@ -4059,6 +4060,11 @@ app.get('/api/admin/miniapps', async (req, res) => {
     const estado = String(req.query.estado || '').trim().toLowerCase();
     if (estado && MINIAPP_APROB_ESTADOS.includes(estado)) {
       query = query.eq('estado_aprobacion', estado);
+    }
+
+    const categoria = String(req.query.categoria || '').trim().toLowerCase();
+    if (categoria && MINIAPP_CATEGORIAS.includes(categoria)) {
+      query = query.eq('categoria', categoria);
     }
 
     const { data, error } = await query;
@@ -4074,6 +4080,7 @@ app.get('/api/admin/miniapps', async (req, res) => {
         precio:                m.precio,
         precio_promocion:      m.precio_promocion,
         tipo_producto:         m.tipo_producto,
+        categoria:             m.categoria || 'miniapp',
         usa_ia:                m.usa_ia,
         disponible_vendedores: m.disponible_vendedores,
         comision_vendedor:     m.comision_vendedor,
