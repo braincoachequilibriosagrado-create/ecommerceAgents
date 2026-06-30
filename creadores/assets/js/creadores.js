@@ -63,20 +63,25 @@ function _esc(s) {
 
 /* ── Auth UI ─────────────────────────────────────────────── */
 
+function _setView(showAuth) {
+  var auth = document.getElementById('cr-auth-screen');
+  var dash = document.getElementById('cr-dashboard');
+  if (auth) auth.hidden = !showAuth;
+  if (dash) dash.hidden = showAuth;
+}
+
 function mostrarAuth() {
-  document.getElementById('cr-auth-screen').hidden = false;
-  document.getElementById('cr-dashboard').hidden   = true;
-  document.getElementById('cr-nav-logout').hidden  = true;
-  document.getElementById('cr-nav-badge').hidden   = true;
-  document.getElementById('cr-nav-hola').hidden    = true;
+  _setView(true);
+  document.getElementById('cr-nav-logout').hidden = true;
+  document.getElementById('cr-nav-badge').hidden  = true;
+  document.getElementById('cr-nav-hola').hidden   = true;
 }
 
 function mostrarDashboard() {
-  document.getElementById('cr-auth-screen').hidden = true;
-  document.getElementById('cr-dashboard').hidden   = false;
-  document.getElementById('cr-nav-logout').hidden  = false;
-  document.getElementById('cr-nav-badge').hidden   = false;
-  document.getElementById('cr-nav-hola').hidden    = false;
+  _setView(false);
+  document.getElementById('cr-nav-logout').hidden = false;
+  document.getElementById('cr-nav-badge').hidden  = false;
+  document.getElementById('cr-nav-hola').hidden   = false;
   _actualizarNavNombre();
   switchCrTab('subir');
 }
