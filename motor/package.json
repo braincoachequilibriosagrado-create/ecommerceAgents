@@ -8,6 +8,8 @@
     "dev": "node --watch server.js"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1076.0",
+    "@aws-sdk/s3-request-presigner": "^3.1076.0",
     "@hapi/boom": "^10.0.1",
     "@supabase/supabase-js": "^2.108.1",
     "@whiskeysockets/baileys": "^6.7.16",
