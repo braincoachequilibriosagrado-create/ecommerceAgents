@@ -1959,22 +1959,12 @@ function renderMaCards() {
 function loadMaData() {
   _setHtml('ma-cards-pendientes', '<p class="adm-empty-text" style="padding:28px">Cargando...</p>');
   _setHtml('ma-cards-aprobados', '');
-  _setHtml('ma-summary-row', '');
 
   _adminFetch(_maFetchUrl())
     .then(function (r) { return r.json(); })
     .then(function (data) {
       if (!data.ok) throw new Error(data.error || 'Error del servidor.');
       _maCache = data.miniapps || [];
-
-      var pendientes = _maCache.filter(function (m) { return (m.estado_aprobacion || 'pendiente') === 'pendiente'; }).length;
-      var aprobadas  = _maCache.filter(function (m) { return m.estado_aprobacion === 'aprobada'; }).length;
-
-      _setHtml('ma-summary-row',
-        _statCard('<span style="color:#b8973a">' + pendientes + '</span>', 'Por aprobar') +
-        _statCard('<span style="color:#2E7D32">' + aprobadas + '</span>', 'Aprobadas') +
-        _statCard(_maCache.length, 'Total en filtro')
-      );
 
       renderMaCards();
     })
