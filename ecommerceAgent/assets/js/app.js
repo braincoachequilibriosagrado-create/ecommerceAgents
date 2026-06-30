@@ -2165,6 +2165,73 @@ function eaVentasRenderTabla(ventas) {
   wrap.innerHTML = html;
 }
 
+function eaMiniappsComisionesRenderResumen(r) {
+  r = r || {};
+  var elTotal  = document.getElementById('ma-com-total');
+  var elVentas = document.getElementById('ma-com-ventas');
+  if (elTotal)  elTotal.textContent  = _eaFmtMonto(r.total_comision || 0);
+  if (elVentas) elVentas.textContent = (r.total_ventas || 0);
+}
+
+function eaMiniappsComisionesRenderTabla(detalle) {
+  var wrap = document.getElementById('ma-com-tabla-wrap');
+  if (!wrap) return;
+  detalle = detalle || [];
+
+  if (detalle.length === 0) {
+    wrap.innerHTML = '<p class="cuentas-empty">Aun no tienes ventas de mini apps con tu link de vendedor.</p>';
+    return;
+  }
+
+  var rows = detalle.map(function (v) {
+    return (
+      '<tr>' +
+      '<td>' + _eaEscHtml(v.miniapp_nombre || 'Mini app') + '</td>' +
+      '<td class="ventas-td-fecha">' + _eaFmtFecha(v.fecha) + '</td>' +
+      '<td class="ventas-td-monto">' + _eaFmtMonto(v.monto) + '</td>' +
+      '<td>' + (Number(v.comision_vendedor) || 0) + '%</td>' +
+      '<td><span style="color:#27ae60;font-weight:600">' + _eaFmtMonto(v.comision_ganada) + '</span></td>' +
+      '</tr>'
+    );
+  }).join('');
+
+  wrap.innerHTML =
+    '<div class="cuentas-table-wrap"><table class="cuentas-table">' +
+    '<thead><tr><th>Mini app</th><th>Fecha</th><th>Monto venta</th><th>Tu %</th><th>Tu comision</th></tr></thead>' +
+    '<tbody>' + rows + '</tbody></table></div>';
+}
+
+function eaMiniappsComisionesRender() {
+  var uid = _getUsuarioId();
+  var wrap = document.getElementById('ma-com-tabla-wrap');
+  var elTotal  = document.getElementById('ma-com-total');
+  var elVentas = document.getElementById('ma-com-ventas');
+
+  if (elTotal)  elTotal.textContent  = '...';
+  if (elVentas) elVentas.textContent = '...';
+  if (wrap) wrap.innerHTML = '<p class="cuentas-empty">Cargando comisiones de mini apps...</p>';
+
+  if (!uid) {
+    if (wrap) wrap.innerHTML = '<p class="cuentas-empty">Inicia sesion para ver tus comisiones.</p>';
+    if (elTotal)  elTotal.textContent  = '—';
+    if (elVentas) elVentas.textContent = '—';
+    return;
+  }
+
+  fetch(MOTOR_URL + '/api/vendedor/miniapps-comisiones?usuario_id=' + encodeURIComponent(uid))
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (!data.ok) throw new Error(data.error || 'Error del servidor');
+      eaMiniappsComisionesRenderResumen(data);
+      eaMiniappsComisionesRenderTabla(data.detalle);
+    })
+    .catch(function () {
+      if (wrap) wrap.innerHTML = '<p class="cuentas-empty" style="color:#c0392b">Error al cargar comisiones de mini apps.</p>';
+      if (elTotal)  elTotal.textContent  = '—';
+      if (elVentas) elVentas.textContent = '—';
+    });
+}
+
 function eaVentasRender() {
   var uid = _getUsuarioId();
   var wrap = document.getElementById('ventas-tabla-wrap');
@@ -2189,6 +2256,7 @@ function eaVentasRender() {
       _eaVentasCache = data;
       eaVentasRenderResumen(data.resumen);
       eaVentasRenderTabla(data.ventas);
+      eaMiniappsComisionesRender();
     })
     .catch(function () {
       if (wrap) wrap.innerHTML = '<p class="cuentas-empty" style="color:#c0392b">Error al cargar ventas. Verifica que el motor este activo.</p>';

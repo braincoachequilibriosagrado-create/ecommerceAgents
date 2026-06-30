@@ -1939,8 +1939,10 @@ function renderMiniappsAdmin() {
 
 function renderMaCuentas() {
   var wrap = document.getElementById('ma-cuentas-wrap');
+  var wrapVend = document.getElementById('ma-comisiones-vendedores-wrap');
   if (!wrap) return;
   wrap.innerHTML = '<p class="adm-empty-text" style="padding:28px">Cargando cuentas...</p>';
+  if (wrapVend) wrapVend.innerHTML = '<p class="adm-empty-text" style="padding:28px">Cargando comisiones a vendedores...</p>';
 
   _adminFetch(MOTOR_URL + '/api/admin/miniapps/cuentas')
     .then(function (r) { return r.json(); })
@@ -1950,27 +1952,62 @@ function renderMaCuentas() {
 
       if (!_maCuentasCache.length) {
         wrap.innerHTML = '<p class="adm-empty-text">No hay creadores con mini apps registradas.</p>';
-        return;
+      } else {
+        var rows = _maCuentasCache.map(function (c) {
+          return '<tr>' +
+            '<td class="adm-td-name">' + _esc(c.creador_nombre || '—') + '</td>' +
+            '<td class="ma-email">' + _esc(c.creador_email || '') + '</td>' +
+            '<td>' + (c.num_ventas || 0) + '</td>' +
+            '<td class="adm-td-money">' + _fmt(c.total_generado) + '</td>' +
+            '<td class="adm-td-money ma-td-pagar"><strong>' + _fmt(c.total_a_pagar) + '</strong></td>' +
+          '</tr>';
+        }).join('');
+
+        wrap.innerHTML =
+          '<div class="adm-table-wrap">' +
+          '<table class="adm-table ma-cuentas-table">' +
+          '<thead><tr><th>Creador</th><th>Email</th><th>Ventas</th><th>Total generado</th><th>Total a pagar</th></tr></thead>' +
+          '<tbody>' + rows + '</tbody></table></div>';
       }
-
-      var rows = _maCuentasCache.map(function (c) {
-        return '<tr>' +
-          '<td class="adm-td-name">' + _esc(c.creador_nombre || '—') + '</td>' +
-          '<td class="ma-email">' + _esc(c.creador_email || '') + '</td>' +
-          '<td>' + (c.num_ventas || 0) + '</td>' +
-          '<td class="adm-td-money">' + _fmt(c.total_generado) + '</td>' +
-          '<td class="adm-td-money ma-td-pagar"><strong>' + _fmt(c.total_a_pagar) + '</strong></td>' +
-        '</tr>';
-      }).join('');
-
-      wrap.innerHTML =
-        '<div class="adm-table-wrap">' +
-        '<table class="adm-table ma-cuentas-table">' +
-        '<thead><tr><th>Creador</th><th>Email</th><th>Ventas</th><th>Total generado</th><th>Total a pagar</th></tr></thead>' +
-        '<tbody>' + rows + '</tbody></table></div>';
     })
     .catch(function (e) {
       wrap.innerHTML = '<p class="adm-empty-text" style="color:#c0392b">Error: ' + _esc(e.message) + '</p>';
+    });
+
+  if (!wrapVend) return;
+
+  _adminFetch(MOTOR_URL + '/api/admin/miniapps/comisiones-vendedores')
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (!data.ok) throw new Error(data.error || 'Error del servidor.');
+      var vendedores = data.vendedores || [];
+
+      if (!vendedores.length) {
+        wrapVend.innerHTML = '<p class="adm-empty-text">No hay comisiones de vendedores pendientes por mini apps.</p>';
+        return;
+      }
+
+      var rows = vendedores.map(function (v) {
+        return '<tr>' +
+          '<td class="adm-td-name">' + _esc(v.nombre || '—') + '</td>' +
+          '<td><code class="adm-code">' + _esc(v.codigo || '—') + '</code></td>' +
+          '<td>' + (v.num_ventas || 0) + '</td>' +
+          '<td class="adm-td-money ma-td-pagar"><strong>' + _fmt(v.total_comision_a_pagar) + '</strong></td>' +
+        '</tr>';
+      }).join('');
+
+      wrapVend.innerHTML =
+        '<div class="ma-comisiones-total adm-stat-card" style="margin-bottom:16px;display:inline-block;padding:14px 20px">' +
+          '<div class="adm-stat-label">Total comisiones pendientes</div>' +
+          '<div class="adm-stat-value" style="color:#b8973a">' + _fmt(data.total_general || 0) + '</div>' +
+        '</div>' +
+        '<div class="adm-table-wrap">' +
+        '<table class="adm-table ma-cuentas-table">' +
+        '<thead><tr><th>Vendedor</th><th>Codigo</th><th>Ventas</th><th>Total a pagar</th></tr></thead>' +
+        '<tbody>' + rows + '</tbody></table></div>';
+    })
+    .catch(function (e) {
+      wrapVend.innerHTML = '<p class="adm-empty-text" style="color:#c0392b">Error: ' + _esc(e.message) + '</p>';
     });
 }
 

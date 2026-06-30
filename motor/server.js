@@ -1764,6 +1764,26 @@ app.post('/api/creador/login', async (req, res) => {
 });
 
 const CREADOR_PARTE_PLATAFORMA_DEFAULT = 10;
+const MINIAPP_PLATAFORMA_PCT = 10;
+
+function _roundMoney(n) {
+  return Math.round(Number(n) * 100) / 100;
+}
+
+function _calcComisionVendedorMiniapp(monto, comisionVendedorPct) {
+  const m   = Number(monto) || 0;
+  const pct = Number(comisionVendedorPct) || 0;
+  return _roundMoney(m * pct / 100);
+}
+
+function _calcPartePlataformaMiniapp(monto) {
+  return _roundMoney((Number(monto) || 0) * MINIAPP_PLATAFORMA_PCT / 100);
+}
+
+function _calcParteCreadorMiniapp(monto, comisionVendedorPct) {
+  const m = Number(monto) || 0;
+  return _roundMoney(Math.max(0, m - _calcPartePlataformaMiniapp(m) - _calcComisionVendedorMiniapp(m, comisionVendedorPct)));
+}
 
 function _slugifyMiniapp(nombre) {
   return String(nombre || '')
@@ -4147,6 +4167,67 @@ app.get('/api/admin/miniapps/cuentas', async (req, res) => {
   }
 });
 
+// GET /api/admin/miniapps/comisiones-vendedores — resumen de comisiones a pagar manualmente
+app.get('/api/admin/miniapps/comisiones-vendedores', async (req, res) => {
+  try {
+    const { data: compras, error: cErr } = await supabase
+      .from('miniapp_compras')
+      .select('vendedor_id, monto, miniapps ( comision_vendedor )')
+      .eq('estado_pago', 'pagado')
+      .not('vendedor_id', 'is', null);
+    if (cErr) throw cErr;
+
+    const byVendedor = {};
+    (compras || []).forEach(function (c) {
+      const vid = c.vendedor_id;
+      if (!vid) return;
+      if (!byVendedor[vid]) {
+        byVendedor[vid] = { vendedor_id: vid, num_ventas: 0, total_comision_a_pagar: 0 };
+      }
+      const mini = c.miniapps || {};
+      const monto = Number(c.monto) || 0;
+      const comPct = Number(mini.comision_vendedor) || 0;
+      byVendedor[vid].num_ventas += 1;
+      byVendedor[vid].total_comision_a_pagar += _calcComisionVendedorMiniapp(monto, comPct);
+    });
+
+    const vendedorIds = Object.keys(byVendedor);
+    const userMap = {};
+    if (vendedorIds.length) {
+      const { data: usuarios, error: uErr } = await supabase
+        .from('usuarios')
+        .select('id, nombre, codigo')
+        .in('id', vendedorIds);
+      if (uErr) throw uErr;
+      (usuarios || []).forEach(function (u) { userMap[u.id] = u; });
+    }
+
+    let totalGeneral = 0;
+    const vendedores = vendedorIds.map(function (vid) {
+      const row = byVendedor[vid];
+      const u = userMap[vid] || {};
+      const total = _roundMoney(row.total_comision_a_pagar);
+      totalGeneral += total;
+      return {
+        vendedor_id:           vid,
+        nombre:                u.nombre || 'Vendedor',
+        codigo:                u.codigo || '',
+        num_ventas:            row.num_ventas,
+        total_comision_a_pagar: total
+      };
+    }).sort(function (a, b) { return b.total_comision_a_pagar - a.total_comision_a_pagar; });
+
+    res.json({
+      ok: true,
+      total_general: _roundMoney(totalGeneral),
+      vendedores
+    });
+  } catch (e) {
+    console.error('[admin/miniapps/comisiones-vendedores]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 // GET /api/admin/miniapps/:slug/html  — HTML completo desde R2 para revision
 app.get('/api/admin/miniapps/:slug/html', async (req, res) => {
   const slug = String(req.params.slug || '').trim();
@@ -4349,6 +4430,52 @@ app.get('/api/ventas/usuario/:usuario_id', async (req, res) => {
     res.json({ ok: true, ventas, resumen });
   } catch (e) {
     console.error('[ventas/usuario]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// GET /api/vendedor/miniapps-comisiones?usuario_id= — comisiones acumuladas del vendedor
+app.get('/api/vendedor/miniapps-comisiones', async (req, res) => {
+  const usuario_id = String(req.query.usuario_id || '').trim();
+  if (!usuario_id) {
+    return res.status(400).json({ ok: false, error: 'Se requiere usuario_id.' });
+  }
+
+  try {
+    const { data: compras, error: cErr } = await supabase
+      .from('miniapp_compras')
+      .select('id, miniapp_id, monto, creado_en, miniapps ( nombre, comision_vendedor )')
+      .eq('vendedor_id', usuario_id)
+      .eq('estado_pago', 'pagado')
+      .order('creado_en', { ascending: false });
+    if (cErr) throw cErr;
+
+    let totalComision = 0;
+    const detalle = (compras || []).map(function (c) {
+      const mini = c.miniapps || {};
+      const monto = Number(c.monto) || 0;
+      const comPct = Number(mini.comision_vendedor) || 0;
+      const comGanada = _calcComisionVendedorMiniapp(monto, comPct);
+      totalComision += comGanada;
+      return {
+        id:                c.id,
+        miniapp_nombre:    mini.nombre || 'Mini app',
+        fecha:             c.creado_en,
+        monto,
+        comision_vendedor: comPct,
+        comision_ganada:   comGanada
+      };
+    });
+
+    console.log('[vendedor/miniapps-comisiones] usuario=' + usuario_id + ' ventas=' + detalle.length);
+    res.json({
+      ok: true,
+      total_ventas:  detalle.length,
+      total_comision: _roundMoney(totalComision),
+      detalle
+    });
+  } catch (e) {
+    console.error('[vendedor/miniapps-comisiones]', e.message);
     res.status(500).json({ ok: false, error: e.message });
   }
 });
@@ -5002,7 +5129,8 @@ app.listen(PORT, () => {
   console.log(`[motor]   GET  http://localhost:${PORT}/p-inner/:slug  (contenido iframe interno)`);
   console.log(`[motor]   GET  http://localhost:${PORT}/checkout  (formulario de envio / digital mini apps)`);
   console.log(`[motor]   GET  http://localhost:${PORT}/api/checkout/info?slug=`);
-  console.log(`[motor]   POST http://localhost:${PORT}/api/miniapp/comprar-prueba`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/api/vendedor/miniapps-comisiones?usuario_id=`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/api/admin/miniapps/comisiones-vendedores`);
   console.log(`[motor]   GET  http://localhost:${PORT}/mi-compra/:codigo`);
   console.log(`[motor]   GET  http://localhost:${PORT}/usar-miniapp/:codigo`);
   console.log(`[motor]   GET  http://localhost:${PORT}/descargar-pdf/:codigo`);
