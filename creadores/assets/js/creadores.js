@@ -3,7 +3,7 @@
 const MOTOR_URL = 'https://motor.ecommerceagents.store';
 
 const CR_SESION_KEY = 'ea_creador_sesion';
-const CR_TABS = ['subir', 'info', 'cuentas'];
+const CR_TABS = ['cuentas', 'subir', 'info'];
 
 var currentCreador = { id: null, nombre: '', email: '' };
 var _htmlMode = 'pegar';
@@ -83,7 +83,7 @@ function mostrarDashboard() {
   document.getElementById('cr-nav-badge').hidden  = false;
   document.getElementById('cr-nav-hola').hidden   = false;
   _actualizarNavNombre();
-  switchCrTab('subir');
+  switchCrTab('cuentas');
 }
 
 function switchAuthTab(tab) {

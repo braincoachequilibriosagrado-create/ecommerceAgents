@@ -77,15 +77,30 @@
   <!-- Dashboard -->
   <div id="cr-dashboard" hidden>
     <nav class="cr-dash-tabs">
-      <button type="button" class="cr-dash-tab active" id="cr-dash-tab-subir" onclick="switchCrTab('subir')">Subir producto</button>
+      <button type="button" class="cr-dash-tab active" id="cr-dash-tab-cuentas" onclick="switchCrTab('cuentas')">Cuentas</button>
+      <button type="button" class="cr-dash-tab" id="cr-dash-tab-subir" onclick="switchCrTab('subir')">Subir producto</button>
       <button type="button" class="cr-dash-tab" id="cr-dash-tab-info" onclick="switchCrTab('info')">Informacion</button>
-      <button type="button" class="cr-dash-tab" id="cr-dash-tab-cuentas" onclick="switchCrTab('cuentas')">Cuentas</button>
     </nav>
 
     <main class="cr-main">
 
+      <!-- CUENTAS -->
+      <section id="cr-panel-cuentas" class="cr-panel active">
+        <div class="cr-stats-row" id="cr-cuentas-stats">
+          <div class="cr-stat-card"><div class="cr-stat-val" id="cr-stat-ventas">—</div><div class="cr-stat-lbl">Ventas totales</div></div>
+          <div class="cr-stat-card"><div class="cr-stat-val" id="cr-stat-ganancia">—</div><div class="cr-stat-lbl">Ganancia total</div></div>
+          <div class="cr-stat-card cr-stat-card--highlight"><div class="cr-stat-val" id="cr-stat-pagar">—</div><div class="cr-stat-lbl">Por pagar</div></div>
+        </div>
+        <div class="cr-card">
+          <h3 class="cr-section-title cr-section-title--sm">Ventas por mini app</h3>
+          <div id="cr-cuentas-tabla" class="cr-table-wrap">
+            <p class="cr-empty">Cargando...</p>
+          </div>
+        </div>
+      </section>
+
       <!-- SUBIR PRODUCTO -->
-      <section id="cr-panel-subir" class="cr-panel active">
+      <section id="cr-panel-subir" class="cr-panel" hidden>
         <div class="cr-card">
           <h2 class="cr-section-title">Publicar mini app</h2>
           <p class="cr-section-sub">Sube el HTML de tu mini app y configura precio y opciones de venta.</p>
@@ -170,24 +185,9 @@
         </div>
       </section>
 
-      <!-- CUENTAS -->
-      <section id="cr-panel-cuentas" class="cr-panel" hidden>
-        <div class="cr-stats-row" id="cr-cuentas-stats">
-          <div class="cr-stat-card"><div class="cr-stat-val" id="cr-stat-ventas">—</div><div class="cr-stat-lbl">Ventas totales</div></div>
-          <div class="cr-stat-card"><div class="cr-stat-val" id="cr-stat-ganancia">—</div><div class="cr-stat-lbl">Ganancia total</div></div>
-          <div class="cr-stat-card cr-stat-card--highlight"><div class="cr-stat-val" id="cr-stat-pagar">—</div><div class="cr-stat-lbl">Por pagar</div></div>
-        </div>
-        <div class="cr-card">
-          <h3 class="cr-section-title cr-section-title--sm">Ventas por mini app</h3>
-          <div id="cr-cuentas-tabla" class="cr-table-wrap">
-            <p class="cr-empty">Cargando...</p>
-          </div>
-        </div>
-      </section>
-
     </main>
   </div>
 
-  <script src="assets/js/creadores.js?v=3"></script>
+  <script src="assets/js/creadores.js?v=4"></script>
 </body>
 </html>
