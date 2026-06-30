@@ -209,6 +209,60 @@ function onHtmlFileSelected(input) {
   reader.readAsText(file);
 }
 
+function previewFoto(input, previewId) {
+  var file = input.files && input.files[0];
+  var img = document.getElementById(previewId);
+  var phId = previewId.replace('-preview', '-ph');
+  var ph = document.getElementById(phId);
+  if (!file) {
+    if (img) { img.hidden = true; img.src = ''; }
+    if (ph) ph.hidden = false;
+    return;
+  }
+  var reader = new FileReader();
+  reader.onload = function (e) {
+    if (img) {
+      img.src = e.target.result;
+      img.hidden = false;
+    }
+    if (ph) ph.hidden = true;
+  };
+  reader.readAsDataURL(file);
+}
+
+function onPdfSelected(input) {
+  var file = input.files && input.files[0];
+  var lbl = document.getElementById('cr-pdf-label');
+  if (lbl) lbl.textContent = file ? file.name : 'Seleccionar PDF';
+}
+
+function _resetSubirForm() {
+  document.getElementById('cr-html-textarea').value = '';
+  document.getElementById('cr-ma-nombre').value = '';
+  document.getElementById('cr-ma-precio').value = '';
+  document.getElementById('cr-ma-precio-promo').value = '';
+  document.getElementById('cr-ma-desc').value = '';
+  document.getElementById('cr-ma-usa-ia').checked = false;
+  document.getElementById('cr-ma-vendedores').checked = false;
+  document.getElementById('cr-ma-comision').value = '';
+  _htmlFromFile = '';
+  var htmlFile = document.getElementById('cr-html-file');
+  if (htmlFile) htmlFile.value = '';
+  var htmlName = document.getElementById('cr-html-file-name');
+  if (htmlName) htmlName.textContent = '';
+  var foto1 = document.getElementById('cr-foto1');
+  var foto2 = document.getElementById('cr-foto2');
+  var pdf = document.getElementById('cr-pdf');
+  if (foto1) foto1.value = '';
+  if (foto2) foto2.value = '';
+  if (pdf) pdf.value = '';
+  previewFoto({ files: [] }, 'cr-foto1-preview');
+  previewFoto({ files: [] }, 'cr-foto2-preview');
+  onPdfSelected({ files: [] });
+  switchHtmlMode('pegar');
+  toggleComisionField();
+}
+
 function _obtenerHtml() {
   if (_htmlMode === 'archivo') return _htmlFromFile.trim();
   return (document.getElementById('cr-html-textarea').value || '').trim();
@@ -224,62 +278,75 @@ function toggleComisionField() {
 
 async function publicarMiniapp() {
   var btn = document.getElementById('cr-ma-publicar-btn');
+  var btnText = document.getElementById('cr-ma-publicar-text');
   var html = _obtenerHtml();
   var nombre = (document.getElementById('cr-ma-nombre').value || '').trim();
   var precio = parseFloat(document.getElementById('cr-ma-precio').value);
+  var precioPromo = parseFloat(document.getElementById('cr-ma-precio-promo').value);
   var descripcion = (document.getElementById('cr-ma-desc').value || '').trim();
-  var imagen_preview = (document.getElementById('cr-ma-preview').value || '').trim();
   var usa_ia = document.getElementById('cr-ma-usa-ia').checked;
   var disponible_vendedores = document.getElementById('cr-ma-vendedores').checked;
   var comision_vendedor = parseFloat(document.getElementById('cr-ma-comision').value) || 0;
+  var foto1Input = document.getElementById('cr-foto1');
+  var foto2Input = document.getElementById('cr-foto2');
+  var pdfInput = document.getElementById('cr-pdf');
 
   if (!html) { _showMsg('cr-subir-msg', 'El HTML no puede estar vacio.', false); return; }
   if (!nombre) { _showMsg('cr-subir-msg', 'El nombre es obligatorio.', false); return; }
-  if (!precio || precio <= 0) { _showMsg('cr-subir-msg', 'Ingresa un precio valido.', false); return; }
+  if (!precio || precio <= 0) { _showMsg('cr-subir-msg', 'Ingresa un precio normal valido.', false); return; }
+  if (!foto1Input || !foto1Input.files || !foto1Input.files[0]) {
+    _showMsg('cr-subir-msg', 'La foto 1 del producto es obligatoria.', false);
+    return;
+  }
+
+  var fd = new FormData();
+  fd.append('html', html);
+  fd.append('nombre', nombre);
+  fd.append('descripcion', descripcion);
+  fd.append('precio', String(precio));
+  if (precioPromo > 0) fd.append('precio_promocion', String(precioPromo));
+  fd.append('usa_ia', usa_ia ? 'true' : 'false');
+  fd.append('disponible_vendedores', disponible_vendedores ? 'true' : 'false');
+  if (disponible_vendedores) fd.append('comision_vendedor', String(comision_vendedor));
+  fd.append('foto1', foto1Input.files[0]);
+  if (foto2Input && foto2Input.files && foto2Input.files[0]) {
+    fd.append('foto2', foto2Input.files[0]);
+  }
+  if (pdfInput && pdfInput.files && pdfInput.files[0]) {
+    fd.append('pdf', pdfInput.files[0]);
+  }
 
   if (btn) btn.disabled = true;
+  if (btnText) btnText.textContent = 'Subiendo...';
   _clearMsg('cr-subir-msg');
 
   try {
     var r = await _creadorFetch(MOTOR_URL + '/api/creador/miniapps/subir', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        html, nombre, descripcion, precio,
-        usa_ia, disponible_vendedores, comision_vendedor, imagen_preview
-      })
+      body: fd
     });
     var d = await r.json();
     if (!d.ok) throw new Error(d.error || 'Error al publicar.');
 
     var link = d.url || (MOTOR_URL + '/miniapps/' + (d.miniapp && d.miniapp.slug));
-    _showMsg('cr-subir-msg', 'Mini app publicada. Slug: ' + d.miniapp.slug + ' | Link: ' + link, true);
+    _showMsg('cr-subir-msg', 'Mini app publicada correctamente. Slug: ' + d.miniapp.slug + ' — ' + link, true);
 
-    document.getElementById('cr-html-textarea').value = '';
-    document.getElementById('cr-ma-nombre').value = '';
-    document.getElementById('cr-ma-precio').value = '';
-    document.getElementById('cr-ma-desc').value = '';
-    document.getElementById('cr-ma-preview').value = '';
-    document.getElementById('cr-ma-usa-ia').checked = false;
-    document.getElementById('cr-ma-vendedores').checked = false;
-    document.getElementById('cr-ma-comision').value = '';
-    _htmlFromFile = '';
-    var fileInput = document.getElementById('cr-html-file');
-    if (fileInput) fileInput.value = '';
-    toggleComisionField();
-
+    _resetSubirForm();
     cargarMiniappsLista();
   } catch (e) {
     _showMsg('cr-subir-msg', e.message || 'Error de conexion.', false);
   } finally {
     if (btn) btn.disabled = false;
+    if (btnText) btnText.textContent = 'Publicar mini app';
   }
 }
 
 async function cargarMiniappsLista() {
   var wrap = document.getElementById('cr-ma-lista');
+  var countEl = document.getElementById('cr-ma-count');
   if (!wrap) return;
   wrap.innerHTML = '<p class="cr-empty">Cargando...</p>';
+  if (countEl) countEl.textContent = '';
 
   try {
     var r = await _creadorFetch(MOTOR_URL + '/api/creador/miniapps');
@@ -287,31 +354,54 @@ async function cargarMiniappsLista() {
     if (!d.ok) throw new Error(d.error || 'Error');
 
     var list = d.miniapps || [];
+    if (countEl) {
+      countEl.textContent = list.length
+        ? list.length + ' producto' + (list.length !== 1 ? 's' : '')
+        : '';
+    }
+
     if (!list.length) {
       wrap.innerHTML = '<p class="cr-empty">Aun no has publicado ninguna mini app.</p>';
       return;
     }
 
     wrap.innerHTML = list.map(function (m) {
+      var imgUrl = MOTOR_URL + '/api/miniapps/asset/' + encodeURIComponent(m.slug) + '/foto1';
+      var tipoLabel = m.tipo_producto === 'html_pdf' ? 'HTML + PDF' : 'HTML';
+      var tipoClass = m.tipo_producto === 'html_pdf' ? 'cr-product-tag--pdf' : 'cr-product-tag--html';
       var iaBadge = m.usa_ia
-        ? '<span class="cr-tag cr-tag--ia">Usa IA</span>'
-        : '<span class="cr-tag">Sin IA</span>';
+        ? '<span class="cr-product-tag cr-product-tag--ia">Usa IA</span>'
+        : '';
       var checked = m.disponible_vendedores ? ' checked' : '';
+
+      var precioHtml = '';
+      if (m.precio_promocion && Number(m.precio_promocion) > 0) {
+        precioHtml =
+          '<span class="cr-product-price-old">' + _fmtUsd(m.precio) + '</span>' +
+          '<span class="cr-product-price-promo">' + _fmtUsd(m.precio_promocion) + '</span>';
+      } else {
+        precioHtml = '<span class="cr-product-price-promo">' + _fmtUsd(m.precio) + '</span>';
+      }
+
       return (
-        '<div class="cr-ma-item" id="cr-ma-item-' + m.id + '">' +
-          '<div class="cr-ma-item-main">' +
-            '<div class="cr-ma-item-name">' + _esc(m.nombre) + '</div>' +
-            '<div class="cr-ma-item-meta">' +
-              '<span class="cr-ma-slug">' + _esc(m.slug) + '</span>' +
-              '<span class="cr-ma-precio">' + _fmtUsd(m.precio) + '</span>' +
+        '<article class="cr-product-card" id="cr-ma-item-' + m.id + '">' +
+          '<div class="cr-product-thumb">' +
+            '<img src="' + imgUrl + '" alt="' + _esc(m.nombre) + '" loading="lazy" onerror="this.parentElement.classList.add(\'cr-product-thumb--empty\')" />' +
+          '</div>' +
+          '<div class="cr-product-body">' +
+            '<h4 class="cr-product-name">' + _esc(m.nombre) + '</h4>' +
+            '<p class="cr-product-slug">' + _esc(m.slug) + '</p>' +
+            '<div class="cr-product-prices">' + precioHtml + '</div>' +
+            '<div class="cr-product-tags">' +
+              '<span class="cr-product-tag ' + tipoClass + '">' + tipoLabel + '</span>' +
               iaBadge +
             '</div>' +
+            '<label class="cr-product-toggle">' +
+              '<input type="checkbox"' + checked + ' onchange="toggleVendedores(\'' + m.id + '\', this.checked)" />' +
+              '<span>Disponible para vendedores</span>' +
+            '</label>' +
           '</div>' +
-          '<label class="cr-toggle">' +
-            '<input type="checkbox"' + checked + ' onchange="toggleVendedores(\'' + m.id + '\', this.checked)" />' +
-            '<span class="cr-toggle-lbl">Disponible para vendedores</span>' +
-          '</label>' +
-        '</div>'
+        '</article>'
       );
     }).join('');
   } catch (e) {

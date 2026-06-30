@@ -111,11 +111,36 @@ async function borrarArchivo(key) {
   }
 }
 
+/**
+ * Obtiene el contenido de un archivo de R2 como Buffer (imagenes, PDF, etc.).
+ * @param {string} key
+ * @returns {Promise<Buffer>}
+ */
+async function obtenerArchivoBuffer(key) {
+  try {
+    const resp = await r2Client.send(new GetObjectCommand({
+      Bucket: R2_BUCKET,
+      Key:    key
+    }));
+    const chunks = [];
+    for await (const chunk of resp.Body) {
+      chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+    }
+    const buf = Buffer.concat(chunks);
+    console.log('[r2] Leido (buffer): ' + key + ' (' + buf.length + ' bytes)');
+    return buf;
+  } catch (e) {
+    console.error('[r2] Error al leer ' + key + ':', e.message);
+    throw e;
+  }
+}
+
 // ── Exports ───────────────────────────────────────────────────────────────────
 module.exports = {
   r2Client,
   R2_BUCKET,
   subirArchivo,
   obtenerArchivo,
+  obtenerArchivoBuffer,
   borrarArchivo
 };

@@ -18,7 +18,7 @@ const SYSTEM_CONTENIDO   = require('./system-contenido');
 const SYSTEM_AVATAR      = require('./system-avatar');
 const agenteVentas       = require('./agente-ventas');
 const supabase           = require('./supabase');
-const { subirArchivo }   = require('./r2');
+const { subirArchivo, obtenerArchivoBuffer } = require('./r2');
 
 const app  = express();
 const PORT = process.env.PORT || 3002;
@@ -131,6 +131,16 @@ const uploadEditorFields   = upload.fields([{ name: 'video', maxCount: 1 }, { na
 const uploadReaccionFields = upload.fields([{ name: 'reaccionMemeFile', maxCount: 1 }]);
 const uploadContenidoImg   = upload.single('imagen');
 const uploadAvatarFields   = upload.fields([{ name: 'fotoAvatar', maxCount: 1 }, { name: 'fotoProducto', maxCount: 1 }]);
+
+// Multer en memoria para subida de mini apps (fotos + PDF a R2)
+const uploadMiniappFields = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 }
+}).fields([
+  { name: 'pdf',   maxCount: 1 },
+  { name: 'foto1', maxCount: 1 },
+  { name: 'foto2', maxCount: 1 }
+]);
 
 // ── CORS — lista blanca de orígenes permitidos ────────────────────────────────
 // Editar aquí para agregar dominios de producción / Vercel / staging.
@@ -1780,35 +1790,101 @@ async function _miniappPerteneceCreador(miniapp_id, creador_id) {
   return data;
 }
 
-// POST /api/creador/miniapps/subir
-app.post('/api/creador/miniapps/subir', requireCreador, async (req, res) => {
-  const {
-    html, nombre, descripcion, precio,
-    usa_ia, disponible_vendedores, comision_vendedor, imagen_preview
-  } = req.body || {};
+function _boolForm(val) {
+  return val === true || val === 'true' || val === '1' || val === 1;
+}
 
-  const htmlContent = String(html || '').trim();
-  const nombreTrim  = String(nombre || '').trim();
-  const precioNum   = Number(precio);
+function _extImagen(mimetype, originalname) {
+  const map = { 'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+  if (map[mimetype]) return map[mimetype];
+  const ext = path.extname(originalname || '').toLowerCase().replace('.', '');
+  if (['jpg', 'jpeg', 'png', 'webp'].includes(ext)) return ext === 'jpeg' ? 'jpg' : ext;
+  return null;
+}
+
+function _mimeFromKey(key) {
+  const ext = path.extname(String(key || '')).toLowerCase();
+  if (ext === '.png')  return 'image/png';
+  if (ext === '.webp') return 'image/webp';
+  if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg';
+  return 'application/octet-stream';
+}
+
+// POST /api/creador/miniapps/subir  (multipart/form-data)
+app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, async (req, res) => {
+  const htmlContent   = String((req.body || {}).html || '').trim();
+  const nombreTrim    = String((req.body || {}).nombre || '').trim();
+  const descripcion     = String((req.body || {}).descripcion || '').trim();
+  const precioNum       = Number((req.body || {}).precio);
+  const precioPromoNum  = Number((req.body || {}).precio_promocion);
+  const usa_ia          = _boolForm((req.body || {}).usa_ia);
+  const dispVendedores  = _boolForm((req.body || {}).disponible_vendedores);
+  const comisionNum     = dispVendedores ? Math.max(0, Number((req.body || {}).comision_vendedor) || 0) : 0;
+
+  const files  = req.files || {};
+  const foto1  = files.foto1 && files.foto1[0];
+  const foto2  = files.foto2 && files.foto2[0];
+  const pdfFile = files.pdf && files.pdf[0];
 
   if (!htmlContent) {
     return res.status(400).json({ ok: false, error: 'El HTML de la mini app no puede estar vacio.' });
+  }
+  if (Buffer.byteLength(htmlContent, 'utf8') > 5 * 1024 * 1024) {
+    return res.status(400).json({ ok: false, error: 'El HTML supera el limite de 5 MB.' });
   }
   if (!nombreTrim) {
     return res.status(400).json({ ok: false, error: 'El nombre es obligatorio.' });
   }
   if (!precioNum || precioNum <= 0) {
-    return res.status(400).json({ ok: false, error: 'El precio es obligatorio y debe ser mayor a 0.' });
+    return res.status(400).json({ ok: false, error: 'El precio normal es obligatorio y debe ser mayor a 0.' });
+  }
+  if (!foto1) {
+    return res.status(400).json({ ok: false, error: 'La foto 1 del producto es obligatoria.' });
+  }
+
+  const ext1 = _extImagen(foto1.mimetype, foto1.originalname);
+  if (!ext1) {
+    return res.status(400).json({ ok: false, error: 'Foto 1: solo se permiten JPG, PNG o WebP.' });
+  }
+  if (foto1.size > 5 * 1024 * 1024) {
+    return res.status(400).json({ ok: false, error: 'Foto 1 supera el limite de 5 MB.' });
+  }
+
+  if (foto2) {
+    const ext2 = _extImagen(foto2.mimetype, foto2.originalname);
+    if (!ext2) return res.status(400).json({ ok: false, error: 'Foto 2: solo se permiten JPG, PNG o WebP.' });
+    if (foto2.size > 5 * 1024 * 1024) return res.status(400).json({ ok: false, error: 'Foto 2 supera el limite de 5 MB.' });
+  }
+
+  if (pdfFile) {
+    if (pdfFile.mimetype !== 'application/pdf' && !String(pdfFile.originalname || '').toLowerCase().endsWith('.pdf')) {
+      return res.status(400).json({ ok: false, error: 'El archivo PDF debe ser .pdf valido.' });
+    }
+    if (pdfFile.size > 50 * 1024 * 1024) {
+      return res.status(400).json({ ok: false, error: 'El PDF supera el limite de 50 MB.' });
+    }
   }
 
   try {
-    const slug  = await _generarSlugMiniappUnico(nombreTrim);
-    const r2Key = 'miniapps/' + slug + '/app.html';
+    const slug     = await _generarSlugMiniappUnico(nombreTrim);
+    const r2Key    = 'miniapps/' + slug + '/app.html';
+    const foto1Key = 'miniapps/' + slug + '/foto1.' + ext1;
+    let foto2Key   = null;
+    let pdfKey     = null;
+    const tipo_producto = pdfFile ? 'html_pdf' : 'html';
 
     await subirArchivo(r2Key, htmlContent, 'text/html');
+    await subirArchivo(foto1Key, foto1.buffer, foto1.mimetype || 'image/jpeg');
 
-    const dispVendedores = Boolean(disponible_vendedores);
-    const comisionNum    = dispVendedores ? Math.max(0, Number(comision_vendedor) || 0) : 0;
+    if (foto2) {
+      const ext2 = _extImagen(foto2.mimetype, foto2.originalname);
+      foto2Key = 'miniapps/' + slug + '/foto2.' + ext2;
+      await subirArchivo(foto2Key, foto2.buffer, foto2.mimetype || 'image/jpeg');
+    }
+    if (pdfFile) {
+      pdfKey = 'miniapps/' + slug + '/producto.pdf';
+      await subirArchivo(pdfKey, pdfFile.buffer, 'application/pdf');
+    }
 
     const { data, error } = await supabase
       .from('miniapps')
@@ -1816,23 +1892,27 @@ app.post('/api/creador/miniapps/subir', requireCreador, async (req, res) => {
         creador_id:            req.creador_id,
         nombre:                nombreTrim,
         slug,
-        descripcion:           String(descripcion || '').trim() || null,
+        descripcion:           descripcion || null,
         precio:                precioNum,
-        usa_ia:                Boolean(usa_ia),
+        precio_promocion:      (precioPromoNum > 0) ? precioPromoNum : null,
+        tipo_producto,
+        usa_ia,
         r2_key:                r2Key,
-        imagen_preview:        String(imagen_preview || '').trim() || null,
+        pdf_key:               pdfKey,
+        foto1_key:             foto1Key,
+        foto2_key:             foto2Key,
         disponible_vendedores: dispVendedores,
         comision_vendedor:     comisionNum,
         parte_plataforma:      CREADOR_PARTE_PLATAFORMA_DEFAULT,
         estado:                'activo',
         creado_en:             new Date().toISOString()
       })
-      .select('id, nombre, slug, precio, usa_ia, disponible_vendedores, comision_vendedor, estado, creado_en, r2_key')
+      .select('id, nombre, slug, precio, precio_promocion, tipo_producto, usa_ia, disponible_vendedores, comision_vendedor, estado, creado_en, r2_key, foto1_key')
       .single();
 
     if (error) throw error;
 
-    console.log('[creador/miniapps/subir] creador=' + req.creador_id + ' slug=' + slug);
+    console.log('[creador/miniapps/subir] creador=' + req.creador_id + ' slug=' + slug + ' tipo=' + tipo_producto);
     res.json({
       ok: true,
       miniapp: data,
@@ -1844,12 +1924,45 @@ app.post('/api/creador/miniapps/subir', requireCreador, async (req, res) => {
   }
 });
 
+// GET /api/miniapps/asset/:slug/:file  — sirve foto1 o foto2 desde R2 (publico)
+app.get('/api/miniapps/asset/:slug/:file', async (req, res) => {
+  const slug = String(req.params.slug || '').trim();
+  const file = String(req.params.file || '').trim();
+
+  if (!slug || !['foto1', 'foto2'].includes(file)) {
+    return res.status(404).json({ ok: false, error: 'No encontrado.' });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('miniapps')
+      .select('foto1_key, foto2_key, estado')
+      .eq('slug', slug)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data || data.estado !== 'activo') {
+      return res.status(404).json({ ok: false, error: 'No encontrado.' });
+    }
+
+    const key = file === 'foto1' ? data.foto1_key : data.foto2_key;
+    if (!key) return res.status(404).json({ ok: false, error: 'Archivo no disponible.' });
+
+    const buf = await obtenerArchivoBuffer(key);
+    res.setHeader('Content-Type', _mimeFromKey(key));
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.send(buf);
+  } catch (e) {
+    console.error('[miniapps/asset]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 // GET /api/creador/miniapps
 app.get('/api/creador/miniapps', requireCreador, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('miniapps')
-      .select('id, nombre, slug, precio, usa_ia, disponible_vendedores, comision_vendedor, estado, creado_en')
+      .select('id, nombre, slug, precio, precio_promocion, tipo_producto, usa_ia, disponible_vendedores, comision_vendedor, estado, creado_en, foto1_key')
       .eq('creador_id', req.creador_id)
       .order('creado_en', { ascending: false });
     if (error) throw error;
