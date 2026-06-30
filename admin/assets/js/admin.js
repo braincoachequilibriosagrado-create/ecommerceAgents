@@ -1854,6 +1854,21 @@ function _maCardHtml(m, modo) {
     acciones += ' <button type="button" class="adm-btn adm-btn--primary adm-btn--xs" onclick="maAprobar(\'' + m.id + '\')">Aprobar</button>';
     acciones += ' <button type="button" class="adm-btn adm-btn--danger adm-btn--xs" onclick="maAbrirRechazo(\'' + m.id + '\')">Rechazar</button>';
   }
+  if (modo === 'aprobada') {
+    var btnGenTxt = m.pagina_venta_slug ? 'Regenerar pagina' : 'Generar pagina de venta';
+    acciones += ' <button type="button" class="adm-btn adm-btn--primary adm-btn--xs" id="ma-gen-btn-' + m.id + '" onclick="maGenerarPagina(\'' + m.id + '\')">' + btnGenTxt + '</button>';
+  }
+
+  var paginaLinkHtml = '';
+  if (modo === 'aprobada' && m.pagina_venta_slug) {
+    var pagLink = PUBLIC_BASE_URL + '/p/' + m.pagina_venta_slug;
+    paginaLinkHtml =
+      '<div class="ma-pagina-link">' +
+        '<span class="adm-td-muted" style="font-size:11px">Pagina de venta:</span> ' +
+        '<a class="adm-link" href="' + _esc(pagLink) + '" target="_blank">' + _esc(pagLink) + '</a> ' +
+        '<button type="button" class="adm-btn adm-btn--sm adm-btn--outline" onclick="pagCopiarLink(\'' + _esc(pagLink) + '\')">Copiar</button>' +
+      '</div>';
+  }
 
   return (
     '<article class="' + cardClass + '">' +
@@ -1866,6 +1881,7 @@ function _maCardHtml(m, modo) {
         '<div class="ma-card-prices">' + _maPrecioHtml(m) + '</div>' +
         '<div class="ma-card-tags">' + tags + '</div>' +
         desc +
+        paginaLinkHtml +
         '<div class="ma-card-actions">' + acciones + '</div>' +
       '</div>' +
     '</article>'
@@ -2049,6 +2065,40 @@ function maConfirmarRechazo(id) {
       renderMiniappsAdmin();
     })
     .catch(function (e) { alert(e.message || 'Error al rechazar.'); });
+}
+
+function maGenerarPagina(id) {
+  var m = _maById(id);
+  if (!m) return;
+  var btn = document.getElementById('ma-gen-btn-' + id);
+  var accion = m.pagina_venta_slug ? 'Regenerar' : 'Generar';
+  if (!confirm(accion + ' la pagina de venta para "' + (m.nombre || 'esta mini app') + '"? Puede tardar unos segundos.')) return;
+
+  if (btn) { btn.disabled = true; btn.textContent = 'Generando...'; }
+
+  _adminFetch(MOTOR_URL + '/api/admin/miniapps/generar-pagina', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ miniapp_id: id })
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d.ok) throw new Error(d.error || 'Error al generar pagina.');
+      if (m) m.pagina_venta_slug = d.pagina_slug;
+      renderMaCards();
+      switchMaSubTab('aprobados');
+      var msg = 'Pagina de venta lista.\n\n' + (d.link || (PUBLIC_BASE_URL + '/p/' + d.pagina_slug));
+      if (confirm(msg + '\n\n¿Abrir la pagina ahora?')) {
+        window.open(d.link || (PUBLIC_BASE_URL + '/p/' + d.pagina_slug), '_blank');
+      }
+    })
+    .catch(function (e) { alert(e.message || 'Error al generar pagina.'); })
+    .finally(function () {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = m && m.pagina_venta_slug ? 'Regenerar pagina' : 'Generar pagina de venta';
+      }
+    });
 }
 
 // Close modal on overlay click

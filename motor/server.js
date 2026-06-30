@@ -19,6 +19,7 @@ const SYSTEM_AVATAR      = require('./system-avatar');
 const agenteVentas       = require('./agente-ventas');
 const supabase           = require('./supabase');
 const { subirArchivo, obtenerArchivo, obtenerArchivoBuffer } = require('./r2');
+const { generarPaginaVentaMiniapp } = require('./generar-pagina-miniapp');
 
 const app  = express();
 const PORT = process.env.PORT || 3002;
@@ -3495,7 +3496,7 @@ app.get('/api/admin/miniapps', async (req, res) => {
       .select(`
         id, nombre, slug, descripcion, precio, precio_promocion, tipo_producto,
         usa_ia, disponible_vendedores, comision_vendedor,
-        estado_aprobacion, motivo_rechazo, foto1_key, foto2_key, creado_en,
+        estado_aprobacion, motivo_rechazo, foto1_key, foto2_key, pagina_venta_slug, creado_en,
         creadores ( nombre, email )
       `)
       .order('creado_en', { ascending: false });
@@ -3525,6 +3526,7 @@ app.get('/api/admin/miniapps', async (req, res) => {
         motivo_rechazo:        m.motivo_rechazo,
         foto1_key:             m.foto1_key,
         foto2_key:             m.foto2_key,
+        pagina_venta_slug:     m.pagina_venta_slug || null,
         creador_nombre:        cr.nombre || '',
         creador_email:         cr.email  || '',
         creado_en:             m.creado_en
@@ -3660,6 +3662,67 @@ app.post('/api/admin/miniapps/aprobar', async (req, res) => {
     res.json({ ok: true, miniapp: data });
   } catch (e) {
     console.error('[admin/miniapps/aprobar]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// POST /api/admin/miniapps/generar-pagina  — Claude vision + Groq + template → paginas_venta
+app.post('/api/admin/miniapps/generar-pagina', async (req, res) => {
+  const { miniapp_id } = req.body || {};
+  if (!miniapp_id) {
+    return res.status(400).json({ ok: false, error: 'Se requiere miniapp_id.' });
+  }
+
+  try {
+    const { data: miniapp, error: mErr } = await supabase
+      .from('miniapps')
+      .select(`
+        id, nombre, slug, descripcion, precio, precio_promocion, tipo_producto,
+        usa_ia, foto1_key, foto2_key, estado_aprobacion, pagina_venta_slug,
+        creadores ( nombre )
+      `)
+      .eq('id', miniapp_id)
+      .single();
+
+    if (mErr || !miniapp) {
+      return res.status(404).json({ ok: false, error: 'Mini app no encontrada.' });
+    }
+    if (miniapp.estado_aprobacion !== 'aprobada') {
+      return res.status(400).json({ ok: false, error: 'Solo se puede generar pagina para mini apps aprobadas.' });
+    }
+    if (!miniapp.foto1_key) {
+      return res.status(400).json({ ok: false, error: 'La mini app no tiene foto principal.' });
+    }
+
+    const cr = miniapp.creadores || {};
+    const result = await generarPaginaVentaMiniapp(
+      {
+        id:                 miniapp.id,
+        nombre:             miniapp.nombre,
+        slug:               miniapp.slug,
+        descripcion:        miniapp.descripcion,
+        precio:             miniapp.precio,
+        precio_promocion:   miniapp.precio_promocion,
+        tipo_producto:      miniapp.tipo_producto,
+        usa_ia:             miniapp.usa_ia,
+        foto1_key:          miniapp.foto1_key,
+        foto2_key:          miniapp.foto2_key,
+        pagina_venta_slug:  miniapp.pagina_venta_slug,
+        creador_nombre:     cr.nombre || ''
+      },
+      {
+        supabase,
+        publicBaseUrl: PUBLIC_BASE_URL,
+        anthropicKey:  process.env.ANTHROPIC_API_KEY,
+        groqKey:       process.env.GROQ_API_KEY
+      }
+    );
+
+    const link = PUBLIC_BASE_URL + '/p/' + result.pagina_slug;
+    console.log('[admin/miniapps/generar-pagina] OK miniapp=' + miniapp_id + ' pagina=' + result.pagina_slug);
+    res.json({ ok: true, pagina_slug: result.pagina_slug, link: link });
+  } catch (e) {
+    console.error('[admin/miniapps/generar-pagina]', e.message);
     res.status(500).json({ ok: false, error: e.message });
   }
 });
