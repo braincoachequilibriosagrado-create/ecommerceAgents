@@ -465,26 +465,42 @@
       </div>
     </section>
 
-    <!-- ===== 7. MINI APPS (aprobacion) ===== -->
+    <!-- ===== 7. MINI APPS ===== -->
     <section id="adm-panel-miniapps" class="adm-panel" role="tabpanel" hidden>
       <div class="adm-panel-header">
         <h2 class="adm-panel-title">Mini Apps</h2>
-        <p class="adm-panel-desc">Revisa las mini apps que suben los creadores. Verifica el HTML, las fotos y aprueba o rechaza antes de que puedan venderse.</p>
+        <p class="adm-panel-desc">Revisa, aprueba y gestiona las mini apps de los creadores.</p>
       </div>
+
+      <nav class="ma-subtabs" role="tablist" aria-label="Secciones Mini Apps">
+        <button type="button" class="ma-subtab-btn active" id="ma-subtab-btn-por-aprobar"
+          onclick="switchMaSubTab('por-aprobar')">Por aprobar</button>
+        <button type="button" class="ma-subtab-btn" id="ma-subtab-btn-aprobados"
+          onclick="switchMaSubTab('aprobados')">Aprobados</button>
+        <button type="button" class="ma-subtab-btn" id="ma-subtab-btn-cuentas"
+          onclick="switchMaSubTab('cuentas')">Cuentas</button>
+      </nav>
 
       <div class="adm-summary-row" id="ma-summary-row"></div>
 
-      <div class="adm-section">
-        <div class="adm-section-toolbar" style="justify-content:space-between;flex-wrap:wrap;gap:10px">
-          <h3 class="adm-section-title">Cola de revision</h3>
-          <div class="ped-filtro-pills" id="ma-filtro-pills">
-            <button type="button" class="ped-filtro-btn active" data-filtro="todas" onclick="maFiltrar('todas')">Todas</button>
-            <button type="button" class="ped-filtro-btn" data-filtro="pendiente" onclick="maFiltrar('pendiente')">Pendientes</button>
-            <button type="button" class="ped-filtro-btn" data-filtro="aprobada" onclick="maFiltrar('aprobada')">Aprobadas</button>
-            <button type="button" class="ped-filtro-btn" data-filtro="rechazada" onclick="maFiltrar('rechazada')">Rechazadas</button>
-          </div>
-        </div>
-        <div id="ma-tabla-wrap"></div>
+      <!-- POR APROBAR -->
+      <div id="ma-panel-por-aprobar" class="ma-subpanel active">
+        <p class="ma-subpanel-hint">Mini apps pendientes de revision. Verifica el HTML y las fotos antes de aprobar.</p>
+        <div id="ma-cards-pendientes" class="ma-cards-grid"></div>
+      </div>
+
+      <!-- APROBADOS -->
+      <div id="ma-panel-aprobados" class="ma-subpanel" hidden>
+        <p class="ma-subpanel-hint">Mini apps ya aprobadas y listas para venta. (Proximamente: pagina de venta y mas vendidos.)</p>
+        <div id="ma-cards-aprobados" class="ma-cards-grid"></div>
+      </div>
+
+      <!-- CUENTAS -->
+      <div id="ma-panel-cuentas" class="ma-subpanel" hidden>
+        <p class="ma-subpanel-hint ma-subpanel-hint--info">
+          Los pagos a creadores se realizan manualmente (efectivo). Aqui se muestra cuanto se debe a cada uno.
+        </p>
+        <div id="ma-cuentas-wrap"></div>
       </div>
     </section>
 
@@ -503,6 +519,6 @@
 
   </div><!-- /adm-main-content -->
 
-  <script src="assets/js/admin.js?v=12"></script>
+  <script src="assets/js/admin.js?v=13"></script>
 </body>
 </html>

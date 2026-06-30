@@ -1797,36 +1797,105 @@ function admCerrarModal() {
   if (overlay) overlay.hidden = true;
 }
 
-/* ── Mini Apps (aprobacion) ──────────────────────────────── */
+/* ── Mini Apps (aprobacion + cuentas) ─────────────────────── */
 
 var _maCache = [];
-var _maFiltroActivo = 'todas';
+var _maSubTabActivo = 'por-aprobar';
+var _maCuentasCache = [];
 
-function _maBadgeEstado(estado) {
-  var map = {
-    pendiente: 'adm-badge--bajo',
-    aprobada:  'adm-badge--ok',
-    rechazada: 'adm-badge--rechazado'
-  };
-  var labels = { pendiente: 'Pendiente', aprobada: 'Aprobada', rechazada: 'Rechazada' };
-  var e = String(estado || 'pendiente').toLowerCase();
-  return '<span class="adm-badge ' + (map[e] || 'adm-badge--bajo') + '">' + _esc(labels[e] || e) + '</span>';
+var MA_SUBTABS = ['por-aprobar', 'aprobados', 'cuentas'];
+
+function switchMaSubTab(tabId) {
+  _maSubTabActivo = tabId;
+  MA_SUBTABS.forEach(function (id) {
+    var panel = document.getElementById('ma-panel-' + id);
+    var btn   = document.getElementById('ma-subtab-btn-' + id);
+    var active = id === tabId;
+    if (panel) { panel.hidden = !active; panel.classList.toggle('active', active); }
+    if (btn)   btn.classList.toggle('active', active);
+  });
+  if (tabId === 'cuentas') {
+    renderMaCuentas();
+  } else {
+    renderMaCards();
+  }
 }
 
-function maFiltrar(filtro) {
-  _maFiltroActivo = filtro;
-  document.querySelectorAll('#ma-filtro-pills .ped-filtro-btn').forEach(function (b) {
-    b.classList.toggle('active', b.getAttribute('data-filtro') === filtro);
-  });
-  renderMiniappsTabla(_maCache);
+function _maPrecioHtml(m) {
+  if (m.precio_promocion && Number(m.precio_promocion) > 0) {
+    return '<span class="ma-price-old">' + _fmt(m.precio) + '</span>' +
+      '<strong class="ma-price-promo">' + _fmt(m.precio_promocion) + '</strong>';
+  }
+  return '<strong class="ma-price-promo">' + _fmt(m.precio) + '</strong>';
+}
+
+function _maCardHtml(m, modo) {
+  var imgUrl = MOTOR_URL + '/api/miniapps/asset/' + encodeURIComponent(m.slug) + '/foto1';
+  var tipo = m.tipo_producto === 'html_pdf' ? 'HTML + PDF' : 'HTML';
+  var cardClass = 'ma-card' + (modo === 'pendiente' ? ' ma-card--pendiente' : ' ma-card--aprobada');
+  var badge = modo === 'aprobada'
+    ? '<span class="adm-badge adm-badge--ok ma-card-badge">Aprobada</span>'
+    : '<span class="adm-badge adm-badge--bajo ma-card-badge">Pendiente</span>';
+
+  var tags = '<span class="adm-badge adm-badge--html">' + tipo + '</span>';
+  if (m.usa_ia) tags += ' <span class="adm-badge adm-badge--pagina">Usa IA</span>';
+  if (m.disponible_vendedores) {
+    tags += ' <span class="adm-badge adm-badge--afiliado">Vendedores ' + Number(m.comision_vendedor || 0) + '%</span>';
+  }
+
+  var desc = m.descripcion
+    ? '<p class="ma-card-desc">' + _esc(m.descripcion) + '</p>'
+    : '';
+
+  var acciones = '';
+  acciones += '<button type="button" class="adm-btn adm-btn--outline adm-btn--xs" onclick="maVerHtmlById(\'' + m.id + '\')">Ver mini app (HTML)</button>';
+  if (modo === 'pendiente') {
+    acciones += ' <button type="button" class="adm-btn adm-btn--outline adm-btn--xs" onclick="maVerFotosById(\'' + m.id + '\')">Ver fotos</button>';
+    acciones += ' <button type="button" class="adm-btn adm-btn--primary adm-btn--xs" onclick="maAprobar(\'' + m.id + '\')">Aprobar</button>';
+    acciones += ' <button type="button" class="adm-btn adm-btn--danger adm-btn--xs" onclick="maAbrirRechazo(\'' + m.id + '\')">Rechazar</button>';
+  }
+
+  return (
+    '<article class="' + cardClass + '">' +
+      badge +
+      '<div class="ma-card-thumb"><img src="' + imgUrl + '" alt="" loading="lazy" onerror="this.parentElement.classList.add(\'ma-card-thumb--err\')" /></div>' +
+      '<div class="ma-card-body">' +
+        '<h4 class="ma-card-title">' + _esc(m.nombre) + '</h4>' +
+        '<p class="ma-card-slug">' + _esc(m.slug) + '</p>' +
+        '<p class="ma-card-creator">' + _esc(m.creador_nombre || '—') + ' · <span class="ma-email">' + _esc(m.creador_email || '') + '</span></p>' +
+        '<div class="ma-card-prices">' + _maPrecioHtml(m) + '</div>' +
+        '<div class="ma-card-tags">' + tags + '</div>' +
+        desc +
+        '<div class="ma-card-actions">' + acciones + '</div>' +
+      '</div>' +
+    '</article>'
+  );
+}
+
+function renderMaCards() {
+  var pendientes = _maCache.filter(function (m) { return (m.estado_aprobacion || 'pendiente') === 'pendiente'; });
+  var aprobadas  = _maCache.filter(function (m) { return m.estado_aprobacion === 'aprobada'; });
+
+  var elP = document.getElementById('ma-cards-pendientes');
+  var elA = document.getElementById('ma-cards-aprobados');
+
+  if (elP) {
+    elP.innerHTML = pendientes.length
+      ? pendientes.map(function (m) { return _maCardHtml(m, 'pendiente'); }).join('')
+      : '<p class="adm-empty-text">No hay mini apps pendientes de aprobacion.</p>';
+  }
+  if (elA) {
+    elA.innerHTML = aprobadas.length
+      ? aprobadas.map(function (m) { return _maCardHtml(m, 'aprobada'); }).join('')
+      : '<p class="adm-empty-text">Aun no hay mini apps aprobadas.</p>';
+  }
 }
 
 function renderMiniappsAdmin() {
-  _maFiltroActivo = 'todas';
-  document.querySelectorAll('#ma-filtro-pills .ped-filtro-btn').forEach(function (b) {
-    b.classList.toggle('active', b.getAttribute('data-filtro') === 'todas');
-  });
-  _setHtml('ma-tabla-wrap', '<p class="adm-empty-text" style="padding:28px">Cargando mini apps...</p>');
+  _maSubTabActivo = 'por-aprobar';
+  switchMaSubTab('por-aprobar');
+  _setHtml('ma-cards-pendientes', '<p class="adm-empty-text" style="padding:28px">Cargando...</p>');
+  _setHtml('ma-cards-aprobados', '');
   _setHtml('ma-summary-row', '');
 
   _adminFetch(MOTOR_URL + '/api/admin/miniapps')
@@ -1837,94 +1906,72 @@ function renderMiniappsAdmin() {
 
       var pendientes = _maCache.filter(function (m) { return (m.estado_aprobacion || 'pendiente') === 'pendiente'; }).length;
       var aprobadas  = _maCache.filter(function (m) { return m.estado_aprobacion === 'aprobada'; }).length;
-      var rechazadas = _maCache.filter(function (m) { return m.estado_aprobacion === 'rechazada'; }).length;
 
       _setHtml('ma-summary-row',
-        _statCard('<span style="color:#b8973a">' + pendientes + '</span>', 'Pendientes') +
+        _statCard('<span style="color:#b8973a">' + pendientes + '</span>', 'Por aprobar') +
         _statCard('<span style="color:#2E7D32">' + aprobadas + '</span>', 'Aprobadas') +
-        _statCard('<span style="color:#c0392b">' + rechazadas + '</span>', 'Rechazadas') +
-        _statCard(_maCache.length, 'Total')
+        _statCard(_maCache.length, 'Total publicadas')
       );
 
-      renderMiniappsTabla(_maCache);
+      renderMaCards();
     })
     .catch(function (e) {
-      _setHtml('ma-tabla-wrap',
-        '<p class="adm-empty-text" style="color:#c0392b;padding:28px">Error al cargar mini apps: ' +
-        _esc(e.message) + '</p>');
+      _setHtml('ma-cards-pendientes',
+        '<p class="adm-empty-text" style="color:#c0392b;padding:28px">Error: ' + _esc(e.message) + '</p>');
     });
 }
 
-function renderMiniappsTabla(arr) {
-  var filtro = _maFiltroActivo;
-  var filtered = filtro === 'todas'
-    ? arr
-    : arr.filter(function (m) { return (m.estado_aprobacion || 'pendiente') === filtro; });
+function renderMaCuentas() {
+  var wrap = document.getElementById('ma-cuentas-wrap');
+  if (!wrap) return;
+  wrap.innerHTML = '<p class="adm-empty-text" style="padding:28px">Cargando cuentas...</p>';
 
-  if (!arr.length) {
-    _setHtml('ma-tabla-wrap', '<p class="adm-empty-text">Aun no hay mini apps publicadas por creadores.</p>');
-    return;
-  }
-  if (!filtered.length) {
-    _setHtml('ma-tabla-wrap', '<p class="adm-empty-text">No hay mini apps en este filtro.</p>');
-    return;
-  }
+  _adminFetch(MOTOR_URL + '/api/admin/miniapps/cuentas')
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (!data.ok) throw new Error(data.error || 'Error del servidor.');
+      _maCuentasCache = data.cuentas || [];
 
-  var rows = filtered.map(function (m) {
-    var estado = (m.estado_aprobacion || 'pendiente').toLowerCase();
-    var rowClass = estado === 'pendiente' ? ' ma-row--pendiente' : '';
-    var imgUrl = MOTOR_URL + '/api/miniapps/asset/' + encodeURIComponent(m.slug) + '/foto1';
-    var tipo = m.tipo_producto === 'html_pdf' ? 'HTML + PDF' : 'HTML';
-    var iaBadge = m.usa_ia
-      ? '<span class="adm-badge adm-badge--pagina">Usa IA</span>'
-      : '<span class="adm-badge adm-badge--inactivo">Sin IA</span>';
-    var vendBadge = m.disponible_vendedores
-      ? '<span class="adm-badge adm-badge--afiliado">Vendedores ' + Number(m.comision_vendedor || 0) + '%</span>'
-      : '<span class="adm-badge adm-badge--inactivo">Sin vendedores</span>';
+      if (!_maCuentasCache.length) {
+        wrap.innerHTML = '<p class="adm-empty-text">No hay creadores con mini apps registradas.</p>';
+        return;
+      }
 
-    var precioHtml = _fmt(m.precio);
-    if (m.precio_promocion && Number(m.precio_promocion) > 0) {
-      precioHtml = '<span class="ma-price-old">' + _fmt(m.precio) + '</span> ' +
-        '<strong class="ma-price-promo">' + _fmt(m.precio_promocion) + '</strong>';
-    }
+      var rows = _maCuentasCache.map(function (c) {
+        return '<tr>' +
+          '<td class="adm-td-name">' + _esc(c.creador_nombre || '—') + '</td>' +
+          '<td class="ma-email">' + _esc(c.creador_email || '') + '</td>' +
+          '<td>' + (c.num_ventas || 0) + '</td>' +
+          '<td class="adm-td-money">' + _fmt(c.total_generado) + '</td>' +
+          '<td class="adm-td-money ma-td-pagar"><strong>' + _fmt(c.total_a_pagar) + '</strong></td>' +
+        '</tr>';
+      }).join('');
 
-    var motivoHtml = '';
-    if (estado === 'rechazada' && m.motivo_rechazo) {
-      motivoHtml = '<div class="ma-motivo-rechazo">Motivo: ' + _esc(m.motivo_rechazo) + '</div>';
-    }
+      wrap.innerHTML =
+        '<div class="adm-table-wrap">' +
+        '<table class="adm-table ma-cuentas-table">' +
+        '<thead><tr><th>Creador</th><th>Email</th><th>Ventas</th><th>Total generado</th><th>Total a pagar</th></tr></thead>' +
+        '<tbody>' + rows + '</tbody></table></div>';
+    })
+    .catch(function (e) {
+      wrap.innerHTML = '<p class="adm-empty-text" style="color:#c0392b">Error: ' + _esc(e.message) + '</p>';
+    });
+}
 
-    var acciones = '';
-    acciones += '<button type="button" class="adm-btn adm-btn--outline adm-btn--xs" onclick="maVerHtml(\'' + _esc(m.slug) + '\')">Ver HTML</button> ';
-    acciones += '<button type="button" class="adm-btn adm-btn--outline adm-btn--xs" onclick="maVerFotos(\'' + _esc(m.slug) + '\',' + (m.foto2_key ? 'true' : 'false') + ')">Ver fotos</button> ';
-    if (estado !== 'aprobada') {
-      acciones += '<button type="button" class="adm-btn adm-btn--primary adm-btn--xs" onclick="maAprobar(\'' + m.id + '\')">Aprobar</button> ';
-    }
-    if (estado !== 'rechazada') {
-      acciones += '<button type="button" class="adm-btn adm-btn--danger adm-btn--xs" onclick="maAbrirRechazo(\'' + m.id + '\')">Rechazar</button>';
-    }
+function _maById(id) {
+  return _maCache.filter(function (x) { return x.id === id; })[0];
+}
 
-    return (
-      '<tr class="ma-row' + rowClass + '">' +
-        '<td class="ma-cell-thumb"><img src="' + imgUrl + '" alt="" class="ma-thumb" loading="lazy" onerror="this.classList.add(\'ma-thumb--err\')" /></td>' +
-        '<td><strong>' + _esc(m.nombre) + '</strong><div class="ma-slug">' + _esc(m.slug) + '</div>' + motivoHtml + '</td>' +
-        '<td><div>' + _esc(m.creador_nombre || '—') + '</div><div class="ma-email">' + _esc(m.creador_email || '') + '</div></td>' +
-        '<td>' + precioHtml + '</td>' +
-        '<td><span class="adm-badge adm-badge--html">' + tipo + '</span></td>' +
-        '<td>' + iaBadge + '</td>' +
-        '<td>' + vendBadge + '</td>' +
-        '<td>' + _maBadgeEstado(estado) + '</td>' +
-        '<td class="ma-cell-actions">' + acciones + '</td>' +
-      '</tr>'
-    );
-  }).join('');
+function maVerHtmlById(id) {
+  var m = _maById(id);
+  if (!m) return;
+  maVerHtml(m.slug);
+}
 
-  _setHtml('ma-tabla-wrap',
-    '<div class="adm-table-wrap ma-table-wrap">' +
-    '<table class="adm-table ma-table">' +
-    '<thead><tr>' +
-      '<th>Foto</th><th>Mini app</th><th>Creador</th><th>Precio</th><th>Tipo</th><th>IA</th><th>Vendedores</th><th>Estado</th><th>Acciones</th>' +
-    '</tr></thead><tbody>' + rows + '</tbody></table></div>'
-  );
+function maVerFotosById(id) {
+  var m = _maById(id);
+  if (!m) return;
+  maVerFotos(m.slug, !!m.foto2_key);
 }
 
 function maVerHtml(slug) {
@@ -1956,7 +2003,7 @@ function maVerFotos(slug, tieneFoto2) {
 }
 
 function maAprobar(id) {
-  var m = _maCache.filter(function (x) { return x.id === id; })[0];
+  var m = _maById(id);
   var nombre = m ? m.nombre : 'esta mini app';
   if (!confirm('Aprobar la mini app "' + nombre + '"? Podra venderse una vez aprobada.')) return;
   _adminFetch(MOTOR_URL + '/api/admin/miniapps/aprobar', {
@@ -1973,7 +2020,7 @@ function maAprobar(id) {
 }
 
 function maAbrirRechazo(id) {
-  var m = _maCache.filter(function (x) { return x.id === id; })[0];
+  var m = _maById(id);
   var nombre = m ? m.nombre : 'Mini app';
   admAbrirModal('Rechazar mini app',
     '<p class="adm-modal-desc">Indica el motivo del rechazo para "' + _esc(nombre) + '". El creador podra verlo.</p>' +

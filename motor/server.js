@@ -3538,6 +3538,78 @@ app.get('/api/admin/miniapps', async (req, res) => {
   }
 });
 
+// GET /api/admin/miniapps/cuentas  — resumen de ventas y deuda a creadores
+app.get('/api/admin/miniapps/cuentas', async (req, res) => {
+  try {
+    const { data: miniapps, error: mErr } = await supabase
+      .from('miniapps')
+      .select('id, creador_id, parte_plataforma, comision_vendedor, creadores ( nombre, email )');
+    if (mErr) throw mErr;
+
+    const miniMap = {};
+    const byCreador = {};
+
+    (miniapps || []).forEach(function (m) {
+      miniMap[m.id] = m;
+      if (!byCreador[m.creador_id]) {
+        const cr = m.creadores || {};
+        byCreador[m.creador_id] = {
+          creador_id:     m.creador_id,
+          creador_nombre: cr.nombre || '',
+          creador_email:  cr.email  || '',
+          num_ventas:     0,
+          total_generado: 0,
+          total_a_pagar:  0
+        };
+      }
+    });
+
+    const miniIds = Object.keys(miniMap);
+    if (miniIds.length) {
+      const { data: compras, error: cErr } = await supabase
+        .from('miniapp_compras')
+        .select('miniapp_id, monto, vendedor_id, estado_pago')
+        .eq('estado_pago', 'pagado')
+        .in('miniapp_id', miniIds);
+      if (cErr) throw cErr;
+
+      (compras || []).forEach(function (c) {
+        const mini = miniMap[c.miniapp_id];
+        if (!mini || !byCreador[mini.creador_id]) return;
+
+        const monto    = Number(c.monto) || 0;
+        const platPct  = Number(mini.parte_plataforma) || 10;
+        const comPct   = c.vendedor_id ? (Number(mini.comision_vendedor) || 0) : 0;
+        const parteVend  = monto * comPct / 100;
+        const partePlat  = monto * platPct / 100;
+        const parteCreador = monto - parteVend - partePlat;
+
+        const row = byCreador[mini.creador_id];
+        row.num_ventas     += 1;
+        row.total_generado += monto;
+        row.total_a_pagar  += parteCreador;
+      });
+    }
+
+    const cuentas = Object.values(byCreador)
+      .map(function (r) {
+        return {
+          creador_nombre: r.creador_nombre,
+          creador_email:  r.creador_email,
+          num_ventas:     r.num_ventas,
+          total_generado: Math.round(r.total_generado * 100) / 100,
+          total_a_pagar:  Math.round(r.total_a_pagar * 100) / 100
+        };
+      })
+      .sort(function (a, b) { return b.total_a_pagar - a.total_a_pagar; });
+
+    res.json({ ok: true, cuentas });
+  } catch (e) {
+    console.error('[admin/miniapps/cuentas]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 // GET /api/admin/miniapps/:slug/html  — HTML completo desde R2 para revision
 app.get('/api/admin/miniapps/:slug/html', async (req, res) => {
   const slug = String(req.params.slug || '').trim();
