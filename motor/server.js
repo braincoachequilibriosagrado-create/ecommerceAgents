@@ -155,6 +155,8 @@ const ORIGENES_PERMITIDOS = [
   'https://ecommerceagents.store',
   'https://www.ecommerceagents.store',
   'https://admin.ecommerceagents.store',
+  'https://motor.ecommerceagents.store',
+  'http://motor.ecommerceagents.store',
   'https://ecommerce-agents-mauve.vercel.app',  // app usuario en Vercel
   'https://ecommerce-admin-eta-ten.vercel.app', // admin en Vercel
   'http://localhost:3003',  // panel creadores (local)
