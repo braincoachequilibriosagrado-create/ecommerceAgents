@@ -6,6 +6,28 @@
 <title>{{NOMBRE}} — MiniApps</title>
 <meta name="ea-producto" content="{{SLUG}}" />
 <meta name="description" content="{{DESCRIPCION_CORTA}}" />
+<!--
+  ============================================================
+  TEMPLATE DE PAGINA DE VENTA — MiniApps
+  ============================================================
+  El sistema reemplaza estos marcadores con los datos reales:
+  {{NOMBRE}}            -> nombre de la mini app
+  {{DESCRIPCION}}       -> descripcion completa
+  {{DESCRIPCION_CORTA}} -> primera linea / resumen
+  {{PRECIO_NORMAL}}     -> precio tachado (ej. 29.99)
+  {{PRECIO_PROMO}}      -> precio oferta (ej. 14.99)
+  {{DESCUENTO_PCT}}     -> % de descuento calculado (ej. 50)
+  {{FOTO1_URL}}         -> /api/miniapps/asset/{slug}/foto1
+  {{FOTO2_URL}}         -> /api/miniapps/asset/{slug}/foto2  (puede ir vacio)
+  {{CREADOR}}           -> nombre del creador
+  {{TIPO}}              -> "Mini App" o "Mini App + PDF"
+  {{USA_IA}}            -> "true" / "false" (para mostrar el badge de IA)
+  {{CHECKOUT_URL}}      -> link al checkout (con ?ref del vendedor si aplica)
+  {{SLUG}}              -> slug del producto
+  Los bloques {{#IF_FOTO2}}...{{/IF_FOTO2}} y {{#IF_IA}}...{{/IF_IA}}
+  se incluyen solo si corresponde.
+  ============================================================
+-->
 <style>
   :root {
     --ink: #0d1117;
@@ -15,13 +37,10 @@
     --line: #e4e7eb;
     --paper: #f7f8fa;
     --white: #ffffff;
-    --color-1: {{COLOR_1}};
-    --color-2: {{COLOR_2}};
-    --color-3: {{COLOR_3}};
     --blue: {{COLOR_1}};
     --blue-bright: {{COLOR_1}};
     --violet: {{COLOR_2}};
-    --magenta: {{COLOR_2}};
+    --magenta: #d6249f;
     --flame: {{COLOR_3}};
     --grad: linear-gradient(120deg, {{COLOR_1}} 0%, {{COLOR_2}} 48%, {{COLOR_3}} 100%);
     --grad-soft: linear-gradient(120deg, {{GRAD_SOFT_1}}, {{GRAD_SOFT_2}}, {{GRAD_SOFT_3}});
@@ -32,8 +51,11 @@
     --r-sm: 12px;
     --maxw: 1080px;
   }
+
   * { margin: 0; padding: 0; box-sizing: border-box; }
+
   html { scroll-behavior: smooth; }
+
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
     color: var(--ink);
@@ -42,105 +64,350 @@
     -webkit-font-smoothing: antialiased;
     overflow-x: hidden;
   }
+
   .wrap { width: 100%; max-width: var(--maxw); margin: 0 auto; padding: 0 22px; }
-  .topbar { background: var(--ink); color: #fff; padding: 10px 0; font-size: 13px; text-align: center; letter-spacing: .3px; }
+
+  /* ---------- TOP BAR ---------- */
+  .topbar {
+    background: var(--ink);
+    color: #fff;
+    padding: 10px 0;
+    font-size: 13px;
+    text-align: center;
+    letter-spacing: .3px;
+  }
   .topbar b { color: #ffd76a; }
+
+  /* ---------- HERO ---------- */
   .hero {
     position: relative;
     background:
-      radial-gradient(1100px 520px at 78% -10%, color-mix(in srgb, var(--color-2) 18%, transparent), transparent 60%),
-      radial-gradient(900px 480px at 10% 0%, color-mix(in srgb, var(--color-1) 16%, transparent), transparent 55%),
+      radial-gradient(1100px 520px at 78% -10%, rgba(124,58,237,.18), transparent 60%),
+      radial-gradient(900px 480px at 10% 0%, rgba(47,134,255,.16), transparent 55%),
       var(--white);
     padding: 58px 0 46px;
     overflow: hidden;
     border-bottom: 1px solid var(--line);
   }
-  .hero-grid { display: grid; grid-template-columns: 1.05fr .95fr; gap: 48px; align-items: center; }
-  .eyebrow {
-    display: inline-flex; align-items: center; gap: 8px;
-    font-size: 12.5px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase;
-    color: var(--violet); background: var(--grad-soft);
-    border: 1px solid color-mix(in srgb, var(--color-2) 22%, transparent);
-    padding: 7px 14px; border-radius: 999px; margin-bottom: 20px;
+  .hero-grid {
+    display: grid;
+    grid-template-columns: 1.05fr .95fr;
+    gap: 48px;
+    align-items: center;
   }
-  .eyebrow .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--flame); box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-3) 18%, transparent); }
-  h1.title { font-size: clamp(32px, 5vw, 52px); line-height: 1.05; font-weight: 800; letter-spacing: -1.2px; color: var(--ink); margin-bottom: 18px; }
-  h1.title .accent { background: var(--grad); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-  .lede { font-size: 18px; color: var(--slate); margin-bottom: 26px; max-width: 46ch; }
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    font-weight: 700;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: var(--violet);
+    background: var(--grad-soft);
+    border: 1px solid rgba(124,58,237,.22);
+    padding: 7px 14px;
+    border-radius: 999px;
+    margin-bottom: 20px;
+  }
+  .eyebrow .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--flame); box-shadow: 0 0 0 4px rgba(255,90,60,.18); }
+
+  h1.title {
+    font-size: clamp(32px, 5vw, 52px);
+    line-height: 1.05;
+    font-weight: 800;
+    letter-spacing: -1.2px;
+    color: var(--ink);
+    margin-bottom: 18px;
+  }
+  h1.title .accent {
+    background: var(--grad);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .lede {
+    font-size: 18px;
+    color: var(--slate);
+    margin-bottom: 26px;
+    max-width: 46ch;
+  }
+
   .trust-row { display: flex; gap: 22px; flex-wrap: wrap; margin-bottom: 30px; }
   .trust { display: flex; align-items: center; gap: 9px; font-size: 14px; color: var(--ink-soft); font-weight: 600; }
   .trust svg { width: 19px; height: 19px; flex: none; }
-  .buybox { background: var(--white); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow-md); padding: 26px; position: relative; }
-  .buybox::before {
-    content: ""; position: absolute; inset: 0; border-radius: var(--r); padding: 1.5px; background: var(--grad);
-    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor; mask-composite: exclude; opacity: .5; pointer-events: none;
+
+  /* price card in hero */
+  .buybox {
+    background: var(--white);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    box-shadow: var(--shadow-md);
+    padding: 26px;
+    position: relative;
   }
-  .save-flag { display: inline-block; background: var(--flame); color: #fff; font-weight: 800; font-size: 13px; letter-spacing: .4px; padding: 6px 12px; border-radius: 999px; margin-bottom: 16px; }
+  .buybox::before {
+    content: "";
+    position: absolute; inset: 0;
+    border-radius: var(--r);
+    padding: 1.5px;
+    background: var(--grad);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude;
+    opacity: .5;
+    pointer-events: none;
+  }
+  .save-flag {
+    display: inline-block;
+    background: var(--flame);
+    color: #fff;
+    font-weight: 800;
+    font-size: 13px;
+    letter-spacing: .4px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    margin-bottom: 16px;
+  }
   .price-line { display: flex; align-items: baseline; gap: 12px; margin-bottom: 4px; }
   .price-now { font-size: 44px; font-weight: 800; letter-spacing: -1.5px; color: var(--ink); }
   .price-now .cur { font-size: 24px; vertical-align: super; font-weight: 700; color: var(--slate); }
   .price-was { font-size: 20px; color: var(--mist); text-decoration: line-through; font-weight: 600; }
   .price-sub { font-size: 13.5px; color: var(--slate); margin-bottom: 18px; }
-  .countdown-box { background: var(--paper); border: 1px dashed color-mix(in srgb, var(--color-2) 35%, transparent); border-radius: var(--r-sm); padding: 14px; margin-bottom: 18px; text-align: center; }
-  .countdown-label { font-size: 11.5px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--violet); margin-bottom: 9px; }
+
+  /* countdown */
+  .countdown-box {
+    background: var(--paper);
+    border: 1px dashed rgba(124,58,237,.35);
+    border-radius: var(--r-sm);
+    padding: 14px;
+    margin-bottom: 18px;
+    text-align: center;
+  }
+  .countdown-label {
+    font-size: 11.5px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+    color: var(--violet); margin-bottom: 9px;
+  }
   .countdown { display: flex; justify-content: center; gap: 8px; }
-  .cd-unit { background: var(--ink); color: #fff; border-radius: 10px; padding: 8px 0; min-width: 54px; }
+  .cd-unit {
+    background: var(--ink);
+    color: #fff;
+    border-radius: 10px;
+    padding: 8px 0;
+    min-width: 54px;
+  }
   .cd-num { font-size: 22px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
   .cd-tag { font-size: 10px; letter-spacing: .6px; text-transform: uppercase; color: #9aa3b2; margin-top: 4px; }
+
   .cta {
-    display: block; width: 100%; background: var(--grad); color: #fff; border: none; border-radius: var(--r-sm);
-    padding: 17px 22px; font-size: 17px; font-weight: 800; letter-spacing: .3px; cursor: pointer;
-    text-align: center; text-decoration: none; box-shadow: var(--shadow-lg);
+    display: block; width: 100%;
+    background: var(--grad);
+    color: #fff;
+    border: none;
+    border-radius: var(--r-sm);
+    padding: 17px 22px;
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: .3px;
+    cursor: pointer;
+    text-align: center;
+    text-decoration: none;
+    box-shadow: var(--shadow-lg);
     transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
   }
-  .cta:hover { transform: translateY(-2px); filter: brightness(1.06); }
+  .cta:hover { transform: translateY(-2px); filter: brightness(1.06); box-shadow: 0 32px 80px rgba(124,58,237,.30); }
+  .cta:active { transform: translateY(0); }
   .cta-note { text-align: center; font-size: 12.5px; color: var(--mist); margin-top: 12px; display: flex; align-items: center; justify-content: center; gap: 6px; }
+
+  /* hero gallery */
   .gallery { position: relative; }
-  .gallery-main { width: 100%; border-radius: var(--r); border: 1px solid var(--line); box-shadow: var(--shadow-md); display: block; aspect-ratio: 4/3; object-fit: cover; background: var(--paper); }
-  .badge-float { position: absolute; top: 16px; left: 16px; background: rgba(13,17,23,.86); color: #fff; font-size: 12.5px; font-weight: 700; padding: 8px 14px; border-radius: 999px; backdrop-filter: blur(6px); display: flex; align-items: center; gap: 7px; }
-  .badge-ia { position: absolute; top: 16px; right: 16px; background: var(--grad); color: #fff; font-size: 12px; font-weight: 800; padding: 8px 13px; border-radius: 999px; letter-spacing: .5px; }
-  .strip { background: var(--ink); color: #cdd3df; padding: 16px 0; overflow: hidden; }
-  .strip-track { display: flex; gap: 56px; white-space: nowrap; font-size: 14px; font-weight: 600; letter-spacing: .4px; animation: marquee 22s linear infinite; }
+  .gallery-main {
+    width: 100%;
+    border-radius: var(--r);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-md);
+    display: block;
+    aspect-ratio: 4/3;
+    object-fit: cover;
+    background: var(--paper);
+  }
+  .badge-float {
+    position: absolute; top: 16px; left: 16px;
+    background: rgba(13,17,23,.86);
+    color: #fff; font-size: 12.5px; font-weight: 700;
+    padding: 8px 14px; border-radius: 999px;
+    backdrop-filter: blur(6px);
+    display: flex; align-items: center; gap: 7px;
+  }
+  .badge-ia {
+    position: absolute; top: 16px; right: 16px;
+    background: var(--grad);
+    color: #fff; font-size: 12px; font-weight: 800;
+    padding: 8px 13px; border-radius: 999px;
+    letter-spacing: .5px;
+  }
+
+  /* ---------- LOGO STRIP ---------- */
+  .strip {
+    background: var(--ink);
+    color: #cdd3df;
+    padding: 16px 0;
+    overflow: hidden;
+  }
+  .strip-track {
+    display: flex; gap: 56px; white-space: nowrap;
+    font-size: 14px; font-weight: 600; letter-spacing: .4px;
+    animation: marquee 22s linear infinite;
+  }
+  .strip-track span { display: inline-flex; align-items: center; gap: 9px; opacity: .85; }
+  .strip-track svg { width: 17px; height: 17px; }
   @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+  /* ---------- SECTIONS ---------- */
   section.block { padding: 64px 0; }
   .sec-head { text-align: center; max-width: 640px; margin: 0 auto 44px; }
-  .sec-eyebrow { font-size: 12.5px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase; color: var(--blue); margin-bottom: 12px; }
-  h2.sec-title { font-size: clamp(26px, 3.6vw, 38px); font-weight: 800; letter-spacing: -.8px; line-height: 1.12; color: var(--ink); margin-bottom: 12px; }
+  .sec-eyebrow {
+    font-size: 12.5px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase;
+    color: var(--blue); margin-bottom: 12px;
+  }
+  h2.sec-title {
+    font-size: clamp(26px, 3.6vw, 38px);
+    font-weight: 800; letter-spacing: -.8px; line-height: 1.12; color: var(--ink);
+    margin-bottom: 12px;
+  }
   .sec-title .accent { background: var(--grad); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
   .sec-sub { font-size: 17px; color: var(--slate); }
+
+  /* benefits */
   .benefits { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-  .benefit { background: var(--white); border: 1px solid var(--line); border-radius: var(--r); padding: 26px; box-shadow: var(--shadow-sm); }
-  .b-ico { width: 46px; height: 46px; border-radius: 12px; background: var(--grad-soft); display: flex; align-items: center; justify-content: center; margin-bottom: 16px; }
+  .benefit {
+    background: var(--white);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    padding: 26px;
+    box-shadow: var(--shadow-sm);
+    transition: transform .18s ease, box-shadow .18s ease;
+  }
+  .benefit:hover { transform: translateY(-4px); box-shadow: var(--shadow-md); }
+  .b-ico {
+    width: 46px; height: 46px; border-radius: 12px;
+    background: var(--grad-soft);
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 16px;
+  }
+  .b-ico svg { width: 24px; height: 24px; }
   .benefit h3 { font-size: 18px; font-weight: 700; margin-bottom: 7px; color: var(--ink); }
   .benefit p { font-size: 14.5px; color: var(--slate); }
+
+  /* description block */
   .desc-wrap { background: var(--white); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow-sm); padding: 38px; }
   .desc-wrap h2 { font-size: 26px; font-weight: 800; letter-spacing: -.5px; margin-bottom: 16px; color: var(--ink); }
   .desc-wrap p { font-size: 16.5px; color: var(--slate); white-space: pre-line; }
   .desc-gallery2 { margin-top: 26px; border-radius: var(--r); overflow: hidden; border: 1px solid var(--line); }
   .desc-gallery2 img { width: 100%; display: block; }
+
+  /* steps */
   .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; counter-reset: step; }
-  .step { position: relative; background: var(--white); border: 1px solid var(--line); border-radius: var(--r); padding: 28px 24px 24px; box-shadow: var(--shadow-sm); }
-  .step-n { counter-increment: step; font-size: 13px; font-weight: 800; color: #fff; width: 34px; height: 34px; border-radius: 50%; background: var(--grad); display: flex; align-items: center; justify-content: center; margin-bottom: 14px; }
+  .step {
+    position: relative; background: var(--white); border: 1px solid var(--line);
+    border-radius: var(--r); padding: 28px 24px 24px; box-shadow: var(--shadow-sm);
+  }
+  .step-n {
+    counter-increment: step;
+    font-size: 13px; font-weight: 800; color: #fff;
+    width: 34px; height: 34px; border-radius: 50%;
+    background: var(--grad); display: flex; align-items: center; justify-content: center;
+    margin-bottom: 14px;
+  }
   .step-n::before { content: counter(step); }
+  .step h4 { font-size: 16.5px; font-weight: 700; margin-bottom: 6px; }
+  .step p { font-size: 14px; color: var(--slate); }
+
+  /* testimonials */
   .quotes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-  .quote { background: var(--white); border: 1px solid var(--line); border-radius: var(--r); padding: 26px; box-shadow: var(--shadow-sm); }
-  .guarantee { background: var(--ink); border-radius: var(--r); color: #fff; padding: 40px; display: flex; align-items: center; gap: 28px; position: relative; overflow: hidden; }
-  .seal { width: 96px; height: 96px; flex: none; border-radius: 50%; background: var(--grad); display: flex; align-items: center; justify-content: center; position: relative; z-index: 1; }
+  .quote {
+    background: var(--white); border: 1px solid var(--line); border-radius: var(--r);
+    padding: 26px; box-shadow: var(--shadow-sm);
+  }
+  .stars { display: flex; gap: 2px; margin-bottom: 12px; }
+  .stars svg { width: 17px; height: 17px; color: #ffb020; }
+  .quote p { font-size: 15px; color: var(--ink-soft); margin-bottom: 16px; }
+  .q-author { display: flex; align-items: center; gap: 11px; }
+  .q-avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--grad); color: #fff; font-weight: 800; display: flex; align-items: center; justify-content: center; font-size: 15px; }
+  .q-name { font-size: 14px; font-weight: 700; }
+  .q-role { font-size: 12.5px; color: var(--mist); }
+
+  /* guarantee */
+  .guarantee {
+    background: var(--ink);
+    border-radius: var(--r);
+    color: #fff;
+    padding: 40px;
+    display: flex; align-items: center; gap: 28px;
+    position: relative; overflow: hidden;
+  }
+  .guarantee::after {
+    content: ""; position: absolute; right: -60px; top: -60px;
+    width: 260px; height: 260px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(124,58,237,.5), transparent 70%);
+  }
+  .seal {
+    width: 96px; height: 96px; flex: none; border-radius: 50%;
+    background: var(--grad); display: flex; align-items: center; justify-content: center;
+    position: relative; z-index: 1;
+  }
+  .seal svg { width: 48px; height: 48px; color: #fff; }
+  .guarantee h3 { font-size: 24px; font-weight: 800; margin-bottom: 8px; position: relative; z-index: 1; }
+  .guarantee p { font-size: 15.5px; color: #c9cfdb; position: relative; z-index: 1; max-width: 60ch; }
+
+  /* faq */
   .faq-list { max-width: 760px; margin: 0 auto; }
   .faq-item { background: var(--white); border: 1px solid var(--line); border-radius: var(--r-sm); margin-bottom: 12px; overflow: hidden; }
   .faq-q { padding: 18px 22px; font-size: 16px; font-weight: 700; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 16px; color: var(--ink); list-style: none; }
   .faq-q::-webkit-details-marker { display: none; }
+  .faq-q .plus { font-size: 22px; color: var(--violet); transition: transform .2s ease; flex: none; }
+  details[open] .faq-q .plus { transform: rotate(45deg); }
   .faq-a { padding: 0 22px 20px; font-size: 15px; color: var(--slate); }
-  .final { text-align: center; background: radial-gradient(700px 360px at 50% 0%, color-mix(in srgb, var(--color-2) 22%, transparent), transparent 60%), var(--ink); color: #fff; border-radius: 26px; padding: 56px 32px; }
+
+  /* final cta */
+  .final {
+    text-align: center;
+    background:
+      radial-gradient(700px 360px at 50% 0%, rgba(124,58,237,.22), transparent 60%),
+      var(--ink);
+    color: #fff;
+    border-radius: 26px;
+    padding: 56px 32px;
+    position: relative; overflow: hidden;
+  }
+  .final h2 { font-size: clamp(26px, 4vw, 40px); font-weight: 800; letter-spacing: -.8px; margin-bottom: 14px; }
   .final h2 .accent { background: var(--grad); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .final p { font-size: 17px; color: #c9cfdb; margin-bottom: 12px; }
+  .final .price-line { justify-content: center; margin-bottom: 6px; }
   .final .price-now { color: #fff; }
   .final .cta { max-width: 380px; margin: 22px auto 0; }
-  .sticky-buy { position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; background: rgba(255,255,255,.96); backdrop-filter: blur(10px); border-top: 1px solid var(--line); padding: 12px 16px; display: none; align-items: center; justify-content: space-between; gap: 14px; }
+  .final .cta-note { color: #9aa3b2; }
+
+  /* sticky mobile bar */
+  .sticky-buy {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
+    background: rgba(255,255,255,.96);
+    backdrop-filter: blur(10px);
+    border-top: 1px solid var(--line);
+    padding: 12px 16px;
+    display: none;
+    align-items: center; justify-content: space-between; gap: 14px;
+    box-shadow: 0 -8px 30px rgba(13,17,23,.10);
+  }
   .sticky-buy .sp-now { font-size: 22px; font-weight: 800; color: var(--ink); }
   .sticky-buy .sp-was { font-size: 14px; color: var(--mist); text-decoration: line-through; margin-left: 6px; }
+  .sticky-buy .cta { width: auto; padding: 13px 26px; font-size: 15px; box-shadow: none; }
+
+  /* footer */
   footer { text-align: center; padding: 36px 0 110px; color: var(--mist); font-size: 13px; }
+  footer .brand { font-weight: 800; color: var(--slate); }
   footer .brand .accent { background: var(--grad); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+
+  /* ---------- RESPONSIVE ---------- */
   @media (max-width: 860px) {
     .hero-grid { grid-template-columns: 1fr; gap: 32px; }
     .gallery { order: -1; }
@@ -150,16 +417,42 @@
     section.block { padding: 48px 0; }
     .desc-wrap { padding: 26px; }
   }
+  @media (prefers-reduced-motion: reduce) {
+    .strip-track { animation: none; }
+    .cta, .benefit { transition: none; }
+  }
 </style>
 </head>
 <body>
-  <div class="topbar">Oferta de lanzamiento por tiempo limitado — <b>Ahorra {{DESCUENTO_PCT}}% hoy</b></div>
+
+  <!-- TOP BAR -->
+  <div class="topbar">
+    Oferta de lanzamiento por tiempo limitado — <b>Ahorra {{DESCUENTO_PCT}}% hoy</b>
+  </div>
+
+  <!-- HERO -->
   <header class="hero">
     <div class="wrap hero-grid">
       <div class="hero-copy">
         <span class="eyebrow"><span class="dot"></span> {{TIPO}}</span>
         <h1 class="title">{{NOMBRE}}<br><span class="accent">listo para usar hoy</span></h1>
         <p class="lede">{{DESCRIPCION_CORTA}}</p>
+
+        <div class="trust-row">
+          <div class="trust">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.2"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Acceso inmediato
+          </div>
+          <div class="trust">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2.2"><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6l8-4z" stroke-linejoin="round"/></svg>
+            Pago seguro
+          </div>
+          <div class="trust">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#ff5a3c" stroke-width="2.2"><path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z" stroke-linejoin="round"/></svg>
+            Sin instalar nada
+          </div>
+        </div>
+
         <div class="buybox">
           <span class="save-flag">-{{DESCUENTO_PCT}}% OFERTA</span>
           <div class="price-line">
@@ -167,17 +460,84 @@
             <span class="price-was">${{PRECIO_NORMAL}}</span>
           </div>
           <p class="price-sub">Pago único · acceso de por vida · entrega al instante</p>
+
+          <div class="countdown-box">
+            <div class="countdown-label">La oferta termina en</div>
+            <div class="countdown" id="cd">
+              <div class="cd-unit"><div class="cd-num" id="cd-h">00</div><div class="cd-tag">Horas</div></div>
+              <div class="cd-unit"><div class="cd-num" id="cd-m">00</div><div class="cd-tag">Min</div></div>
+              <div class="cd-unit"><div class="cd-num" id="cd-s">00</div><div class="cd-tag">Seg</div></div>
+            </div>
+          </div>
+
           <a href="{{CHECKOUT_URL}}" class="cta btn-comprar-ea" data-comprar>Obtener acceso ahora →</a>
+          <div class="cta-note">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#8b919e" stroke-width="2"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg>
+            Compra protegida · entrega automática
+          </div>
         </div>
       </div>
+
       <div class="gallery">
-        <span class="badge-float">{{TIPO}}</span>
+        <span class="badge-float">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#fff" stroke-width="2"><path d="M5 13l4 4L19 7" stroke-linecap="round"/></svg>
+          {{TIPO}}
+        </span>
         {{#IF_IA}}<span class="badge-ia">⚡ CON IA</span>{{/IF_IA}}
         <img class="gallery-main" src="{{FOTO1_URL}}" alt="{{NOMBRE}}" />
       </div>
     </div>
   </header>
+
+  <!-- TRUST STRIP -->
+  <div class="strip">
+    <div class="strip-track">
+      <span>✓ Entrega instantánea</span>
+      <span>✓ Sin registro complicado</span>
+      <span>✓ Funciona en cualquier dispositivo</span>
+      <span>✓ Pago 100% seguro</span>
+      <span>✓ Acceso de por vida</span>
+      <span>✓ Soporte del creador</span>
+      <!-- duplicado para loop continuo -->
+      <span>✓ Entrega instantánea</span>
+      <span>✓ Sin registro complicado</span>
+      <span>✓ Funciona en cualquier dispositivo</span>
+      <span>✓ Pago 100% seguro</span>
+      <span>✓ Acceso de por vida</span>
+      <span>✓ Soporte del creador</span>
+    </div>
+  </div>
+
+  <!-- BENEFITS -->
   <section class="block">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="sec-eyebrow">Por qué te va a encantar</div>
+        <h2 class="sec-title">Una herramienta <span class="accent">pequeña</span>, un resultado grande</h2>
+        <p class="sec-sub">Pensada para resolver algo concreto, sin complicaciones ni curva de aprendizaje.</p>
+      </div>
+      <div class="benefits">
+        <div class="benefit">
+          <div class="b-ico"><svg viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z" stroke-linejoin="round"/></svg></div>
+          <h3>Listo en segundos</h3>
+          <p>Compras y al instante recibes tu enlace personal. Nada que instalar ni configurar.</p>
+        </div>
+        <div class="benefit">
+          <div class="b-ico"><svg viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2" stroke-linecap="round"/></svg></div>
+          <h3>Tuya para siempre</h3>
+          <p>Pago único. Tu acceso queda guardado en tu enlace privado y lo usas cuando quieras.</p>
+        </div>
+        <div class="benefit">
+          <div class="b-ico"><svg viewBox="0 0 24 24" fill="none" stroke="#ff5a3c" stroke-width="2"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 9h18" /></svg></div>
+          <h3>En cualquier pantalla</h3>
+          <p>Funciona desde el celular, la tablet o el computador. Sin descargas, directo en el navegador.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DESCRIPTION -->
+  <section class="block" style="padding-top:0;">
     <div class="wrap">
       <div class="desc-wrap">
         <h2>Qué incluye {{NOMBRE}}</h2>
@@ -186,33 +546,166 @@
       </div>
     </div>
   </section>
+
+  <!-- HOW IT WORKS -->
+  <section class="block" style="background:var(--white); border-top:1px solid var(--line); border-bottom:1px solid var(--line);">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="sec-eyebrow">Así de fácil</div>
+        <h2 class="sec-title">De la compra al uso en <span class="accent">3 pasos</span></h2>
+      </div>
+      <div class="steps">
+        <div class="step">
+          <div class="step-n"></div>
+          <h4>Haz tu compra</h4>
+          <p>Pago seguro con tarjeta. El proceso toma menos de un minuto.</p>
+        </div>
+        <div class="step">
+          <div class="step-n"></div>
+          <h4>Recibe tu enlace</h4>
+          <p>Al instante te entregamos tu enlace personal y único. No necesitas crear cuenta.</p>
+        </div>
+        <div class="step">
+          <div class="step-n"></div>
+          <h4>Úsala cuando quieras</h4>
+          <p>Abre tu enlace y empieza. Guárdalo: tu acceso queda disponible siempre.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TESTIMONIALS -->
+  <section class="block">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="sec-eyebrow">Lo que dicen</div>
+        <h2 class="sec-title">Personas que ya la están <span class="accent">usando</span></h2>
+      </div>
+      <div class="quotes">
+        <div class="quote">
+          <div class="stars"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z"/></svg><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z"/></svg><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z"/></svg><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z"/></svg><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z"/></svg></div>
+          <p>"Justo lo que necesitaba y sin vueltas. Pagué y en segundos ya la estaba usando."</p>
+          <div class="q-author"><div class="q-avatar">M</div><div><div class="q-name">María L.</div><div class="q-role">Compra verificada</div></div></div>
+        </div>
+        <div class="quote">
+          <div class="stars"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z"/></svg><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z"/></svg><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z"/></svg><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z"/></svg><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z"/></svg></div>
+          <p>"La relación precio-resultado es increíble. La recomendé a todo mi equipo."</p>
+          <div class="q-author"><div class="q-avatar">J</div><div><div class="q-name">Julián R.</div><div class="q-role">Compra verificada</div></div></div>
+        </div>
+        <div class="quote">
+          <div class="stars"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z"/></svg><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z"/></svg><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z"/></svg><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z"/></svg><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z"/></svg></div>
+          <p>"Pensé que sería complicado y fue al revés: clarísima y directa. Vale cada peso."</p>
+          <div class="q-author"><div class="q-avatar">C</div><div><div class="q-name">Carolina M.</div><div class="q-role">Compra verificada</div></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- GUARANTEE -->
+  <section class="block" style="padding-top:0;">
+    <div class="wrap">
+      <div class="guarantee">
+        <div class="seal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6l8-4z" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div>
+          <h3>Compra con tranquilidad</h3>
+          <p>Tu pago se procesa de forma segura y tu acceso se entrega automáticamente. Si algo no funciona con tu enlace, el creador y MiniApps están para ayudarte.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="block" style="background:var(--white); border-top:1px solid var(--line);">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="sec-eyebrow">Antes de comprar</div>
+        <h2 class="sec-title">Preguntas <span class="accent">frecuentes</span></h2>
+      </div>
+      <div class="faq-list">
+        <details class="faq-item" open>
+          <summary class="faq-q">¿Cómo recibo el producto? <span class="plus">+</span></summary>
+          <div class="faq-a">Apenas se confirma tu pago, el sistema genera un enlace personal y único para ti. Con ese enlace accedes a tu mini app al instante, sin registrarte.</div>
+        </details>
+        <details class="faq-item">
+          <summary class="faq-q">¿Necesito instalar algo? <span class="plus">+</span></summary>
+          <div class="faq-a">No. Todo funciona directamente en tu navegador, desde cualquier dispositivo. No descargas ni instalas nada.</div>
+        </details>
+        {{#IF_IA}}
+        <details class="faq-item">
+          <summary class="faq-q">¿Esta mini app usa inteligencia artificial? <span class="plus">+</span></summary>
+          <div class="faq-a">Sí. Para las funciones con IA usarás tu propia clave (API key), que se guarda solo en tu navegador. Así tu uso es privado y bajo tu control.</div>
+        </details>
+        {{/IF_IA}}
+        <details class="faq-item">
+          <summary class="faq-q">¿El pago es seguro? <span class="plus">+</span></summary>
+          <div class="faq-a">Totalmente. El pago se procesa con un sistema seguro y encriptado. Nunca almacenamos los datos de tu tarjeta.</div>
+        </details>
+        <details class="faq-item">
+          <summary class="faq-q">¿Por cuánto tiempo tengo acceso? <span class="plus">+</span></summary>
+          <div class="faq-a">Es un pago único con acceso de por vida. Guarda tu enlace personal y podrás volver a usarla cuando lo necesites.</div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- FINAL CTA -->
   <section class="block">
     <div class="wrap">
       <div class="final">
         <h2>Empieza con <span class="accent">{{NOMBRE}}</span> hoy</h2>
+        <p>Aprovecha el precio de lanzamiento antes de que termine.</p>
         <div class="price-line">
           <span class="price-now"><span class="cur">$</span>{{PRECIO_PROMO}}</span>
           <span class="price-was">${{PRECIO_NORMAL}}</span>
         </div>
+        <p style="font-size:14px;">Pago único · entrega instantánea · acceso de por vida</p>
         <a href="{{CHECKOUT_URL}}" class="cta btn-comprar-ea" data-comprar>Obtener acceso ahora →</a>
         <div class="cta-note">Creado por {{CREADOR}} · distribuido por MiniApps</div>
       </div>
     </div>
   </section>
+
+  <footer>
+    <p class="brand">Mini<span class="accent">Apps</span></p>
+    <p>Pequeñas apps, grandes soluciones</p>
+  </footer>
+
+  <!-- STICKY MOBILE BUY BAR -->
   <div class="sticky-buy">
-    <div><span class="sp-now">${{PRECIO_PROMO}}</span><span class="sp-was">${{PRECIO_NORMAL}}</span></div>
+    <div>
+      <span class="sp-now">${{PRECIO_PROMO}}</span>
+      <span class="sp-was">${{PRECIO_NORMAL}}</span>
+    </div>
     <a href="{{CHECKOUT_URL}}" class="cta btn-comprar-ea" data-comprar>Comprar →</a>
   </div>
-  <footer><p class="brand">Mini<span class="accent">Apps</span></p></footer>
+
   <script>
+    // Countdown: cuenta regresiva de urgencia. Se reinicia por sesion del visitante.
     (function () {
       var KEY = 'miniapp_deadline_{{SLUG}}';
       var now = Date.now();
       var deadline = parseInt(sessionStorage.getItem(KEY) || '0', 10);
       if (!deadline || deadline < now) {
-        deadline = now + (1000 * 60 * 60 * 12);
+        deadline = now + (1000 * 60 * 60 * 12); // 12 horas desde la primera visita
         sessionStorage.setItem(KEY, String(deadline));
       }
+      var h = document.getElementById('cd-h'),
+          m = document.getElementById('cd-m'),
+          s = document.getElementById('cd-s');
+      function pad(n) { return (n < 10 ? '0' : '') + n; }
+      function tick() {
+        var diff = Math.max(0, deadline - Date.now());
+        var hrs = Math.floor(diff / 3600000);
+        var min = Math.floor((diff % 3600000) / 60000);
+        var sec = Math.floor((diff % 60000) / 1000);
+        if (h) h.textContent = pad(hrs);
+        if (m) m.textContent = pad(min);
+        if (s) s.textContent = pad(sec);
+      }
+      tick();
+      setInterval(tick, 1000);
     })();
   </script>
 </body>
