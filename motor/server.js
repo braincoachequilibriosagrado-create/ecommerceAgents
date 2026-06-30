@@ -143,8 +143,7 @@ const ORIGENES_PERMITIDOS = [
   'https://ecommerce-agents-mauve.vercel.app',  // app usuario en Vercel
   'https://ecommerce-admin-eta-ten.vercel.app', // admin en Vercel
   'http://localhost:3003',  // panel creadores (local)
-  // TODO: agregar URL del panel de creadores en Vercel cuando esté desplegado
-  //   (ej. 'https://ecommerce-creadores.vercel.app')
+  'https://ecommerce-creadores.vercel.app',     // panel creadores en Vercel
 ];
 
 const _corsOpts = {
