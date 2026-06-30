@@ -18,7 +18,7 @@ const SYSTEM_CONTENIDO   = require('./system-contenido');
 const SYSTEM_AVATAR      = require('./system-avatar');
 const agenteVentas       = require('./agente-ventas');
 const supabase           = require('./supabase');
-const { subirArchivo, obtenerArchivoBuffer } = require('./r2');
+const { subirArchivo, obtenerArchivo, obtenerArchivoBuffer } = require('./r2');
 
 const app  = express();
 const PORT = process.env.PORT || 3002;
@@ -1905,6 +1905,7 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
         comision_vendedor:     comisionNum,
         parte_plataforma:      CREADOR_PARTE_PLATAFORMA_DEFAULT,
         estado:                'activo',
+        estado_aprobacion:     'pendiente',
         creado_en:             new Date().toISOString()
       })
       .select('id, nombre, slug, precio, precio_promocion, tipo_producto, usa_ia, disponible_vendedores, comision_vendedor, estado, creado_en, r2_key, foto1_key')
@@ -3478,6 +3479,148 @@ app.post('/api/admin/pedidos/manual', async (req, res) => {
     res.json({ ok: true, pedido: pd });
   } catch (e) {
     console.error('[admin/pedidos/manual]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ── Admin: Mini Apps (aprobacion) ─────────────────────────────────────────────
+
+const MINIAPP_APROB_ESTADOS = ['pendiente', 'aprobada', 'rechazada'];
+
+// GET /api/admin/miniapps  — lista con datos del creador (?estado=pendiente|aprobada|rechazada)
+app.get('/api/admin/miniapps', async (req, res) => {
+  try {
+    let query = supabase
+      .from('miniapps')
+      .select(`
+        id, nombre, slug, descripcion, precio, precio_promocion, tipo_producto,
+        usa_ia, disponible_vendedores, comision_vendedor,
+        estado_aprobacion, motivo_rechazo, foto1_key, foto2_key, creado_en,
+        creadores ( nombre, email )
+      `)
+      .order('creado_en', { ascending: false });
+
+    const estado = String(req.query.estado || '').trim().toLowerCase();
+    if (estado && MINIAPP_APROB_ESTADOS.includes(estado)) {
+      query = query.eq('estado_aprobacion', estado);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    const miniapps = (data || []).map(function (m) {
+      const cr = m.creadores || {};
+      return {
+        id:                    m.id,
+        nombre:                m.nombre,
+        slug:                  m.slug,
+        descripcion:           m.descripcion,
+        precio:                m.precio,
+        precio_promocion:      m.precio_promocion,
+        tipo_producto:         m.tipo_producto,
+        usa_ia:                m.usa_ia,
+        disponible_vendedores: m.disponible_vendedores,
+        comision_vendedor:     m.comision_vendedor,
+        estado_aprobacion:     m.estado_aprobacion || 'pendiente',
+        motivo_rechazo:        m.motivo_rechazo,
+        foto1_key:             m.foto1_key,
+        foto2_key:             m.foto2_key,
+        creador_nombre:        cr.nombre || '',
+        creador_email:         cr.email  || '',
+        creado_en:             m.creado_en
+      };
+    });
+
+    res.json({ ok: true, miniapps });
+  } catch (e) {
+    console.error('[admin/miniapps GET]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// GET /api/admin/miniapps/:slug/html  — HTML completo desde R2 para revision
+app.get('/api/admin/miniapps/:slug/html', async (req, res) => {
+  const slug = String(req.params.slug || '').trim();
+  if (!slug) return res.status(400).json({ ok: false, error: 'Slug requerido.' });
+
+  try {
+    const { data, error } = await supabase
+      .from('miniapps')
+      .select('r2_key, nombre')
+      .eq('slug', slug)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data || !data.r2_key) {
+      return res.status(404).json({ ok: false, error: 'Mini app no encontrada.' });
+    }
+
+    const html = await obtenerArchivo(data.r2_key);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  } catch (e) {
+    console.error('[admin/miniapps/html]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// POST /api/admin/miniapps/aprobar
+app.post('/api/admin/miniapps/aprobar', async (req, res) => {
+  const { miniapp_id } = req.body || {};
+  if (!miniapp_id) {
+    return res.status(400).json({ ok: false, error: 'Se requiere miniapp_id.' });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('miniapps')
+      .update({
+        estado_aprobacion: 'aprobada',
+        motivo_rechazo:    null,
+        fecha_revision:    new Date().toISOString()
+      })
+      .eq('id', miniapp_id)
+      .select('id, nombre, slug, estado_aprobacion, fecha_revision')
+      .single();
+    if (error) throw error;
+    if (!data) return res.status(404).json({ ok: false, error: 'Mini app no encontrada.' });
+
+    console.log('[admin/miniapps/aprobar] id=' + miniapp_id);
+    res.json({ ok: true, miniapp: data });
+  } catch (e) {
+    console.error('[admin/miniapps/aprobar]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// POST /api/admin/miniapps/rechazar
+app.post('/api/admin/miniapps/rechazar', async (req, res) => {
+  const { miniapp_id, motivo } = req.body || {};
+  if (!miniapp_id) {
+    return res.status(400).json({ ok: false, error: 'Se requiere miniapp_id.' });
+  }
+  const motivoTrim = String(motivo || '').trim();
+  if (!motivoTrim) {
+    return res.status(400).json({ ok: false, error: 'El motivo de rechazo es obligatorio.' });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('miniapps')
+      .update({
+        estado_aprobacion: 'rechazada',
+        motivo_rechazo:    motivoTrim,
+        fecha_revision:    new Date().toISOString()
+      })
+      .eq('id', miniapp_id)
+      .select('id, nombre, slug, estado_aprobacion, motivo_rechazo, fecha_revision')
+      .single();
+    if (error) throw error;
+    if (!data) return res.status(404).json({ ok: false, error: 'Mini app no encontrada.' });
+
+    console.log('[admin/miniapps/rechazar] id=' + miniapp_id);
+    res.json({ ok: true, miniapp: data });
+  } catch (e) {
+    console.error('[admin/miniapps/rechazar]', e.message);
     res.status(500).json({ ok: false, error: e.message });
   }
 });

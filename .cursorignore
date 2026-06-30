@@ -1,0 +1,27 @@
+﻿# Dependencias
+node_modules/
+motor/node_modules/
+# Git interno
+.git/
+# Secretos
+.env
+.env.*
+motor/.env
+motor/baileys-auth/
+# Temporales / generados
+motor/temp/
+motor/outputs/
+*.log
+# Lockfiles
+package-lock.json
+**/package-lock.json
+# Assets binarios grandes
+ecommerceAgent/assets/images/
+ecommerceAgent/assets/img/
+**/*.gif
+**/*.png
+**/*.jpg
+**/*.jpeg
+**/*.webp
+**/*.mp4
+**/*.pdf

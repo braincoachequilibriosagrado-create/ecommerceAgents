@@ -1719,3 +1719,127 @@ body {
     gap: 4px;
   }
 }
+
+/* ── Mini Apps (aprobacion) ─────────────────────────────── */
+.adm-btn--xs {
+  padding: 5px 10px;
+  font-size: 9px;
+  letter-spacing: 1.2px;
+}
+
+.ma-table-wrap {
+  overflow-x: auto;
+}
+
+.ma-table .ma-cell-thumb {
+  width: 72px;
+  padding: 8px 10px;
+}
+
+.ma-thumb {
+  width: 56px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid var(--adm-border, #e8ddd0);
+  display: block;
+  background: #f5f0ea;
+}
+
+.ma-thumb--err {
+  opacity: 0.35;
+}
+
+.ma-slug {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--adm-muted, #9B9189);
+  margin-top: 3px;
+}
+
+.ma-email {
+  font-size: 11px;
+  color: var(--adm-muted, #9B9189);
+  margin-top: 2px;
+}
+
+.ma-price-old {
+  text-decoration: line-through;
+  color: var(--adm-muted, #9B9189);
+  font-size: 12px;
+  margin-right: 4px;
+}
+
+.ma-price-promo {
+  color: var(--adm-gold, #b89368);
+}
+
+.ma-row--pendiente {
+  background: rgba(184, 151, 58, 0.06);
+}
+
+.ma-row--pendiente td:first-child {
+  box-shadow: inset 3px 0 0 var(--adm-amber, #b8973a);
+}
+
+.ma-cell-actions {
+  white-space: nowrap;
+}
+
+.ma-cell-actions .adm-btn {
+  margin: 2px 2px 2px 0;
+}
+
+.ma-motivo-rechazo {
+  font-size: 11px;
+  color: var(--adm-red, #c0392b);
+  margin-top: 6px;
+  max-width: 220px;
+  line-height: 1.4;
+}
+
+.ma-fotos-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.ma-foto-block {
+  text-align: center;
+}
+
+.ma-foto-label {
+  font-family: 'Syne', sans-serif;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--adm-muted, #9B9189);
+  margin-bottom: 8px;
+}
+
+.ma-foto-lg {
+  max-width: 100%;
+  max-height: 360px;
+  border-radius: 6px;
+  border: 1px solid var(--adm-border, #e8ddd0);
+}
+
+.ma-rechazo-input {
+  width: 100%;
+  min-height: 90px;
+  margin: 12px 0 16px;
+  resize: vertical;
+}
+
+.ma-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.adm-modal-desc {
+  font-size: 13px;
+  color: var(--adm-muted, #9B9189);
+  line-height: 1.5;
+  margin-bottom: 4px;
+}

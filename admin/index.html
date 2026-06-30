@@ -65,6 +65,8 @@
       onclick="switchAdminTab('cuentas')">Cuentas</button>
     <button class="adm-tab-btn" id="adm-tab-btn-pedidos" role="tab" aria-selected="false"
       onclick="switchAdminTab('pedidos')">Pedidos</button>
+    <button class="adm-tab-btn" id="adm-tab-btn-miniapps" role="tab" aria-selected="false"
+      onclick="switchAdminTab('miniapps')">Mini Apps</button>
   </nav>
 
   <!-- MAIN CONTENT -->
@@ -463,6 +465,29 @@
       </div>
     </section>
 
+    <!-- ===== 7. MINI APPS (aprobacion) ===== -->
+    <section id="adm-panel-miniapps" class="adm-panel" role="tabpanel" hidden>
+      <div class="adm-panel-header">
+        <h2 class="adm-panel-title">Mini Apps</h2>
+        <p class="adm-panel-desc">Revisa las mini apps que suben los creadores. Verifica el HTML, las fotos y aprueba o rechaza antes de que puedan venderse.</p>
+      </div>
+
+      <div class="adm-summary-row" id="ma-summary-row"></div>
+
+      <div class="adm-section">
+        <div class="adm-section-toolbar" style="justify-content:space-between;flex-wrap:wrap;gap:10px">
+          <h3 class="adm-section-title">Cola de revision</h3>
+          <div class="ped-filtro-pills" id="ma-filtro-pills">
+            <button type="button" class="ped-filtro-btn active" data-filtro="todas" onclick="maFiltrar('todas')">Todas</button>
+            <button type="button" class="ped-filtro-btn" data-filtro="pendiente" onclick="maFiltrar('pendiente')">Pendientes</button>
+            <button type="button" class="ped-filtro-btn" data-filtro="aprobada" onclick="maFiltrar('aprobada')">Aprobadas</button>
+            <button type="button" class="ped-filtro-btn" data-filtro="rechazada" onclick="maFiltrar('rechazada')">Rechazadas</button>
+          </div>
+        </div>
+        <div id="ma-tabla-wrap"></div>
+      </div>
+    </section>
+
   </main>
 
   <!-- Modal generico -->
@@ -478,6 +503,6 @@
 
   </div><!-- /adm-main-content -->
 
-  <script src="assets/js/admin.js?v=11"></script>
+  <script src="assets/js/admin.js?v=12"></script>
 </body>
 </html>

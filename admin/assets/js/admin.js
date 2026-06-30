@@ -196,7 +196,7 @@ function _setHtml(id, html) {
    TAB SWITCHING
    ============================================================ */
 
-var ADMIN_TABS = ['inventario', 'catalogo', 'paginas', 'usuarios', 'cuentas', 'pedidos'];
+var ADMIN_TABS = ['inventario', 'catalogo', 'paginas', 'usuarios', 'cuentas', 'pedidos', 'miniapps'];
 
 function switchAdminTab(tabId) {
   ADMIN_TABS.forEach(function (id) {
@@ -212,6 +212,7 @@ function switchAdminTab(tabId) {
   if (tabId === 'usuarios')   renderUsuarios();
   if (tabId === 'cuentas')    renderCuentasAdmin();
   if (tabId === 'pedidos')    renderPedidos();
+  if (tabId === 'miniapps')   renderMiniappsAdmin();
 }
 
 /* ============================================================
@@ -1794,6 +1795,213 @@ function admAbrirModal(titulo, cuerpo) {
 function admCerrarModal() {
   var overlay = document.getElementById('adm-modal');
   if (overlay) overlay.hidden = true;
+}
+
+/* ── Mini Apps (aprobacion) ──────────────────────────────── */
+
+var _maCache = [];
+var _maFiltroActivo = 'todas';
+
+function _maBadgeEstado(estado) {
+  var map = {
+    pendiente: 'adm-badge--bajo',
+    aprobada:  'adm-badge--ok',
+    rechazada: 'adm-badge--rechazado'
+  };
+  var labels = { pendiente: 'Pendiente', aprobada: 'Aprobada', rechazada: 'Rechazada' };
+  var e = String(estado || 'pendiente').toLowerCase();
+  return '<span class="adm-badge ' + (map[e] || 'adm-badge--bajo') + '">' + _esc(labels[e] || e) + '</span>';
+}
+
+function maFiltrar(filtro) {
+  _maFiltroActivo = filtro;
+  document.querySelectorAll('#ma-filtro-pills .ped-filtro-btn').forEach(function (b) {
+    b.classList.toggle('active', b.getAttribute('data-filtro') === filtro);
+  });
+  renderMiniappsTabla(_maCache);
+}
+
+function renderMiniappsAdmin() {
+  _maFiltroActivo = 'todas';
+  document.querySelectorAll('#ma-filtro-pills .ped-filtro-btn').forEach(function (b) {
+    b.classList.toggle('active', b.getAttribute('data-filtro') === 'todas');
+  });
+  _setHtml('ma-tabla-wrap', '<p class="adm-empty-text" style="padding:28px">Cargando mini apps...</p>');
+  _setHtml('ma-summary-row', '');
+
+  _adminFetch(MOTOR_URL + '/api/admin/miniapps')
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (!data.ok) throw new Error(data.error || 'Error del servidor.');
+      _maCache = data.miniapps || [];
+
+      var pendientes = _maCache.filter(function (m) { return (m.estado_aprobacion || 'pendiente') === 'pendiente'; }).length;
+      var aprobadas  = _maCache.filter(function (m) { return m.estado_aprobacion === 'aprobada'; }).length;
+      var rechazadas = _maCache.filter(function (m) { return m.estado_aprobacion === 'rechazada'; }).length;
+
+      _setHtml('ma-summary-row',
+        _statCard('<span style="color:#b8973a">' + pendientes + '</span>', 'Pendientes') +
+        _statCard('<span style="color:#2E7D32">' + aprobadas + '</span>', 'Aprobadas') +
+        _statCard('<span style="color:#c0392b">' + rechazadas + '</span>', 'Rechazadas') +
+        _statCard(_maCache.length, 'Total')
+      );
+
+      renderMiniappsTabla(_maCache);
+    })
+    .catch(function (e) {
+      _setHtml('ma-tabla-wrap',
+        '<p class="adm-empty-text" style="color:#c0392b;padding:28px">Error al cargar mini apps: ' +
+        _esc(e.message) + '</p>');
+    });
+}
+
+function renderMiniappsTabla(arr) {
+  var filtro = _maFiltroActivo;
+  var filtered = filtro === 'todas'
+    ? arr
+    : arr.filter(function (m) { return (m.estado_aprobacion || 'pendiente') === filtro; });
+
+  if (!arr.length) {
+    _setHtml('ma-tabla-wrap', '<p class="adm-empty-text">Aun no hay mini apps publicadas por creadores.</p>');
+    return;
+  }
+  if (!filtered.length) {
+    _setHtml('ma-tabla-wrap', '<p class="adm-empty-text">No hay mini apps en este filtro.</p>');
+    return;
+  }
+
+  var rows = filtered.map(function (m) {
+    var estado = (m.estado_aprobacion || 'pendiente').toLowerCase();
+    var rowClass = estado === 'pendiente' ? ' ma-row--pendiente' : '';
+    var imgUrl = MOTOR_URL + '/api/miniapps/asset/' + encodeURIComponent(m.slug) + '/foto1';
+    var tipo = m.tipo_producto === 'html_pdf' ? 'HTML + PDF' : 'HTML';
+    var iaBadge = m.usa_ia
+      ? '<span class="adm-badge adm-badge--pagina">Usa IA</span>'
+      : '<span class="adm-badge adm-badge--inactivo">Sin IA</span>';
+    var vendBadge = m.disponible_vendedores
+      ? '<span class="adm-badge adm-badge--afiliado">Vendedores ' + Number(m.comision_vendedor || 0) + '%</span>'
+      : '<span class="adm-badge adm-badge--inactivo">Sin vendedores</span>';
+
+    var precioHtml = _fmt(m.precio);
+    if (m.precio_promocion && Number(m.precio_promocion) > 0) {
+      precioHtml = '<span class="ma-price-old">' + _fmt(m.precio) + '</span> ' +
+        '<strong class="ma-price-promo">' + _fmt(m.precio_promocion) + '</strong>';
+    }
+
+    var motivoHtml = '';
+    if (estado === 'rechazada' && m.motivo_rechazo) {
+      motivoHtml = '<div class="ma-motivo-rechazo">Motivo: ' + _esc(m.motivo_rechazo) + '</div>';
+    }
+
+    var acciones = '';
+    acciones += '<button type="button" class="adm-btn adm-btn--outline adm-btn--xs" onclick="maVerHtml(\'' + _esc(m.slug) + '\')">Ver HTML</button> ';
+    acciones += '<button type="button" class="adm-btn adm-btn--outline adm-btn--xs" onclick="maVerFotos(\'' + _esc(m.slug) + '\',' + (m.foto2_key ? 'true' : 'false') + ')">Ver fotos</button> ';
+    if (estado !== 'aprobada') {
+      acciones += '<button type="button" class="adm-btn adm-btn--primary adm-btn--xs" onclick="maAprobar(\'' + m.id + '\')">Aprobar</button> ';
+    }
+    if (estado !== 'rechazada') {
+      acciones += '<button type="button" class="adm-btn adm-btn--danger adm-btn--xs" onclick="maAbrirRechazo(\'' + m.id + '\')">Rechazar</button>';
+    }
+
+    return (
+      '<tr class="ma-row' + rowClass + '">' +
+        '<td class="ma-cell-thumb"><img src="' + imgUrl + '" alt="" class="ma-thumb" loading="lazy" onerror="this.classList.add(\'ma-thumb--err\')" /></td>' +
+        '<td><strong>' + _esc(m.nombre) + '</strong><div class="ma-slug">' + _esc(m.slug) + '</div>' + motivoHtml + '</td>' +
+        '<td><div>' + _esc(m.creador_nombre || '—') + '</div><div class="ma-email">' + _esc(m.creador_email || '') + '</div></td>' +
+        '<td>' + precioHtml + '</td>' +
+        '<td><span class="adm-badge adm-badge--html">' + tipo + '</span></td>' +
+        '<td>' + iaBadge + '</td>' +
+        '<td>' + vendBadge + '</td>' +
+        '<td>' + _maBadgeEstado(estado) + '</td>' +
+        '<td class="ma-cell-actions">' + acciones + '</td>' +
+      '</tr>'
+    );
+  }).join('');
+
+  _setHtml('ma-tabla-wrap',
+    '<div class="adm-table-wrap ma-table-wrap">' +
+    '<table class="adm-table ma-table">' +
+    '<thead><tr>' +
+      '<th>Foto</th><th>Mini app</th><th>Creador</th><th>Precio</th><th>Tipo</th><th>IA</th><th>Vendedores</th><th>Estado</th><th>Acciones</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table></div>'
+  );
+}
+
+function maVerHtml(slug) {
+  _adminFetch(MOTOR_URL + '/api/admin/miniapps/' + encodeURIComponent(slug) + '/html')
+    .then(function (r) {
+      if (!r.ok) return r.json().then(function (d) { throw new Error(d.error || 'Error al cargar HTML.'); });
+      return r.text();
+    })
+    .then(function (html) {
+      var w = window.open('', '_blank');
+      if (!w) { alert('Permite ventanas emergentes para revisar el HTML.'); return; }
+      w.document.open();
+      w.document.write(html);
+      w.document.close();
+    })
+    .catch(function (e) { alert(e.message || 'Error al abrir HTML.'); });
+}
+
+function maVerFotos(slug, tieneFoto2) {
+  var url1 = MOTOR_URL + '/api/miniapps/asset/' + encodeURIComponent(slug) + '/foto1';
+  var html = '<div class="ma-fotos-modal">' +
+    '<div class="ma-foto-block"><p class="ma-foto-label">Foto 1</p><img src="' + url1 + '" alt="Foto 1" class="ma-foto-lg" /></div>';
+  if (tieneFoto2) {
+    var url2 = MOTOR_URL + '/api/miniapps/asset/' + encodeURIComponent(slug) + '/foto2';
+    html += '<div class="ma-foto-block"><p class="ma-foto-label">Foto 2</p><img src="' + url2 + '" alt="Foto 2" class="ma-foto-lg" /></div>';
+  }
+  html += '</div>';
+  admAbrirModal('Fotos — ' + slug, html);
+}
+
+function maAprobar(id) {
+  var m = _maCache.filter(function (x) { return x.id === id; })[0];
+  var nombre = m ? m.nombre : 'esta mini app';
+  if (!confirm('Aprobar la mini app "' + nombre + '"? Podra venderse una vez aprobada.')) return;
+  _adminFetch(MOTOR_URL + '/api/admin/miniapps/aprobar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ miniapp_id: id })
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d.ok) throw new Error(d.error || 'Error al aprobar.');
+      renderMiniappsAdmin();
+    })
+    .catch(function (e) { alert(e.message || 'Error al aprobar.'); });
+}
+
+function maAbrirRechazo(id) {
+  var m = _maCache.filter(function (x) { return x.id === id; })[0];
+  var nombre = m ? m.nombre : 'Mini app';
+  admAbrirModal('Rechazar mini app',
+    '<p class="adm-modal-desc">Indica el motivo del rechazo para "' + _esc(nombre) + '". El creador podra verlo.</p>' +
+    '<textarea id="ma-rechazo-motivo" class="adm-form-input ma-rechazo-input" rows="4" placeholder="Ej: El HTML contiene scripts no permitidos..."></textarea>' +
+    '<div class="ma-modal-actions">' +
+      '<button type="button" class="adm-btn adm-btn--outline" onclick="admCerrarModal()">Cancelar</button>' +
+      '<button type="button" class="adm-btn adm-btn--danger" onclick="maConfirmarRechazo(\'' + id + '\')">Confirmar rechazo</button>' +
+    '</div>'
+  );
+}
+
+function maConfirmarRechazo(id) {
+  var ta = document.getElementById('ma-rechazo-motivo');
+  var motivo = ta ? ta.value.trim() : '';
+  if (!motivo) { alert('Escribe un motivo de rechazo.'); return; }
+
+  _adminFetch(MOTOR_URL + '/api/admin/miniapps/rechazar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ miniapp_id: id, motivo: motivo })
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d.ok) throw new Error(d.error || 'Error al rechazar.');
+      admCerrarModal();
+      renderMiniappsAdmin();
+    })
+    .catch(function (e) { alert(e.message || 'Error al rechazar.'); });
 }
 
 // Close modal on overlay click
