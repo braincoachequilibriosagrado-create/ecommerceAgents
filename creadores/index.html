@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EcommerceAgents — Panel de Creadores</title>
+  <link rel="stylesheet" href="assets/css/creadores.css" />
+</head>
+<body>
+
+  <!-- Navbar -->
+  <header class="cr-navbar">
+    <div class="cr-navbar-inner">
+      <div>
+        <span class="cr-brand">EcommerceAgents</span>
+        <span class="cr-brand-tag">Panel de Creadores</span>
+      </div>
+      <div style="display:flex;align-items:center;">
+        <span class="cr-nav-badge" id="cr-nav-badge" hidden>Creador</span>
+        <button type="button" class="cr-btn-logout" id="cr-nav-logout" hidden onclick="creadorLogout()">Salir</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Auth screen -->
+  <div id="cr-auth-screen" class="cr-auth-wrap">
+    <div class="cr-auth-card">
+      <div class="cr-auth-tabs">
+        <button type="button" class="cr-auth-tab active" id="cr-tab-login" onclick="switchAuthTab('login')">Iniciar sesion</button>
+        <button type="button" class="cr-auth-tab" id="cr-tab-registro" onclick="switchAuthTab('registro')">Registrarse</button>
+      </div>
+
+      <div class="cr-auth-body">
+
+        <!-- Login -->
+        <div id="cr-panel-login">
+          <h1 class="cr-auth-title">Bienvenido de nuevo</h1>
+          <p class="cr-auth-sub">Ingresa con tu email y contraseña para acceder a tu panel.</p>
+          <div id="cr-login-msg" class="cr-msg"></div>
+          <div class="cr-field">
+            <label class="cr-label" for="cr-login-email">Email</label>
+            <input type="email" id="cr-login-email" class="cr-input" placeholder="tu@email.com" autocomplete="email"
+              onkeydown="if(event.key==='Enter')creadorLogin()" />
+          </div>
+          <div class="cr-field">
+            <label class="cr-label" for="cr-login-password">Contraseña</label>
+            <input type="password" id="cr-login-password" class="cr-input" placeholder="Tu contraseña" autocomplete="current-password"
+              onkeydown="if(event.key==='Enter')creadorLogin()" />
+          </div>
+          <button type="button" class="cr-btn-primary" id="cr-login-btn" onclick="creadorLogin()">Entrar</button>
+        </div>
+
+        <!-- Registro -->
+        <div id="cr-panel-registro" hidden>
+          <h1 class="cr-auth-title">Crear cuenta</h1>
+          <p class="cr-auth-sub">Registrate para publicar y gestionar tus mini apps.</p>
+          <div id="cr-reg-msg" class="cr-msg"></div>
+          <div class="cr-field">
+            <label class="cr-label" for="cr-reg-nombre">Nombre</label>
+            <input type="text" id="cr-reg-nombre" class="cr-input" placeholder="Tu nombre o alias" autocomplete="name" maxlength="80" />
+          </div>
+          <div class="cr-field">
+            <label class="cr-label" for="cr-reg-email">Email</label>
+            <input type="email" id="cr-reg-email" class="cr-input" placeholder="tu@email.com" autocomplete="email" />
+          </div>
+          <div class="cr-field">
+            <label class="cr-label" for="cr-reg-password">Contraseña</label>
+            <input type="password" id="cr-reg-password" class="cr-input" placeholder="Minimo 6 caracteres" autocomplete="new-password" />
+          </div>
+          <div class="cr-field">
+            <label class="cr-label" for="cr-reg-confirm">Confirmar contraseña</label>
+            <input type="password" id="cr-reg-confirm" class="cr-input" placeholder="Repite tu contraseña" autocomplete="new-password"
+              onkeydown="if(event.key==='Enter')creadorRegistro()" />
+          </div>
+          <button type="button" class="cr-btn-primary" id="cr-reg-btn" onclick="creadorRegistro()">Crear cuenta</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Dashboard (placeholder) -->
+  <main id="cr-dashboard" class="cr-main" hidden>
+    <div class="cr-welcome-card">
+      <h1 class="cr-welcome-title">Bienvenido, <span id="cr-welcome-nombre">Creador</span></h1>
+      <p class="cr-welcome-sub">
+        Tu panel de creador esta listo. Aqui podras subir, editar y publicar tus mini apps.
+        El contenido del dashboard se agregara en el siguiente paso.
+      </p>
+      <span class="cr-welcome-badge">Panel en construccion</span>
+    </div>
+  </main>
+
+  <script src="assets/js/creadores.js?v=1"></script>
+</body>
+</html>

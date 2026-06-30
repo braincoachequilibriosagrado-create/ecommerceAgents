@@ -3,6 +3,7 @@ const express       = require('express');
 const cors          = require('cors');
 const path          = require('path');
 const fs            = require('fs');
+const bcrypt        = require('bcrypt');
 const { exec }      = require('child_process');
 const { promisify } = require('util');
 const multer        = require('multer');
@@ -55,6 +56,29 @@ async function requireUsuario(req, res, next) {
       return res.status(401).json({ ok: false, error: 'No autorizado' });
     }
     req.usuario_id = usuario_id; // disponible en el handler siguiente
+    next();
+  } catch (e) {
+    return res.status(401).json({ ok: false, error: 'No autorizado' });
+  }
+}
+
+// ── Autenticación de creadores de mini apps ───────────────────────────────────
+async function requireCreador(req, res, next) {
+  const creador_id = req.headers['x-creador-id'];
+  if (!creador_id) {
+    return res.status(401).json({ ok: false, error: 'No autorizado' });
+  }
+  try {
+    const { data, error } = await supabase
+      .from('creadores')
+      .select('id, nombre, email, estado')
+      .eq('id', creador_id)
+      .maybeSingle();
+    if (error || !data || data.estado !== 'activo') {
+      return res.status(401).json({ ok: false, error: 'No autorizado' });
+    }
+    req.creador_id = creador_id;
+    req.creador    = data;
     next();
   } catch (e) {
     return res.status(401).json({ ok: false, error: 'No autorizado' });
@@ -118,6 +142,9 @@ const ORIGENES_PERMITIDOS = [
   'https://admin.ecommerceagents.store',
   'https://ecommerce-agents-mauve.vercel.app',  // app usuario en Vercel
   'https://ecommerce-admin-eta-ten.vercel.app', // admin en Vercel
+  'http://localhost:3003',  // panel creadores (local)
+  // TODO: agregar URL del panel de creadores en Vercel cuando esté desplegado
+  //   (ej. 'https://ecommerce-creadores.vercel.app')
 ];
 
 const _corsOpts = {
@@ -1623,6 +1650,102 @@ app.post('/api/login', async (req, res) => {
 //   }
 //   migrarHashes();
 // ════════════════════════════════════════════════════════════════════════════
+
+// ── Creadores de mini apps ────────────────────────────────────────────────────
+
+const CREADOR_SALT_ROUNDS = 10;
+
+// POST /api/creador/registro
+app.post('/api/creador/registro', async (req, res) => {
+  const { nombre, email, password } = req.body || {};
+  const nombreTrim = String(nombre || '').trim();
+  const emailNorm  = String(email || '').trim().toLowerCase();
+  const pass       = String(password || '');
+
+  if (!emailNorm || !pass) {
+    return res.status(400).json({ ok: false, error: 'Email y contraseña son obligatorios.' });
+  }
+  if (pass.length < 6) {
+    return res.status(400).json({ ok: false, error: 'La contraseña debe tener al menos 6 caracteres.' });
+  }
+
+  try {
+    const { data: existente } = await supabase
+      .from('creadores')
+      .select('id')
+      .eq('email', emailNorm)
+      .maybeSingle();
+
+    if (existente) {
+      return res.status(409).json({ ok: false, error: 'Ese email ya esta registrado.' });
+    }
+
+    const password_hash = await bcrypt.hash(pass, CREADOR_SALT_ROUNDS);
+
+    const { data, error } = await supabase
+      .from('creadores')
+      .insert({
+        nombre:        nombreTrim || emailNorm.split('@')[0],
+        email:         emailNorm,
+        password_hash,
+        estado:        'activo',
+        creado_en:     new Date().toISOString()
+      })
+      .select('id, nombre, email')
+      .single();
+
+    if (error) throw error;
+
+    console.log('[creador/registro] nuevo creador:', data.email);
+    res.json({ ok: true, creador: data });
+  } catch (e) {
+    console.error('[creador/registro]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// POST /api/creador/login
+app.post('/api/creador/login', async (req, res) => {
+  const { email, password } = req.body || {};
+  const emailNorm = String(email || '').trim().toLowerCase();
+  const pass      = String(password || '');
+
+  if (!emailNorm || !pass) {
+    return res.status(400).json({ ok: false, error: 'Email y contraseña son obligatorios.' });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('creadores')
+      .select('id, nombre, email, password_hash, estado')
+      .eq('email', emailNorm)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (!data) {
+      return res.status(401).json({ ok: false, error: 'Email o contraseña incorrectos.' });
+    }
+
+    const match = await bcrypt.compare(pass, data.password_hash);
+    if (!match) {
+      return res.status(401).json({ ok: false, error: 'Email o contraseña incorrectos.' });
+    }
+
+    if (data.estado !== 'activo') {
+      return res.status(403).json({ ok: false, error: 'Tu cuenta no esta activa. Contacta al administrador.' });
+    }
+
+    console.log('[creador/login] ok:', data.email);
+    res.json({
+      ok: true,
+      creador: { id: data.id, nombre: data.nombre, email: data.email }
+    });
+  } catch (e) {
+    console.error('[creador/login]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
 
 // ── Supabase ───────────────────────────────────────────────────────────────────
 
