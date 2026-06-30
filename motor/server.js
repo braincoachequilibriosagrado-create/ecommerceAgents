@@ -27,6 +27,9 @@ const PORT = process.env.PORT || 3002;
 // URL pública base donde el motor sirve las páginas de venta
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || 'https://motor.ecommerceagents.store';
 
+const ENTREGA_MINIAPP_TEMPLATE = path.join(__dirname, 'templates', 'template-entrega-miniapp.html');
+const DEFAULT_MINIAPP_COLORS = { color_1: '#2f86ff', color_2: '#7c3aed', color_3: '#ff5a3c' };
+
 // ── Autenticación de admin ─────────────────────────────────────────────────────
 const ADMIN_API_KEY  = process.env.ADMIN_API_KEY  || '';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
@@ -2750,11 +2753,130 @@ function _extractColor(html) {
   return null;
 }
 
+function _isMiniappCheckoutSlug(slug) {
+  return String(slug || '').trim().toLowerCase().startsWith('app-');
+}
+
+function _processTemplateBlock(html, blockName, include) {
+  const re = new RegExp('\\{\\{#IF_' + blockName + '\\}\\}([\\s\\S]*?)\\{\\{/IF_' + blockName + '\\}\\}', 'g');
+  return html.replace(re, include ? '$1' : '');
+}
+
+function _replaceTemplateMarkers(html, map) {
+  let out = html;
+  Object.keys(map).forEach(function (key) {
+    out = out.split('{{' + key + '}}').join(String(map[key] != null ? map[key] : ''));
+  });
+  return out;
+}
+
+function _extractMiniappColors(html) {
+  if (!html) return { ...DEFAULT_MINIAPP_COLORS };
+  const grad = html.match(/--grad:\s*linear-gradient\([^,]+,\s*(#[0-9a-fA-F]{6})\s+0%[^#]*(#[0-9a-fA-F]{6})[^#]*(#[0-9a-fA-F]{6})/);
+  if (grad) {
+    return { color_1: grad[1].toLowerCase(), color_2: grad[2].toLowerCase(), color_3: grad[3].toLowerCase() };
+  }
+  const c1 = html.match(/--blue:\s*(#[0-9a-fA-F]{6})/i);
+  const c2 = html.match(/--violet:\s*(#[0-9a-fA-F]{6})/i);
+  const c3 = html.match(/--flame:\s*(#[0-9a-fA-F]{6})/i);
+  return {
+    color_1: (c1 && c1[1]) || DEFAULT_MINIAPP_COLORS.color_1,
+    color_2: (c2 && c2[1]) || DEFAULT_MINIAPP_COLORS.color_2,
+    color_3: (c3 && c3[1]) || DEFAULT_MINIAPP_COLORS.color_3
+  };
+}
+
+function _miniappPrecioVenta(miniapp) {
+  const normal = Number(miniapp.precio) || 0;
+  const promo  = Number(miniapp.precio_promocion);
+  if (Number.isFinite(promo) && promo > 0 && (promo < normal || normal === 0)) return promo;
+  return normal;
+}
+
+function _generarCodigoAcceso() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
+}
+
+async function _generarCodigoAccesoUnico() {
+  for (let n = 0; n < 25; n++) {
+    const codigo = _generarCodigoAcceso();
+    const { data } = await supabase
+      .from('miniapp_compras')
+      .select('id')
+      .eq('codigo_acceso', codigo)
+      .maybeSingle();
+    if (!data) return codigo;
+  }
+  throw new Error('No se pudo generar un codigo de acceso unico.');
+}
+
+async function _buscarMiniappPorPaginaSlug(slugPagina) {
+  const slug = String(slugPagina || '').trim();
+  if (!slug) return null;
+  const { data, error } = await supabase
+    .from('miniapps')
+    .select('id, nombre, slug, precio, precio_promocion, r2_key, pdf_key, foto1_key, tipo_producto, pagina_venta_slug, estado_aprobacion')
+    .eq('pagina_venta_slug', slug)
+    .maybeSingle();
+  if (error) throw error;
+  return data || null;
+}
+
+async function _buscarCompraPorCodigo(codigo) {
+  const cod = String(codigo || '').trim().toUpperCase();
+  if (!cod) return null;
+  const { data, error } = await supabase
+    .from('miniapp_compras')
+    .select('id, miniapp_id, miniapp_slug, codigo_acceso, comprador_email, ref_vendedor, vendedor_id, monto, estado_pago, creado_en')
+    .eq('codigo_acceso', cod)
+    .maybeSingle();
+  if (error) throw error;
+  return data || null;
+}
+
+function _htmlAccesoInvalido(titulo, mensaje) {
+  return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${titulo}</title>
+<style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f7fb;color:#0d1117;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:24px}
+.box{max-width:420px;background:#fff;border:1px solid #e4e7eb;border-radius:16px;padding:32px;text-align:center;box-shadow:0 12px 40px rgba(13,17,23,.08)}
+h1{font-size:22px;margin:0 0 10px}p{color:#5f6571;line-height:1.6;margin:0}</style></head>
+<body><div class="box"><h1>${titulo}</h1><p>${mensaje}</p></div></body></html>`;
+}
+
 // ── Info pública del producto para el checkout ────────────────────────────────
 app.get('/api/checkout/info', async (req, res) => {
   const { slug } = req.query;
   if (!slug) return res.status(400).json({ ok: false, error: 'Se requiere slug.' });
   try {
+    if (_isMiniappCheckoutSlug(slug)) {
+      const miniapp = await _buscarMiniappPorPaginaSlug(slug);
+      if (!miniapp) {
+        return res.status(404).json({ ok: false, error: 'Mini app no encontrada.' });
+      }
+      const { data: pagina } = await supabase
+        .from('paginas_venta')
+        .select('html')
+        .eq('slug', slug)
+        .eq('activa', true)
+        .maybeSingle();
+      const colores = _extractMiniappColors(pagina && pagina.html);
+      const precio  = _miniappPrecioVenta(miniapp);
+      const imagen  = miniapp.foto1_key
+        ? PUBLIC_BASE_URL + '/api/miniapps/asset/' + encodeURIComponent(miniapp.slug) + '/foto1'
+        : null;
+      return res.json({
+        ok: true,
+        es_miniapp: true,
+        nombre_producto: miniapp.nombre,
+        precio,
+        imagen,
+        color_principal: colores.color_1,
+        miniapp_slug: miniapp.slug
+      });
+    }
+
     const { data: pagina, error: pErr } = await supabase
       .from('paginas_venta')
       .select('id, nombre, producto_id, html')  // incluye html para extraer color
@@ -2785,8 +2907,115 @@ app.get('/api/checkout/info', async (req, res) => {
   }
 });
 
+// ── Checkout digital mini apps (GET /checkout?slug=app-...) ───────────────────
+function _serveCheckoutMiniapp(req, res) {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(`<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Comprar mini app · EcommerceAgents</title>
+<style>
+:root{--c1:#2f86ff;--c2:#7c3aed;--c3:#ff5a3c;--grad:linear-gradient(120deg,var(--c1),var(--c2),var(--c3));--ink:#0d1117;--slate:#5f6571;--line:#e4e7eb;--paper:#f5f7fb;--white:#fff;--err:#c0392b}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;background:radial-gradient(700px 350px at 50% -5%,rgba(124,58,237,.10),transparent 60%),var(--paper);color:var(--ink);min-height:100vh;padding:32px 16px 48px}
+.wrap{max-width:480px;margin:0 auto}
+.badge{display:inline-flex;align-items:center;gap:6px;background:#fff8e6;border:1px solid #ffe7a3;color:#8a6d1a;font-size:12px;font-weight:700;padding:6px 12px;border-radius:999px;margin-bottom:18px}
+.card{background:var(--white);border:1px solid var(--line);border-radius:20px;overflow:hidden;box-shadow:0 20px 60px rgba(13,17,23,.10)}
+.hero{padding:28px 24px 22px;text-align:center;border-bottom:1px solid var(--line)}
+.hero img{width:100%;max-height:220px;object-fit:cover;border-radius:14px;margin-bottom:18px;background:var(--paper)}
+.hero h1{font-size:24px;font-weight:800;line-height:1.25;margin-bottom:8px}
+.hero p{font-size:14px;color:var(--slate);line-height:1.5}
+.price{font-size:32px;font-weight:800;background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin-top:14px}
+.body{padding:24px}
+.btn{width:100%;border:none;border-radius:14px;padding:16px 20px;font-size:17px;font-weight:800;color:#fff;background:var(--grad);cursor:pointer;box-shadow:0 12px 32px rgba(124,58,237,.28);transition:transform .15s,filter .15s}
+.btn:hover{transform:translateY(-2px);filter:brightness(1.04)}
+.btn:disabled{opacity:.65;cursor:not-allowed;transform:none}
+.note{margin-top:14px;font-size:12.5px;color:var(--slate);text-align:center;line-height:1.55}
+.err{color:var(--err);font-size:13px;margin-top:12px;padding:10px 12px;background:#fef5f5;border:1px solid #f5c6c6;border-radius:10px;display:none}
+.load{text-align:center;padding:48px 16px;color:var(--slate)}
+.spin{width:28px;height:28px;border:2.5px solid var(--line);border-top-color:var(--c2);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="badge">Modo prueba — sin cobro real</div>
+  <div id="load" class="load"><div class="spin"></div>Cargando...</div>
+  <div id="card" class="card" style="display:none">
+    <div class="hero">
+      <div id="img-wrap"></div>
+      <h1 id="nombre">Mini app</h1>
+      <p>Acceso digital instantaneo. Sin envio.</p>
+      <div class="price" id="precio">—</div>
+    </div>
+    <div class="body">
+      <button type="button" id="btn-pagar" class="btn">Pagar —</button>
+      <p class="note">Al pagar recibes tu enlace personal y acceso inmediato a la mini app.</p>
+      <p id="err" class="err"></p>
+    </div>
+  </div>
+</div>
+<script>
+var _slug='', _ref='', _precio=0;
+(function(){
+  var p=new URLSearchParams(location.search);
+  _slug=p.get('slug')||'';
+  _ref=p.get('ref')||'';
+  if(!_slug){document.getElementById('load').innerHTML='<p style="color:#c0392b">Enlace invalido.</p>';return;}
+  fetch('/api/checkout/info?slug='+encodeURIComponent(_slug))
+    .then(function(r){return r.json();})
+    .then(function(d){
+      document.getElementById('load').style.display='none';
+      if(!d.ok){document.getElementById('load').style.display='block';document.getElementById('load').innerHTML='<p style="color:#c0392b">'+(d.error||'Producto no disponible.')+'</p>';return;}
+      _precio=d.precio||0;
+      var accent=(d.color_principal&&/^#[0-9a-fA-F]{6}$/.test(d.color_principal))?d.color_principal:'#2f86ff';
+      document.documentElement.style.setProperty('--c1',accent);
+      document.getElementById('nombre').textContent=d.nombre_producto||'Mini app';
+      var fmt=_precio>0?'$'+Number(_precio).toLocaleString('en-US'):'Gratis';
+      document.getElementById('precio').textContent=fmt;
+      document.getElementById('btn-pagar').textContent='Pagar '+fmt+' (prueba)';
+      var iw=document.getElementById('img-wrap');
+      if(d.imagen){var img=document.createElement('img');img.src=d.imagen;img.alt=d.nombre_producto||'';iw.appendChild(img);}
+      document.getElementById('card').style.display='block';
+    })
+    .catch(function(){document.getElementById('load').innerHTML='<p style="color:#c0392b">Error al cargar.</p>';});
+})();
+document.getElementById('btn-pagar').addEventListener('click',function(){
+  var btn=this, err=document.getElementById('err');
+  err.style.display='none';
+  btn.disabled=true;
+  btn.textContent='Procesando...';
+  fetch('/api/miniapp/comprar-prueba',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({slug_pagina:_slug,ref:_ref||undefined})
+  })
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(!d.ok)throw new Error(d.error||'No se pudo completar la compra.');
+      if(d.link_unico)location.href=d.link_unico;
+      else throw new Error('Respuesta invalida del servidor.');
+    })
+    .catch(function(e){
+      err.textContent=e.message;
+      err.style.display='block';
+      btn.disabled=false;
+      btn.textContent='Pagar '+(_precio>0?'$'+Number(_precio).toLocaleString('en-US'):'Gratis')+' (prueba)';
+    });
+});
+</script>
+</body>
+</html>`);
+}
+
 // ── Formulario de checkout (GET /checkout) ────────────────────────────────────
 app.get('/checkout', (req, res) => {
+  const slug = String(req.query.slug || '').trim();
+  if (_isMiniappCheckoutSlug(slug)) {
+    return _serveCheckoutMiniapp(req, res);
+  }
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(`<!DOCTYPE html>
 <html lang="es">
@@ -3393,6 +3622,198 @@ function abrirAsesorWA() {
 </script>
 </body>
 </html>`);
+});
+
+// ── Compra de prueba mini apps (sin Stripe) ───────────────────────────────────
+app.post('/api/miniapp/comprar-prueba', async (req, res) => {
+  const { slug_pagina, ref, comprador_email } = req.body || {};
+  const slug = String(slug_pagina || '').trim();
+  if (!slug) {
+    return res.status(400).json({ ok: false, error: 'Se requiere slug_pagina.' });
+  }
+  if (!_isMiniappCheckoutSlug(slug)) {
+    return res.status(400).json({ ok: false, error: 'Este checkout es solo para mini apps (slug app-*).' });
+  }
+
+  try {
+    const miniapp = await _buscarMiniappPorPaginaSlug(slug);
+    if (!miniapp) {
+      return res.status(404).json({ ok: false, error: 'Mini app no encontrada.' });
+    }
+    if (miniapp.estado_aprobacion && miniapp.estado_aprobacion !== 'aprobada') {
+      return res.status(400).json({ ok: false, error: 'Esta mini app aun no esta disponible para compra.' });
+    }
+    if (!miniapp.r2_key) {
+      return res.status(400).json({ ok: false, error: 'La mini app no tiene contenido disponible.' });
+    }
+
+    const monto  = _miniappPrecioVenta(miniapp);
+    const codigo = await _generarCodigoAccesoUnico();
+
+    let vendedor_id = null;
+    const refClean  = String(ref || '').trim();
+    if (refClean) {
+      const { data: vend } = await supabase
+        .from('usuarios')
+        .select('id')
+        .eq('codigo', refClean)
+        .maybeSingle();
+      if (vend) vendedor_id = vend.id;
+    }
+
+    const emailClean = String(comprador_email || '').trim() || null;
+
+    const { error: insErr } = await supabase.from('miniapp_compras').insert({
+      miniapp_id:      miniapp.id,
+      miniapp_slug:    miniapp.slug,
+      codigo_acceso:   codigo,
+      comprador_email: emailClean,
+      ref_vendedor:    refClean || null,
+      vendedor_id,
+      monto,
+      estado_pago:     'pagado'
+    });
+    if (insErr) throw insErr;
+
+    const link_unico = PUBLIC_BASE_URL + '/mi-compra/' + codigo;
+    console.log('[miniapp/comprar-prueba] slug=' + slug + ' codigo=' + codigo + ' monto=' + monto);
+    res.json({ ok: true, codigo, link_unico });
+  } catch (e) {
+    console.error('[miniapp/comprar-prueba]', e.message);
+    res.status(500).json({ ok: false, error: e.message || 'Error al registrar la compra.' });
+  }
+});
+
+// ── Pagina de entrega post-compra ─────────────────────────────────────────────
+app.get('/mi-compra/:codigo', async (req, res) => {
+  const codigo = String(req.params.codigo || '').trim().toUpperCase();
+  if (!codigo) {
+    res.status(400).setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.send(_htmlAccesoInvalido('Acceso no valido', 'El codigo de acceso no es valido.'));
+  }
+
+  try {
+    const compra = await _buscarCompraPorCodigo(codigo);
+    if (!compra) {
+      res.status(404).setHeader('Content-Type', 'text/html; charset=utf-8');
+      return res.send(_htmlAccesoInvalido('Acceso no valido', 'No encontramos una compra con ese codigo. Verifica el enlace.'));
+    }
+    if (compra.estado_pago !== 'pagado') {
+      res.status(403).setHeader('Content-Type', 'text/html; charset=utf-8');
+      return res.send(_htmlAccesoInvalido('Pago pendiente', 'Tu compra aun no esta confirmada. Contacta soporte si ya pagaste.'));
+    }
+
+    const { data: miniapp, error: mErr } = await supabase
+      .from('miniapps')
+      .select('id, nombre, slug, pdf_key, tipo_producto, pagina_venta_slug')
+      .eq('id', compra.miniapp_id)
+      .maybeSingle();
+    if (mErr || !miniapp) {
+      res.status(404).setHeader('Content-Type', 'text/html; charset=utf-8');
+      return res.send(_htmlAccesoInvalido('Producto no encontrado', 'La mini app asociada a esta compra ya no esta disponible.'));
+    }
+
+    if (!fs.existsSync(ENTREGA_MINIAPP_TEMPLATE)) {
+      return res.status(500).send('Template de entrega no configurado.');
+    }
+
+    const { data: pagina } = await supabase
+      .from('paginas_venta')
+      .select('html')
+      .eq('slug', miniapp.pagina_venta_slug || ('app-' + miniapp.slug))
+      .maybeSingle();
+    const colores = _extractMiniappColors(pagina && pagina.html);
+
+    const linkUnico = PUBLIC_BASE_URL + '/mi-compra/' + compra.codigo_acceso;
+    const appUrl    = PUBLIC_BASE_URL + '/usar-miniapp/' + compra.codigo_acceso;
+    const pdfUrl    = miniapp.pdf_key
+      ? PUBLIC_BASE_URL + '/descargar-pdf/' + compra.codigo_acceso
+      : '';
+
+    let html = fs.readFileSync(ENTREGA_MINIAPP_TEMPLATE, 'utf-8');
+    html = _processTemplateBlock(html, 'PDF', !!miniapp.pdf_key);
+    html = _replaceTemplateMarkers(html, {
+      NOMBRE:     miniapp.nombre,
+      CODIGO:     compra.codigo_acceso,
+      LINK_UNICO: linkUnico,
+      APP_URL:    appUrl,
+      PDF_URL:    pdfUrl,
+      COLOR_1:    colores.color_1,
+      COLOR_2:    colores.color_2,
+      COLOR_3:    colores.color_3
+    });
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  } catch (e) {
+    console.error('[mi-compra]', e.message);
+    res.status(500).setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(_htmlAccesoInvalido('Error', 'No pudimos cargar tu pagina de acceso. Intenta de nuevo.'));
+  }
+});
+
+// ── Servir mini app al comprador ──────────────────────────────────────────────
+app.get('/usar-miniapp/:codigo', async (req, res) => {
+  const codigo = String(req.params.codigo || '').trim().toUpperCase();
+  if (!codigo) {
+    return res.status(400).send('Codigo invalido.');
+  }
+
+  try {
+    const compra = await _buscarCompraPorCodigo(codigo);
+    if (!compra || compra.estado_pago !== 'pagado') {
+      return res.status(403).send('Acceso no valido o pago pendiente.');
+    }
+
+    const { data: miniapp, error: mErr } = await supabase
+      .from('miniapps')
+      .select('r2_key, nombre')
+      .eq('id', compra.miniapp_id)
+      .maybeSingle();
+    if (mErr || !miniapp || !miniapp.r2_key) {
+      return res.status(404).send('Mini app no encontrada.');
+    }
+
+    const contenido = await obtenerArchivo(miniapp.r2_key);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(contenido);
+  } catch (e) {
+    console.error('[usar-miniapp]', e.message);
+    res.status(500).send('Error al cargar la mini app.');
+  }
+});
+
+// ── Descargar PDF del comprador ───────────────────────────────────────────────
+app.get('/descargar-pdf/:codigo', async (req, res) => {
+  const codigo = String(req.params.codigo || '').trim().toUpperCase();
+  if (!codigo) {
+    return res.status(400).send('Codigo invalido.');
+  }
+
+  try {
+    const compra = await _buscarCompraPorCodigo(codigo);
+    if (!compra || compra.estado_pago !== 'pagado') {
+      return res.status(403).send('Acceso no valido o pago pendiente.');
+    }
+
+    const { data: miniapp, error: mErr } = await supabase
+      .from('miniapps')
+      .select('pdf_key, nombre, slug')
+      .eq('id', compra.miniapp_id)
+      .maybeSingle();
+    if (mErr || !miniapp || !miniapp.pdf_key) {
+      return res.status(404).send('Este producto no incluye PDF.');
+    }
+
+    const buf = await obtenerArchivoBuffer(miniapp.pdf_key);
+    const filename = (miniapp.slug || 'producto') + '.pdf';
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="' + filename + '"');
+    res.send(buf);
+  } catch (e) {
+    console.error('[descargar-pdf]', e.message);
+    res.status(500).send('Error al descargar el PDF.');
+  }
 });
 
 // ── Crear pedido ──────────────────────────────────────────────────────────────
@@ -4577,8 +4998,12 @@ app.listen(PORT, () => {
   console.log(`[motor]   GET  http://localhost:${PORT}/api/admin/paginas/:id`);
   console.log(`[motor]   GET  http://localhost:${PORT}/p/:slug        (publica - wrapper iframe sandbox)`);
   console.log(`[motor]   GET  http://localhost:${PORT}/p-inner/:slug  (contenido iframe interno)`);
-  console.log(`[motor]   GET  http://localhost:${PORT}/checkout  (formulario de envio)`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/checkout  (formulario de envio / digital mini apps)`);
   console.log(`[motor]   GET  http://localhost:${PORT}/api/checkout/info?slug=`);
+  console.log(`[motor]   POST http://localhost:${PORT}/api/miniapp/comprar-prueba`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/mi-compra/:codigo`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/usar-miniapp/:codigo`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/descargar-pdf/:codigo`);
   console.log(`[motor]   POST http://localhost:${PORT}/api/pedidos/crear`);
   console.log(`[motor]   GET  http://localhost:${PORT}/api/admin/pedidos`);
   console.log(`[motor]   POST http://localhost:${PORT}/api/admin/pedidos/actualizar`);

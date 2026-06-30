@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tu compra — {{NOMBRE}}</title>
+<!--
+  PAGINA DE ENTREGA (post-venta) — MiniApps
+  Marcadores que rellena el sistema:
+  {{NOMBRE}}         -> nombre de la mini app
+  {{CODIGO}}         -> codigo unico del comprador
+  {{LINK_UNICO}}     -> link completo personal del comprador
+  {{APP_URL}}        -> URL para usar/abrir la mini app (el HTML)
+  {{TIENE_PDF}}      -> bloque {{#IF_PDF}}...{{/IF_PDF}} si hay PDF
+  {{PDF_URL}}        -> URL para descargar el PDF
+  {{COLOR_1}}, {{COLOR_2}}, {{COLOR_3}} -> colores (mismos de la pagina de venta)
+-->
+<style>
+  :root {
+    --ink: #0d1117;
+    --slate: #5f6571;
+    --mist: #8b919e;
+    --line: #e4e7eb;
+    --paper: #f5f7fb;
+    --white: #ffffff;
+    --c1: {{COLOR_1}};
+    --c2: {{COLOR_2}};
+    --c3: {{COLOR_3}};
+    --grad: linear-gradient(120deg, {{COLOR_1}} 0%, {{COLOR_2}} 50%, {{COLOR_3}} 100%);
+    --shadow: 0 20px 60px rgba(13,17,23,.12);
+    --r: 20px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+    background:
+      radial-gradient(800px 400px at 50% -5%, rgba(124,58,237,.10), transparent 60%),
+      var(--paper);
+    color: var(--ink);
+    min-height: 100vh;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 40px 20px;
+    line-height: 1.6;
+  }
+  .card {
+    background: var(--white);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    box-shadow: var(--shadow);
+    width: 100%;
+    max-width: 600px;
+    overflow: hidden;
+  }
+  .top {
+    background: var(--grad);
+    color: #fff;
+    padding: 40px 32px 32px;
+    text-align: center;
+    position: relative;
+  }
+  .check {
+    width: 72px; height: 72px;
+    background: rgba(255,255,255,.2);
+    border: 3px solid rgba(255,255,255,.6);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 18px;
+  }
+  .check svg { width: 38px; height: 38px; }
+  .top h1 { font-size: 26px; font-weight: 800; margin-bottom: 6px; }
+  .top p { font-size: 15px; opacity: .92; }
+  .body { padding: 32px; }
+  .product-name {
+    font-size: 13px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase;
+    color: var(--slate); text-align: center; margin-bottom: 4px;
+  }
+  .product-title { font-size: 22px; font-weight: 800; text-align: center; margin-bottom: 28px; color: var(--ink); }
+
+  .block-item {
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 22px;
+    margin-bottom: 16px;
+  }
+  .block-item h3 { font-size: 16px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 9px; }
+  .block-item h3 svg { width: 20px; height: 20px; }
+  .block-item p { font-size: 14px; color: var(--slate); margin-bottom: 14px; }
+
+  .link-row { display: flex; gap: 8px; }
+  .link-input {
+    flex: 1;
+    padding: 12px 14px;
+    border: 1.5px solid var(--line);
+    border-radius: 11px;
+    font-size: 13px;
+    background: var(--paper);
+    color: var(--ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .btn {
+    border: none;
+    border-radius: 11px;
+    padding: 12px 20px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: transform .15s, filter .15s;
+  }
+  .btn:hover { transform: translateY(-2px); filter: brightness(1.05); }
+  .btn-grad { background: var(--grad); color: #fff; box-shadow: 0 10px 28px rgba(124,58,237,.25); }
+  .btn-copy { background: var(--ink); color: #fff; flex: none; }
+  .btn-full { width: 100%; padding: 15px; font-size: 15px; }
+
+  .code-badge {
+    display: inline-block;
+    background: var(--paper);
+    border: 1.5px dashed var(--c2);
+    border-radius: 10px;
+    padding: 8px 16px;
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    color: var(--ink);
+    margin-top: 4px;
+  }
+  .note {
+    background: #fff8e6;
+    border: 1px solid #ffe7a3;
+    border-radius: 12px;
+    padding: 14px 16px;
+    font-size: 13.5px;
+    color: #8a6d1a;
+    margin-top: 8px;
+    display: flex;
+    gap: 10px;
+  }
+  .note svg { width: 18px; height: 18px; flex: none; margin-top: 1px; }
+  .footer { text-align: center; padding: 22px; font-size: 12.5px; color: var(--mist); border-top: 1px solid var(--line); }
+  .footer b { background: var(--grad); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(100px);
+    background: var(--ink); color: #fff; padding: 12px 22px; border-radius: 999px;
+    font-size: 14px; font-weight: 600; opacity: 0; transition: all .3s; z-index: 100;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  @media (max-width: 520px) {
+    .link-row { flex-direction: column; }
+    .btn-copy { width: 100%; }
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="top">
+      <div class="check">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <h1>¡Compra exitosa!</h1>
+      <p>Tu acceso está listo. Guarda esta página.</p>
+    </div>
+
+    <div class="body">
+      <div class="product-name">Tu producto</div>
+      <div class="product-title">{{NOMBRE}}</div>
+
+      <!-- USAR LA MINI APP -->
+      <div class="block-item">
+        <h3>
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--c1)" stroke-width="2"><path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z" stroke-linejoin="round"/></svg>
+          Usa tu mini app
+        </h3>
+        <p>Ábrela ahora y empieza a usarla. Funciona directo en tu navegador.</p>
+        <a href="{{APP_URL}}" target="_blank" class="btn btn-grad btn-full">Abrir mini app →</a>
+      </div>
+
+      {{#IF_PDF}}
+      <!-- DESCARGAR PDF -->
+      <div class="block-item">
+        <h3>
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--c3)" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Descarga tu PDF
+        </h3>
+        <p>Tu producto incluye un PDF premium. Descárgalo y guárdalo.</p>
+        <a href="{{PDF_URL}}" target="_blank" class="btn btn-grad btn-full">Descargar PDF →</a>
+      </div>
+      {{/IF_PDF}}
+
+      <!-- LINK UNICO -->
+      <div class="block-item">
+        <h3>
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--c2)" stroke-width="2"><path d="M10 13a5 5 0 007 0l3-3a5 5 0 00-7-7l-1 1M14 11a5 5 0 00-7 0l-3 3a5 5 0 007 7l1-1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Tu enlace personal
+        </h3>
+        <p>Este es tu acceso privado. Guárdalo para volver a entrar cuando quieras, sin registrarte.</p>
+        <div class="link-row">
+          <input class="link-input" id="linkUnico" value="{{LINK_UNICO}}" readonly />
+          <button class="btn btn-copy" onclick="copiarLink()">Copiar</button>
+        </div>
+        <div class="note">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#8a6d1a" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01" stroke-linecap="round"/></svg>
+          <span>Tu código de acceso es <b style="color:#8a6d1a;">{{CODIGO}}</b>. Guarda este enlace en un lugar seguro: es tu única llave para acceder.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      Distribuido por <b>MiniApps</b> · Pequeñas apps, grandes soluciones
+    </div>
+  </div>
+
+  <div class="toast" id="toast">Enlace copiado ✓</div>
+
+  <script>
+    function copiarLink() {
+      var input = document.getElementById('linkUnico');
+      var texto = input.value;
+      function ok() {
+        var t = document.getElementById('toast');
+        t.classList.add('show');
+        setTimeout(function(){ t.classList.remove('show'); }, 2000);
+      }
+      try {
+        navigator.clipboard.writeText(texto).then(ok).catch(function(){
+          input.select(); document.execCommand('copy'); ok();
+        });
+      } catch (e) {
+        input.select(); document.execCommand('copy'); ok();
+      }
+    }
+  </script>
+</body>
+</html>
