@@ -598,10 +598,38 @@ body {
   margin-bottom: 32px;
 }
 
+.cr-upload-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 720px;
+  margin-bottom: 32px;
+}
+
 .cr-upload-col {
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+
+.cr-product-block {
+  margin-bottom: 4px;
+}
+
+.cr-product-block .cr-html-tabs {
+  margin-top: 4px;
+}
+
+.cr-upload-divider {
+  height: 1px;
+  background: var(--cr-border);
+  margin: 20px 0;
+}
+
+.cr-photos-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
 }
 
 .cr-upload-card {
@@ -1087,5 +1115,6 @@ body {
   .cr-stats-row { grid-template-columns: 1fr; }
   .cr-dash-tabs { overflow-x: auto; }
   .cr-price-row { grid-template-columns: 1fr; }
+  .cr-photos-row { grid-template-columns: 1fr; }
   .cr-products-grid { grid-template-columns: 1fr; }
 }

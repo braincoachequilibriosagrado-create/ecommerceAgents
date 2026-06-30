@@ -105,25 +105,27 @@
         <div class="cr-upload-hero">
           <div>
             <h2 class="cr-upload-hero-title">Publicar mini app</h2>
-            <p class="cr-upload-hero-sub">Sube tu HTML, fotos del producto y configura precios para vendedores y compradores.</p>
+            <p class="cr-upload-hero-sub">Sube el producto que recibe el comprador, las fotos de venta y configura precios.</p>
           </div>
         </div>
 
         <div id="cr-subir-msg" class="cr-msg"></div>
 
-        <div class="cr-upload-layout">
+        <div class="cr-upload-stack">
 
-          <!-- Columna izquierda: codigo + archivos -->
-          <div class="cr-upload-col">
-
-            <div class="cr-upload-card">
-              <div class="cr-upload-card-head">
-                <span class="cr-upload-icon cr-upload-icon--code"></span>
-                <div>
-                  <h3 class="cr-upload-card-title">Codigo HTML</h3>
-                  <p class="cr-upload-card-desc">Pega el codigo o sube un archivo .html</p>
-                </div>
+          <!-- 1) EL PRODUCTO -->
+          <div class="cr-upload-card">
+            <div class="cr-upload-card-head">
+              <span class="cr-upload-icon cr-upload-icon--code"></span>
+              <div>
+                <h3 class="cr-upload-card-title">El producto</h3>
+                <p class="cr-upload-card-desc">Archivos que recibe el comprador al comprar</p>
               </div>
+            </div>
+
+            <div class="cr-product-block">
+              <label class="cr-label">Codigo HTML <span class="cr-req">*</span></label>
+              <p class="cr-hint cr-hint--block">Pega el codigo o sube un archivo .html</p>
               <div class="cr-html-tabs">
                 <button type="button" class="cr-html-tab active" id="cr-html-tab-pegar" onclick="switchHtmlMode('pegar')">Pegar codigo</button>
                 <button type="button" class="cr-html-tab" id="cr-html-tab-archivo" onclick="switchHtmlMode('archivo')">Subir .html</button>
@@ -139,15 +141,32 @@
               </div>
             </div>
 
-            <div class="cr-upload-card">
-              <div class="cr-upload-card-head">
-                <span class="cr-upload-icon cr-upload-icon--files"></span>
-                <div>
-                  <h3 class="cr-upload-card-title">Archivos del producto</h3>
-                  <p class="cr-upload-card-desc">Fotos obligatorias y PDF opcional</p>
-                </div>
-              </div>
+            <div class="cr-upload-divider"></div>
 
+            <div class="cr-product-block">
+              <label class="cr-label" for="cr-pdf">PDF del producto <span class="cr-opt">(opcional, premium)</span></label>
+              <p class="cr-hint cr-hint--block">Solo si tu producto incluye un PDF premium.</p>
+              <div class="cr-file-zone cr-file-zone--compact">
+                <input type="file" id="cr-pdf" class="cr-file-input-hidden" accept=".pdf,application/pdf" onchange="onPdfSelected(this)" />
+                <label for="cr-pdf" class="cr-file-zone-label cr-file-zone-label--compact">
+                  <span class="cr-file-zone-icon">PDF</span>
+                  <span id="cr-pdf-label">Seleccionar PDF</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2) FOTOS DEL PRODUCTO -->
+          <div class="cr-upload-card">
+            <div class="cr-upload-card-head">
+              <span class="cr-upload-icon cr-upload-icon--files"></span>
+              <div>
+                <h3 class="cr-upload-card-title">Fotos del producto</h3>
+                <p class="cr-upload-card-desc">Estas son las imagenes que se usaran para crear tu pagina de venta.</p>
+              </div>
+            </div>
+
+            <div class="cr-photos-row">
               <div class="cr-field">
                 <label class="cr-label">Foto 1 <span class="cr-req">*</span></label>
                 <div class="cr-photo-upload">
@@ -169,98 +188,84 @@
                   </label>
                 </div>
               </div>
-
-              <div class="cr-field">
-                <label class="cr-label" for="cr-pdf">PDF del producto <span class="cr-opt">(opcional)</span></label>
-                <p class="cr-hint cr-hint--block">Solo si tu producto incluye un PDF premium.</p>
-                <div class="cr-file-zone cr-file-zone--compact">
-                  <input type="file" id="cr-pdf" class="cr-file-input-hidden" accept=".pdf,application/pdf" onchange="onPdfSelected(this)" />
-                  <label for="cr-pdf" class="cr-file-zone-label cr-file-zone-label--compact">
-                    <span class="cr-file-zone-icon">PDF</span>
-                    <span id="cr-pdf-label">Seleccionar PDF</span>
-                  </label>
-                </div>
-              </div>
             </div>
-
           </div>
 
-          <!-- Columna derecha: detalles + precios + opciones -->
-          <div class="cr-upload-col">
-
-            <div class="cr-upload-card">
-              <div class="cr-upload-card-head">
-                <span class="cr-upload-icon cr-upload-icon--info"></span>
-                <div>
-                  <h3 class="cr-upload-card-title">Detalles</h3>
-                  <p class="cr-upload-card-desc">Informacion visible en la pagina de venta</p>
-                </div>
-              </div>
-              <div class="cr-field">
-                <label class="cr-label" for="cr-ma-nombre">Nombre de la mini app <span class="cr-req">*</span></label>
-                <input type="text" id="cr-ma-nombre" class="cr-input" placeholder="Ej: Calculadora de macros IA" maxlength="120" />
-              </div>
-              <div class="cr-field">
-                <label class="cr-label" for="cr-ma-desc">Descripcion corta</label>
-                <textarea id="cr-ma-desc" class="cr-textarea cr-textarea--sm" rows="4" placeholder="Describe tu mini app para vendedores y compradores..."></textarea>
+          <!-- 3) DATOS -->
+          <div class="cr-upload-card">
+            <div class="cr-upload-card-head">
+              <span class="cr-upload-icon cr-upload-icon--info"></span>
+              <div>
+                <h3 class="cr-upload-card-title">Detalles</h3>
+                <p class="cr-upload-card-desc">Informacion visible en la pagina de venta</p>
               </div>
             </div>
-
-            <div class="cr-upload-card">
-              <div class="cr-upload-card-head">
-                <span class="cr-upload-icon cr-upload-icon--price"></span>
-                <div>
-                  <h3 class="cr-upload-card-title">Precios</h3>
-                  <p class="cr-upload-card-desc">El precio promocion se muestra como oferta destacada</p>
-                </div>
-              </div>
-              <div class="cr-price-row">
-                <div class="cr-field">
-                  <label class="cr-label" for="cr-ma-precio">Precio normal (USD) <span class="cr-req">*</span></label>
-                  <input type="number" id="cr-ma-precio" class="cr-input cr-input--price" placeholder="29.99" min="0.01" step="0.01" />
-                </div>
-                <div class="cr-field">
-                  <label class="cr-label" for="cr-ma-precio-promo">Precio promocion (USD)</label>
-                  <input type="number" id="cr-ma-precio-promo" class="cr-input cr-input--price cr-input--promo" placeholder="19.99" min="0.01" step="0.01" />
-                </div>
-              </div>
+            <div class="cr-field">
+              <label class="cr-label" for="cr-ma-nombre">Nombre de la mini app <span class="cr-req">*</span></label>
+              <input type="text" id="cr-ma-nombre" class="cr-input" placeholder="Ej: Calculadora de macros IA" maxlength="120" />
             </div>
-
-            <div class="cr-upload-card">
-              <div class="cr-upload-card-head">
-                <span class="cr-upload-icon cr-upload-icon--opts"></span>
-                <div>
-                  <h3 class="cr-upload-card-title">Opciones</h3>
-                  <p class="cr-upload-card-desc">IA y venta por vendedores</p>
-                </div>
-              </div>
-              <div class="cr-option-list">
-                <label class="cr-option-item">
-                  <input type="checkbox" id="cr-ma-usa-ia" />
-                  <div class="cr-option-body">
-                    <span class="cr-option-title">Usa IA</span>
-                    <span class="cr-option-desc">El comprador pondra su propia API key</span>
-                  </div>
-                </label>
-                <label class="cr-option-item">
-                  <input type="checkbox" id="cr-ma-vendedores" onchange="toggleComisionField()" />
-                  <div class="cr-option-body">
-                    <span class="cr-option-title">Disponible para vendedores</span>
-                    <span class="cr-option-desc">Los vendedores pueden promover y vender tu mini app</span>
-                  </div>
-                </label>
-              </div>
-              <div class="cr-field cr-comision-field" id="cr-comision-wrap" hidden>
-                <label class="cr-label" for="cr-ma-comision">Comision del vendedor (%)</label>
-                <input type="number" id="cr-ma-comision" class="cr-input" placeholder="20" min="0" max="100" step="0.1" />
-              </div>
+            <div class="cr-field">
+              <label class="cr-label" for="cr-ma-desc">Descripcion corta</label>
+              <textarea id="cr-ma-desc" class="cr-textarea cr-textarea--sm" rows="4" placeholder="Describe tu mini app para vendedores y compradores..."></textarea>
             </div>
-
-            <button type="button" class="cr-btn-publish" id="cr-ma-publicar-btn" onclick="publicarMiniapp()">
-              <span id="cr-ma-publicar-text">Publicar mini app</span>
-            </button>
-
           </div>
+
+          <div class="cr-upload-card">
+            <div class="cr-upload-card-head">
+              <span class="cr-upload-icon cr-upload-icon--price"></span>
+              <div>
+                <h3 class="cr-upload-card-title">Precios</h3>
+                <p class="cr-upload-card-desc">El precio promocion se muestra como oferta destacada</p>
+              </div>
+            </div>
+            <div class="cr-price-row">
+              <div class="cr-field">
+                <label class="cr-label" for="cr-ma-precio">Precio normal (USD) <span class="cr-req">*</span></label>
+                <input type="number" id="cr-ma-precio" class="cr-input cr-input--price" placeholder="29.99" min="0.01" step="0.01" />
+              </div>
+              <div class="cr-field">
+                <label class="cr-label" for="cr-ma-precio-promo">Precio promocion (USD)</label>
+                <input type="number" id="cr-ma-precio-promo" class="cr-input cr-input--price cr-input--promo" placeholder="19.99" min="0.01" step="0.01" />
+              </div>
+            </div>
+          </div>
+
+          <!-- 4) OPCIONES -->
+          <div class="cr-upload-card">
+            <div class="cr-upload-card-head">
+              <span class="cr-upload-icon cr-upload-icon--opts"></span>
+              <div>
+                <h3 class="cr-upload-card-title">Opciones</h3>
+                <p class="cr-upload-card-desc">IA y venta por vendedores</p>
+              </div>
+            </div>
+            <div class="cr-option-list">
+              <label class="cr-option-item">
+                <input type="checkbox" id="cr-ma-usa-ia" />
+                <div class="cr-option-body">
+                  <span class="cr-option-title">Usa IA</span>
+                  <span class="cr-option-desc">El comprador pondra su propia API key</span>
+                </div>
+              </label>
+              <label class="cr-option-item">
+                <input type="checkbox" id="cr-ma-vendedores" onchange="toggleComisionField()" />
+                <div class="cr-option-body">
+                  <span class="cr-option-title">Disponible para vendedores</span>
+                  <span class="cr-option-desc">Los vendedores pueden promover y vender tu mini app</span>
+                </div>
+              </label>
+            </div>
+            <div class="cr-field cr-comision-field" id="cr-comision-wrap" hidden>
+              <label class="cr-label" for="cr-ma-comision">Comision del vendedor (%)</label>
+              <input type="number" id="cr-ma-comision" class="cr-input" placeholder="20" min="0" max="100" step="0.1" />
+            </div>
+          </div>
+
+          <!-- 5) PUBLICAR -->
+          <button type="button" class="cr-btn-publish" id="cr-ma-publicar-btn" onclick="publicarMiniapp()">
+            <span id="cr-ma-publicar-text">Publicar mini app</span>
+          </button>
+
         </div>
 
         <div class="cr-products-section">
@@ -296,6 +301,6 @@
     </main>
   </div>
 
-  <script src="assets/js/creadores.js?v=5"></script>
+  <script src="assets/js/creadores.js?v=6"></script>
 </body>
 </html>
