@@ -2280,6 +2280,118 @@ app.post('/api/mis-productos/quitar', async (req, res) => {
   }
 });
 
+// ── Catalogo mini apps (activos digitales para vendedores) ────────────────────
+
+// GET /api/catalogo/miniapps
+app.get('/api/catalogo/miniapps', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('miniapps')
+      .select('id, nombre, slug, descripcion, precio, precio_promocion, comision_vendedor, usa_ia, tipo_producto, foto1_key, pagina_venta_slug, creado_en')
+      .eq('estado_aprobacion', 'aprobada')
+      .eq('disponible_vendedores', true)
+      .not('pagina_venta_slug', 'is', null)
+      .order('creado_en', { ascending: false });
+    if (error) throw error;
+    res.json({ ok: true, miniapps: data || [] });
+  } catch (e) {
+    console.error('[catalogo/miniapps]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// POST /api/mis-miniapps/agregar
+app.post('/api/mis-miniapps/agregar', async (req, res) => {
+  const { usuario_id, miniapp_id } = req.body || {};
+  if (!usuario_id || !miniapp_id) {
+    return res.status(400).json({ ok: false, error: 'Se requiere usuario_id y miniapp_id.' });
+  }
+  try {
+    const { data: usuario, error: uErr } = await supabase
+      .from('usuarios')
+      .select('id, codigo')
+      .eq('id', usuario_id)
+      .single();
+    if (uErr || !usuario) {
+      return res.status(404).json({ ok: false, error: 'Usuario no encontrado.' });
+    }
+
+    const { data: miniapp, error: mErr } = await supabase
+      .from('miniapps')
+      .select('id, estado_aprobacion, disponible_vendedores, pagina_venta_slug')
+      .eq('id', miniapp_id)
+      .single();
+    if (mErr || !miniapp) {
+      return res.status(404).json({ ok: false, error: 'Mini app no encontrada.' });
+    }
+    if (miniapp.estado_aprobacion !== 'aprobada') {
+      return res.status(400).json({ ok: false, error: 'Esta mini app no esta aprobada.' });
+    }
+    if (!miniapp.disponible_vendedores) {
+      return res.status(400).json({ ok: false, error: 'Esta mini app no esta disponible para vendedores.' });
+    }
+    if (!miniapp.pagina_venta_slug) {
+      return res.status(400).json({ ok: false, error: 'Esta mini app aun no tiene pagina de venta. Contacta al administrador.' });
+    }
+
+    const link_venta = `${PUBLIC_BASE_URL}/p/${miniapp.pagina_venta_slug}?ref=${usuario.codigo}`;
+
+    const { error: iErr } = await supabase
+      .from('mis_miniapps')
+      .upsert(
+        { usuario_id, miniapp_id, link_venta },
+        { onConflict: 'usuario_id,miniapp_id', ignoreDuplicates: false }
+      );
+    if (iErr) throw iErr;
+
+    console.log(`[mis-miniapps/agregar] usuario=${usuario_id} miniapp=${miniapp_id} link=${link_venta}`);
+    res.json({ ok: true, link_venta });
+  } catch (e) {
+    console.error('[mis-miniapps/agregar]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// GET /api/mis-miniapps/:usuario_id
+app.get('/api/mis-miniapps/:usuario_id', async (req, res) => {
+  const { usuario_id } = req.params;
+  try {
+    const { data, error } = await supabase
+      .from('mis_miniapps')
+      .select(`
+        id, miniapp_id, link_venta, creado_en,
+        miniapps ( id, nombre, slug, precio, precio_promocion, comision_vendedor, foto1_key, usa_ia, tipo_producto )
+      `)
+      .eq('usuario_id', usuario_id)
+      .order('creado_en', { ascending: false });
+    if (error) throw error;
+    res.json({ ok: true, miniapps: data || [] });
+  } catch (e) {
+    console.error('[mis-miniapps GET]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// POST /api/mis-miniapps/quitar
+app.post('/api/mis-miniapps/quitar', async (req, res) => {
+  const { usuario_id, miniapp_id } = req.body || {};
+  if (!usuario_id || !miniapp_id) {
+    return res.status(400).json({ ok: false, error: 'Se requiere usuario_id y miniapp_id.' });
+  }
+  try {
+    const { error } = await supabase
+      .from('mis_miniapps')
+      .delete()
+      .eq('usuario_id', usuario_id)
+      .eq('miniapp_id', miniapp_id);
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[mis-miniapps/quitar]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 // ── Catalogo público (solo productos visibles y no pausados) ──────────────────
 
 // GET /api/catalogo

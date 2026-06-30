@@ -616,12 +616,35 @@
       </div>
 
       <div id="agent-tab-catalogo" class="agent-tab-panel active" role="tabpanel">
-        <div id="agent-grid-catalogo" class="products-grid"></div>
+        <div class="mon-subtabs-wrap">
+          <nav class="mon-subtabs" role="tablist" aria-label="Tipo de catalogo">
+            <button type="button" class="mon-subtab active" id="cat-subtab-btn-fisicos" role="tab" aria-selected="true" aria-controls="cat-sub-fisicos" onclick="switchCatalogoSubTab('fisicos')">
+              <span class="mon-subtab-label">Productos Fisicos</span>
+            </button>
+            <button type="button" class="mon-subtab" id="cat-subtab-btn-digitales" role="tab" aria-selected="false" aria-controls="cat-sub-digitales" onclick="switchCatalogoSubTab('digitales')">
+              <span class="mon-subtab-label">Activos Digitales</span>
+            </button>
+          </nav>
+        </div>
+        <div id="cat-sub-fisicos" class="cat-sub-panel active" role="tabpanel">
+          <div id="agent-grid-catalogo" class="products-grid"></div>
+        </div>
+        <div id="cat-sub-digitales" class="cat-sub-panel" role="tabpanel" hidden>
+          <div id="agent-grid-miniapps" class="products-grid"></div>
+        </div>
       </div>
 
       <div id="agent-tab-mis-productos" class="agent-tab-panel" role="tabpanel" hidden>
-        <p id="agent-mis-productos-empty" class="agent-empty-state" hidden>Aun no has anadido productos. Ve al Catalogo y elige los que quieras vender.</p>
-        <div id="agent-grid-mis-productos" class="products-grid"></div>
+        <div class="mis-prod-section">
+          <h3 class="mis-prod-section-title">Productos fisicos</h3>
+          <p id="agent-mis-productos-empty" class="agent-empty-state" hidden>Aun no has anadido productos fisicos. Ve al Catalogo y elige los que quieras vender.</p>
+          <div id="agent-grid-mis-productos" class="products-grid"></div>
+        </div>
+        <div class="mis-prod-section mis-prod-section--digitales">
+          <h3 class="mis-prod-section-title">Activos digitales</h3>
+          <p id="agent-mis-miniapps-empty" class="agent-empty-state" hidden>Aun no has anadido mini apps. Ve al Catalogo, pestana Activos Digitales.</p>
+          <div id="agent-grid-mis-miniapps" class="products-grid"></div>
+        </div>
       </div>
 
       <div id="agent-tab-monetizacion" class="agent-tab-panel" role="tabpanel" hidden>
@@ -1994,7 +2017,7 @@
 
 </div>
 
-<script src="assets/js/app.js?v=20"></script>
+<script src="assets/js/app.js?v=21"></script>
 
 <!-- ALBUM DE IMAGENES DEL PRODUCTO -->
 <div id="album-modal" class="album-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="album-nombre">

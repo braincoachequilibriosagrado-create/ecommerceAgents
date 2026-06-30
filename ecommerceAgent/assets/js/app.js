@@ -902,12 +902,16 @@ const EA_PIXEL_ID_KEY      = 'ea_pixel_id';
 const EA_MIS_PRODUCTOS_KEY = 'ea_mis_productos';
 // Links personales de venta guardados por slug: { slug: "url" }
 const EA_MIS_LINKS_KEY     = 'ea_mis_productos_links';
+const EA_MIS_MINIAPPS_IDS_KEY   = 'ea_mis_miniapps_ids';
+const EA_MIS_MINIAPPS_LINKS_KEY = 'ea_mis_miniapps_links';
 
 const EA_SESION_KEY = 'ea_sesion'; // sessionStorage key para la sesion activa
 
 // Cache de productos reales traidos de Supabase via motor
 // null = aun no cargado; [] = cargado pero vacio; [...] = productos reales
 var _catalogoSupa = null;
+var _catalogoMiniapps = null;
+var _catalogoSubTabActivo = 'fisicos';
 
 // Convierte un producto de Supabase al formato que espera buildProductCardHtml
 function _normalizarProductoSupa(p) {
@@ -1502,6 +1506,7 @@ function _precargarMisProductos() {
       saveMisProductosLinks(links);
     })
     .catch(function () {});
+  _precargarMisMiniapps();
 }
 
 function anadirProductoAMisProductos(slug) {
@@ -1567,6 +1572,326 @@ function quitarProductoDeMisProductos(slug) {
       _quitarLocal();
     })
     .catch(function (e) { alert('Error al quitar: ' + e.message); });
+}
+
+// ── Activos digitales (mini apps) ───────────────────────────────────────────
+
+function getMisMiniappsIds() {
+  try {
+    var raw = JSON.parse(sessionStorage.getItem(EA_MIS_MINIAPPS_IDS_KEY) || '[]');
+    return Array.isArray(raw) ? raw.map(String) : [];
+  } catch (e) { return []; }
+}
+function saveMisMiniappsIds(ids) {
+  try { sessionStorage.setItem(EA_MIS_MINIAPPS_IDS_KEY, JSON.stringify(ids.map(String))); } catch (e) {}
+}
+function getMisMiniappsLinks() {
+  try { return JSON.parse(sessionStorage.getItem(EA_MIS_MINIAPPS_LINKS_KEY) || '{}'); } catch (e) { return {}; }
+}
+function saveMisMiniappsLinks(links) {
+  try { sessionStorage.setItem(EA_MIS_MINIAPPS_LINKS_KEY, JSON.stringify(links)); } catch (e) {}
+}
+function isMiniappEnMisProductos(miniappId) {
+  return getMisMiniappsIds().indexOf(String(miniappId)) !== -1;
+}
+function _tipoMiniappLabel(tipo) {
+  var t = String(tipo || '').toLowerCase();
+  return t.indexOf('pdf') !== -1 ? 'Mini App + PDF' : 'Mini App';
+}
+function _fmtPrecioMiniapp(n) {
+  var v = Number(n);
+  if (!Number.isFinite(v)) return '0';
+  return (Math.round(v * 100) / 100).toFixed(v % 1 === 0 ? 0 : 2);
+}
+
+function switchCatalogoSubTab(tabId) {
+  _catalogoSubTabActivo = tabId;
+  ['fisicos', 'digitales'].forEach(function (id) {
+    var panel = document.getElementById('cat-sub-' + id);
+    var btn   = document.getElementById('cat-subtab-btn-' + id);
+    var active = id === tabId;
+    if (panel) { panel.hidden = !active; panel.classList.toggle('active', active); }
+    if (btn) {
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-selected', active ? 'true' : 'false');
+    }
+  });
+  if (tabId === 'digitales') renderCatalogoMiniappsGrid();
+  else if (_catalogoSupa === null) renderCatalogoGrid();
+  else renderProductGrid('agent-grid-catalogo', _catalogoSupa, 'catalogo');
+}
+
+function buildMiniappCardHtml(m, mode) {
+  var cardMode = mode || 'catalogo';
+  var idStr    = String(m.id);
+  var slugE    = _esc(m.slug);
+  var imgUrl   = MOTOR_URL + '/api/miniapps/asset/' + encodeURIComponent(m.slug) + '/foto1';
+  var tipoLbl  = _tipoMiniappLabel(m.tipo_producto);
+  var precioN  = Number(m.precio) || 0;
+  var precioP  = Number(m.precio_promocion);
+  var hasPromo = Number.isFinite(precioP) && precioP > 0 && precioP < precioN;
+  var comPct   = Number(m.comision_vendedor) || 0;
+
+  var precioHtml = hasPromo
+    ? '<div class="product-price-line product-price-line--sale">Precio: <span>$' + _fmtPrecioMiniapp(precioP) + '</span></div>' +
+      '<div class="product-price-line product-price-line--was"><span style="text-decoration:line-through;color:#999">$' + _fmtPrecioMiniapp(precioN) + '</span></div>'
+    : '<div class="product-price-line product-price-line--sale">Precio: <span>$' + _fmtPrecioMiniapp(precioN) + '</span></div>';
+
+  var tagsHtml =
+    '<span class="product-tag tag-available">' + _esc(tipoLbl) + '</span>' +
+    '<span class="product-tag tag-available ma-tag-comision">Comision: ' + comPct + '%</span>' +
+    (m.usa_ia ? '<span class="product-tag tag-limited">IA</span>' : '');
+
+  var actionHtml = '';
+  if (cardMode === 'mis-productos') {
+    var link = m.link_venta || getMisMiniappsLinks()[idStr] || '';
+    actionHtml =
+      '<div class="product-link-personal">' +
+      (link
+        ? '<div class="product-link-label">Tu link de venta</div>' +
+          '<div class="product-link-row">' +
+          '<span class="product-link-url">' + _esc(link) + '</span>' +
+          '<button type="button" class="btn-copy-link-personal" onclick="copiarLinkMiniapp(&#39;' + idStr + '&#39;)">Copiar</button>' +
+          '</div>'
+        : '<div class="product-link-pending">Sin link de venta.</div>') +
+      '</div>' +
+      '<button type="button" class="btn-product-remove" onclick="quitarMiniappDeMisProductos(&#39;' + idStr + '&#39;)">Quitar</button>';
+  } else if (isMiniappEnMisProductos(m.id)) {
+    var linkCat = getMisMiniappsLinks()[idStr] || '';
+    actionHtml =
+      (linkCat
+        ? '<div class="product-link-personal">' +
+          '<div class="product-link-label">Tu link de venta</div>' +
+          '<div class="product-link-row">' +
+          '<span class="product-link-url">' + _esc(linkCat) + '</span>' +
+          '<button type="button" class="btn-copy-link-personal" onclick="copiarLinkMiniapp(&#39;' + idStr + '&#39;)">Copiar link</button>' +
+          '</div></div>'
+        : '<button type="button" class="btn-product-add btn-product-add--added" disabled>Anadida</button>');
+  } else {
+    actionHtml =
+      '<button type="button" class="btn-product-add" onclick="anadirMiniappAMis(&#39;' + idStr + '&#39;)">+ Anadir para vender</button>';
+  }
+
+  return (
+    '<div class="product-card product-card--miniapp" data-miniapp-id="' + idStr + '">' +
+    '<div class="product-img">' +
+    '<img src="' + _esc(imgUrl) + '" alt="' + _esc(m.nombre) + '" loading="lazy" decoding="async" width="800" height="600" onerror="this.parentElement.classList.add(&#39;product-img--err&#39;)" />' +
+    '<div class="product-img-overlay"></div>' +
+    '</div>' +
+    '<div class="product-info">' +
+    '<div class="product-meta-top">' +
+    '<span class="product-cat">Activo digital</span></div>' +
+    '<div class="product-name">' + _esc(m.nombre) + '</div>' +
+    '<div class="product-prices">' + precioHtml + '</div>' +
+    '<div class="product-tags-row">' + tagsHtml + '</div>' +
+    actionHtml +
+    '</div></div>'
+  );
+}
+
+function renderCatalogoMiniappsGrid() {
+  var gridEl = document.getElementById('agent-grid-miniapps');
+  if (!gridEl) return;
+
+  if (_catalogoMiniapps !== null) {
+    if (!_catalogoMiniapps.length) {
+      gridEl.innerHTML = '<p style="padding:40px 24px;color:#888;text-align:center;font-style:italic;">No hay activos digitales disponibles en este momento.</p>';
+      return;
+    }
+    gridEl.innerHTML = _catalogoMiniapps.map(function (m) {
+      return buildMiniappCardHtml(m, 'catalogo');
+    }).join('');
+    return;
+  }
+
+  gridEl.innerHTML = '<p style="padding:32px;color:#999;font-style:italic;">Cargando activos digitales...</p>';
+
+  fetch(MOTOR_URL + '/api/catalogo/miniapps')
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (!data.ok) throw new Error(data.error || 'Error del servidor.');
+      _catalogoMiniapps = data.miniapps || [];
+      renderCatalogoMiniappsGrid();
+    })
+    .catch(function (e) {
+      gridEl.innerHTML =
+        '<div style="padding:32px 24px;text-align:center;">' +
+        '<p style="color:#c0392b;font-weight:600;margin-bottom:8px;">No se pudo cargar activos digitales.</p>' +
+        '<p style="color:#888;font-size:13px;">' + _esc(e.message) + '</p>' +
+        '<button onclick="_catalogoMiniapps=null;renderCatalogoMiniappsGrid();" style="margin-top:12px;padding:6px 16px;border:1px solid #b8973a;background:none;color:#b8973a;cursor:pointer;border-radius:3px;">Reintentar</button>' +
+        '</div>';
+    });
+}
+
+function anadirMiniappAMis(miniappId) {
+  var uid = _getUsuarioId();
+  if (!uid) {
+    alert('Sesion no valida. Vuelve a iniciar sesion.');
+    return;
+  }
+
+  var btn = document.querySelector('.product-card[data-miniapp-id="' + miniappId + '"] .btn-product-add');
+  if (btn) { btn.disabled = true; btn.textContent = 'Agregando...'; }
+
+  fetch(MOTOR_URL + '/api/mis-miniapps/agregar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ usuario_id: uid, miniapp_id: miniappId })
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (!data.ok) throw new Error(data.error || 'Error');
+      var ids = getMisMiniappsIds();
+      var idStr = String(miniappId);
+      if (ids.indexOf(idStr) === -1) ids.push(idStr);
+      saveMisMiniappsIds(ids);
+      var links = getMisMiniappsLinks();
+      links[idStr] = data.link_venta || '';
+      saveMisMiniappsLinks(links);
+      if (_catalogoMiniapps) renderCatalogoMiniappsGrid();
+      renderMisMiniappsGrid();
+      alert('Anadida. Ya tienes tu link en Mis Productos (Activos digitales).');
+    })
+    .catch(function (e) {
+      alert('Error al agregar: ' + e.message);
+      if (btn) { btn.disabled = false; btn.textContent = '+ Anadir para vender'; }
+    });
+}
+
+function copiarLinkMiniapp(miniappId) {
+  var idStr = String(miniappId);
+  var links = getMisMiniappsLinks();
+  var url   = links[idStr] || null;
+  if (!url) {
+    alert('No se encontro el link de esta mini app.');
+    return;
+  }
+  var btn = document.querySelector('.product-card[data-miniapp-id="' + idStr + '"] .btn-copy-link-personal');
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(url).then(function () { if (btn) showCopied(btn); });
+  } else {
+    var ta = document.createElement('textarea');
+    ta.value = url; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+    if (btn) showCopied(btn);
+  }
+}
+
+function quitarMiniappDeMisProductos(miniappId) {
+  var uid   = _getUsuarioId();
+  var idStr = String(miniappId);
+
+  function _quitarLocal() {
+    var ids = getMisMiniappsIds().filter(function (x) { return x !== idStr; });
+    saveMisMiniappsIds(ids);
+    var links = getMisMiniappsLinks();
+    delete links[idStr];
+    saveMisMiniappsLinks(links);
+    if (_catalogoMiniapps) renderCatalogoMiniappsGrid();
+    renderMisMiniappsGrid();
+  }
+
+  if (!uid) { _quitarLocal(); return; }
+
+  fetch(MOTOR_URL + '/api/mis-miniapps/quitar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ usuario_id: uid, miniapp_id: miniappId })
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (!data.ok) throw new Error(data.error || 'Error');
+      _quitarLocal();
+    })
+    .catch(function (e) { alert('Error al quitar: ' + e.message); });
+}
+
+function renderMisMiniappsGrid() {
+  var uid     = _getUsuarioId();
+  var emptyEl = document.getElementById('agent-mis-miniapps-empty');
+  var gridEl  = document.getElementById('agent-grid-mis-miniapps');
+  if (!gridEl) return;
+
+  if (!uid) {
+    gridEl.innerHTML = '';
+    gridEl.hidden = true;
+    if (emptyEl) emptyEl.hidden = false;
+    return;
+  }
+
+  gridEl.innerHTML = '<p style="padding:24px;color:#999;font-style:italic;">Cargando activos digitales...</p>';
+  gridEl.hidden = false;
+  if (emptyEl) emptyEl.hidden = true;
+
+  fetch(MOTOR_URL + '/api/mis-miniapps/' + encodeURIComponent(uid))
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (!data.ok) throw new Error(data.error || 'Error');
+      var items = data.miniapps || [];
+
+      var ids = [];
+      var links = {};
+      items.forEach(function (item) {
+        var m = item.miniapps;
+        if (!m) return;
+        var idStr = String(item.miniapp_id || m.id);
+        ids.push(idStr);
+        links[idStr] = item.link_venta || '';
+      });
+      saveMisMiniappsIds(ids);
+      saveMisMiniappsLinks(links);
+
+      if (!items.length) {
+        gridEl.innerHTML = '';
+        gridEl.hidden = true;
+        if (emptyEl) emptyEl.hidden = false;
+        return;
+      }
+
+      if (emptyEl) emptyEl.hidden = true;
+      gridEl.hidden = false;
+      gridEl.innerHTML = items.map(function (item) {
+        var m = item.miniapps;
+        if (!m) return '';
+        return buildMiniappCardHtml({
+          id:                item.miniapp_id || m.id,
+          slug:              m.slug,
+          nombre:            m.nombre,
+          precio:            m.precio,
+          precio_promocion:  m.precio_promocion,
+          comision_vendedor: m.comision_vendedor,
+          usa_ia:            m.usa_ia,
+          tipo_producto:     m.tipo_producto,
+          link_venta:        item.link_venta
+        }, 'mis-productos');
+      }).join('');
+    })
+    .catch(function (e) {
+      gridEl.innerHTML = '<p style="padding:24px;color:#c0392b;font-size:13px;">Error: ' + _esc(e.message) + '</p>';
+      gridEl.hidden = false;
+    });
+}
+
+function _precargarMisMiniapps() {
+  var uid = _getUsuarioId();
+  if (!uid) return;
+  fetch(MOTOR_URL + '/api/mis-miniapps/' + encodeURIComponent(uid))
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (!data.ok) return;
+      var ids = [];
+      var links = {};
+      (data.miniapps || []).forEach(function (item) {
+        var m = item.miniapps;
+        if (!m) return;
+        var idStr = String(item.miniapp_id || m.id);
+        ids.push(idStr);
+        links[idStr] = item.link_venta || '';
+      });
+      saveMisMiniappsIds(ids);
+      saveMisMiniappsLinks(links);
+    })
+    .catch(function () {});
 }
 
 function descargarImagenProducto(slug) {
@@ -1716,9 +2041,12 @@ function getMasVendidosOrdenado() {
 }
 
 function renderAgentProductGrids() {
-  _catalogoSupa = null; // forzar recarga fresca al entrar al dashboard
-  renderCatalogoGrid();
+  _catalogoSupa = null;
+  _catalogoMiniapps = null;
+  _catalogoSubTabActivo = 'fisicos';
+  switchCatalogoSubTab('fisicos');
   renderMisProductosGrid();
+  renderMisMiniappsGrid();
 }
 
 function renderAdminCatalogGrid() {
@@ -2212,17 +2540,22 @@ function switchAgentTab(tabId) {
   });
 
   if (tabId === 'catalogo') {
-    // Forzar recarga si aun no se ha cargado de Supabase
-    if (_catalogoSupa === null) renderCatalogoGrid();
+    if (_catalogoSubTabActivo === 'digitales') {
+      if (_catalogoMiniapps === null) renderCatalogoMiniappsGrid();
+      else renderCatalogoMiniappsGrid();
+    } else if (_catalogoSupa === null) renderCatalogoGrid();
     else renderProductGrid('agent-grid-catalogo', _catalogoSupa, 'catalogo');
   }
 
   if (tabId === 'mis-productos') {
-    // Si el catalogo aun no se cargó, cargarlo primero para que getProductoBySlug funcione
     if (_catalogoSupa === null) {
-      _cargarCatalogoSupa(function () { renderMisProductosGrid(); });
+      _cargarCatalogoSupa(function () {
+        renderMisProductosGrid();
+        renderMisMiniappsGrid();
+      });
     } else {
       renderMisProductosGrid();
+      renderMisMiniappsGrid();
     }
   }
 
