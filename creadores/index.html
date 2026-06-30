@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>MiniApps — Panel de Creadores</title>
   <link rel="icon" type="image/png" href="assets/img/logo.png?v=2" />
-  <link rel="stylesheet" href="assets/css/creadores.css?v=8" />
+  <link rel="stylesheet" href="assets/css/creadores.css?v=9" />
 </head>
 <body>
 
@@ -108,14 +108,33 @@
 
         <div class="cr-upload-hero">
           <div>
-            <h2 class="cr-upload-hero-title">Publicar mini app</h2>
-            <p class="cr-upload-hero-sub">Sube el producto que recibe el comprador, las fotos de venta y configura precios.</p>
+            <h2 class="cr-upload-hero-title" id="cr-upload-hero-title">Publicar activo digital</h2>
+            <p class="cr-upload-hero-sub" id="cr-upload-hero-sub">Elige el tipo de producto y completa el formulario.</p>
           </div>
+        </div>
+
+        <!-- Selector de categoria -->
+        <div class="cr-cat-picker" role="tablist" aria-label="Tipo de activo digital">
+          <button type="button" class="cr-cat-card" id="cr-cat-btn-infoproducto" onclick="switchCategoriaActivo('infoproducto')">
+            <span class="cr-cat-icon cr-cat-icon--pdf"></span>
+            <span class="cr-cat-name">Infoproducto</span>
+            <span class="cr-cat-desc">PDF descargable</span>
+          </button>
+          <button type="button" class="cr-cat-card" id="cr-cat-btn-contenido_digital" onclick="switchCategoriaActivo('contenido_digital')">
+            <span class="cr-cat-icon cr-cat-icon--video"></span>
+            <span class="cr-cat-name">Contenido Digital</span>
+            <span class="cr-cat-desc">Pack ZIP de videos</span>
+          </button>
+          <button type="button" class="cr-cat-card" id="cr-cat-btn-miniapp" onclick="switchCategoriaActivo('miniapp')">
+            <span class="cr-cat-icon cr-cat-icon--code"></span>
+            <span class="cr-cat-name">Mini App</span>
+            <span class="cr-cat-desc">App web en HTML</span>
+          </button>
         </div>
 
         <div id="cr-subir-msg" class="cr-msg"></div>
 
-        <div class="cr-upload-stack">
+        <div class="cr-upload-stack" id="cr-upload-stack" hidden>
 
           <!-- 1) EL PRODUCTO -->
           <div class="cr-upload-card">
@@ -123,11 +142,12 @@
               <span class="cr-upload-icon cr-upload-icon--code"></span>
               <div>
                 <h3 class="cr-upload-card-title">El producto</h3>
-                <p class="cr-upload-card-desc">Archivos que recibe el comprador al comprar</p>
+                <p class="cr-upload-card-desc" id="cr-producto-desc">Archivos que recibe el comprador al comprar</p>
               </div>
             </div>
 
-            <div class="cr-product-block">
+            <!-- Mini App: HTML -->
+            <div id="cr-block-html" class="cr-product-block" hidden>
               <label class="cr-label">Codigo HTML <span class="cr-req">*</span></label>
               <p class="cr-hint cr-hint--block">Pega el codigo o sube un archivo .html</p>
               <div class="cr-html-tabs">
@@ -145,9 +165,9 @@
               </div>
             </div>
 
-            <div class="cr-upload-divider"></div>
-
-            <div class="cr-product-block">
+            <!-- Mini App: PDF opcional -->
+            <div id="cr-block-pdf-miniapp" class="cr-product-block" hidden>
+              <div class="cr-upload-divider"></div>
               <label class="cr-label" for="cr-pdf">PDF del producto <span class="cr-opt">(opcional, premium)</span></label>
               <p class="cr-hint cr-hint--block">Solo si tu producto incluye un PDF premium.</p>
               <div class="cr-file-zone cr-file-zone--compact">
@@ -155,6 +175,32 @@
                 <label for="cr-pdf" class="cr-file-zone-label cr-file-zone-label--compact">
                   <span class="cr-file-zone-icon">PDF</span>
                   <span id="cr-pdf-label">Seleccionar PDF</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Infoproducto: PDF obligatorio -->
+            <div id="cr-block-pdf-info" class="cr-product-block" hidden>
+              <label class="cr-label" for="cr-pdf-info">PDF del producto <span class="cr-req">*</span></label>
+              <p class="cr-hint cr-hint--block">Este es tu producto — el comprador lo descargara.</p>
+              <div class="cr-file-zone cr-file-zone--compact">
+                <input type="file" id="cr-pdf-info" class="cr-file-input-hidden" accept=".pdf,application/pdf" onchange="onPdfInfoSelected(this)" />
+                <label for="cr-pdf-info" class="cr-file-zone-label cr-file-zone-label--compact">
+                  <span class="cr-file-zone-icon">PDF</span>
+                  <span id="cr-pdf-info-label">Seleccionar PDF</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Contenido digital: ZIP obligatorio -->
+            <div id="cr-block-pack" class="cr-product-block" hidden>
+              <label class="cr-label" for="cr-pack">Pack de contenido (ZIP) <span class="cr-req">*</span></label>
+              <p class="cr-hint cr-hint--block">Sube tu pack de videos/reels en un archivo ZIP. Comprime tus videos en un archivo .zip antes de subir.</p>
+              <div class="cr-file-zone cr-file-zone--compact">
+                <input type="file" id="cr-pack" class="cr-file-input-hidden" accept=".zip,application/zip,application/x-zip-compressed" onchange="onPackSelected(this)" />
+                <label for="cr-pack" class="cr-file-zone-label cr-file-zone-label--compact">
+                  <span class="cr-file-zone-icon">ZIP</span>
+                  <span id="cr-pack-label">Seleccionar archivo ZIP</span>
                 </label>
               </div>
             </div>
@@ -205,12 +251,12 @@
               </div>
             </div>
             <div class="cr-field">
-              <label class="cr-label" for="cr-ma-nombre">Nombre de la mini app <span class="cr-req">*</span></label>
-              <input type="text" id="cr-ma-nombre" class="cr-input" placeholder="Ej: Calculadora de macros IA" maxlength="120" />
+              <label class="cr-label" for="cr-ma-nombre" id="cr-ma-nombre-label">Nombre del producto <span class="cr-req">*</span></label>
+              <input type="text" id="cr-ma-nombre" class="cr-input" placeholder="Ej: Guia completa de macros" maxlength="120" />
             </div>
             <div class="cr-field">
-              <label class="cr-label" for="cr-ma-desc">Descripcion corta</label>
-              <textarea id="cr-ma-desc" class="cr-textarea cr-textarea--sm" rows="4" placeholder="Describe tu mini app para vendedores y compradores..."></textarea>
+              <label class="cr-label" for="cr-ma-desc" id="cr-ma-desc-label">Descripcion corta</label>
+              <textarea id="cr-ma-desc" class="cr-textarea cr-textarea--sm" rows="4" placeholder="Describe tu producto para vendedores y compradores..."></textarea>
             </div>
           </div>
 
@@ -244,7 +290,7 @@
               </div>
             </div>
             <div class="cr-option-list">
-              <label class="cr-option-item">
+              <label class="cr-option-item" id="cr-option-ia-wrap">
                 <input type="checkbox" id="cr-ma-usa-ia" />
                 <div class="cr-option-body">
                   <span class="cr-option-title">Usa IA</span>
@@ -255,7 +301,7 @@
                 <input type="checkbox" id="cr-ma-vendedores" onchange="toggleComisionField()" />
                 <div class="cr-option-body">
                   <span class="cr-option-title">Disponible para vendedores</span>
-                  <span class="cr-option-desc">Los vendedores pueden promover y vender tu mini app</span>
+                  <span class="cr-option-desc" id="cr-vendedores-desc">Los vendedores pueden promover y vender tu producto</span>
                 </div>
               </label>
             </div>
@@ -267,14 +313,14 @@
 
           <!-- 5) PUBLICAR -->
           <button type="button" class="cr-btn-publish" id="cr-ma-publicar-btn" onclick="publicarMiniapp()">
-            <span id="cr-ma-publicar-text">Publicar mini app</span>
+            <span id="cr-ma-publicar-text">Publicar activo digital</span>
           </button>
 
         </div>
 
         <div class="cr-products-section">
           <div class="cr-products-header">
-            <h3 class="cr-products-title">Mis mini apps publicadas</h3>
+            <h3 class="cr-products-title">Mis activos digitales publicados</h3>
             <span class="cr-products-count" id="cr-ma-count"></span>
           </div>
           <div id="cr-ma-lista" class="cr-products-grid">
@@ -305,6 +351,6 @@
     </main>
   </div>
 
-  <script src="assets/js/creadores.js?v=8"></script>
+  <script src="assets/js/creadores.js?v=9"></script>
 </body>
 </html>

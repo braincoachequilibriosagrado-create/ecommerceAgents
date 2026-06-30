@@ -136,15 +136,18 @@ const uploadReaccionFields = upload.fields([{ name: 'reaccionMemeFile', maxCount
 const uploadContenidoImg   = upload.single('imagen');
 const uploadAvatarFields   = upload.fields([{ name: 'fotoAvatar', maxCount: 1 }, { name: 'fotoProducto', maxCount: 1 }]);
 
-// Multer en memoria para subida de mini apps (fotos + PDF a R2)
+// Multer en memoria para subida de activos digitales (fotos, PDF, ZIP pack)
 const uploadMiniappFields = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 50 * 1024 * 1024 }
+  limits: { fileSize: 200 * 1024 * 1024 }
 }).fields([
   { name: 'pdf',   maxCount: 1 },
+  { name: 'pack',  maxCount: 1 },
   { name: 'foto1', maxCount: 1 },
   { name: 'foto2', maxCount: 1 }
 ]);
+
+const CREADOR_CATEGORIAS = ['infoproducto', 'contenido_digital', 'miniapp'];
 
 // ── CORS — lista blanca de orígenes permitidos ────────────────────────────────
 // Editar aquí para agregar dominios de producción / Vercel / staging.
@@ -1838,26 +1841,27 @@ function _mimeFromKey(key) {
 
 // POST /api/creador/miniapps/subir  (multipart/form-data)
 app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, async (req, res) => {
-  const htmlContent   = String((req.body || {}).html || '').trim();
-  const nombreTrim    = String((req.body || {}).nombre || '').trim();
-  const descripcion     = String((req.body || {}).descripcion || '').trim();
-  const precioNum       = Number((req.body || {}).precio);
-  const precioPromoNum  = Number((req.body || {}).precio_promocion);
-  const usa_ia          = _boolForm((req.body || {}).usa_ia);
-  const dispVendedores  = _boolForm((req.body || {}).disponible_vendedores);
-  const comisionNum     = dispVendedores ? Math.max(0, Number((req.body || {}).comision_vendedor) || 0) : 0;
+  const body            = req.body || {};
+  const categoria       = String(body.categoria || 'miniapp').trim().toLowerCase();
+  const htmlContent     = String(body.html || '').trim();
+  const nombreTrim      = String(body.nombre || '').trim();
+  const descripcion     = String(body.descripcion || '').trim();
+  const precioNum       = Number(body.precio);
+  const precioPromoNum  = Number(body.precio_promocion);
+  const usa_ia          = _boolForm(body.usa_ia);
+  const dispVendedores  = _boolForm(body.disponible_vendedores);
+  const comisionNum     = dispVendedores ? Math.max(0, Number(body.comision_vendedor) || 0) : 0;
 
-  const files  = req.files || {};
-  const foto1  = files.foto1 && files.foto1[0];
-  const foto2  = files.foto2 && files.foto2[0];
+  if (!CREADOR_CATEGORIAS.includes(categoria)) {
+    return res.status(400).json({ ok: false, error: 'Categoria invalida. Use infoproducto, contenido_digital o miniapp.' });
+  }
+
+  const files   = req.files || {};
+  const foto1   = files.foto1 && files.foto1[0];
+  const foto2   = files.foto2 && files.foto2[0];
   const pdfFile = files.pdf && files.pdf[0];
+  const packFile = files.pack && files.pack[0];
 
-  if (!htmlContent) {
-    return res.status(400).json({ ok: false, error: 'El HTML de la mini app no puede estar vacio.' });
-  }
-  if (Buffer.byteLength(htmlContent, 'utf8') > 5 * 1024 * 1024) {
-    return res.status(400).json({ ok: false, error: 'El HTML supera el limite de 5 MB.' });
-  }
   if (!nombreTrim) {
     return res.status(400).json({ ok: false, error: 'El nombre es obligatorio.' });
   }
@@ -1882,24 +1886,61 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
     if (foto2.size > 5 * 1024 * 1024) return res.status(400).json({ ok: false, error: 'Foto 2 supera el limite de 5 MB.' });
   }
 
-  if (pdfFile) {
+  let r2Key = null;
+  let pdfKey = null;
+  let packKey = null;
+  let tipo_producto = 'html';
+  const usaIaFinal = categoria === 'miniapp' ? usa_ia : false;
+
+  if (categoria === 'miniapp') {
+    if (!htmlContent) {
+      return res.status(400).json({ ok: false, error: 'El HTML de la mini app no puede estar vacio.' });
+    }
+    if (Buffer.byteLength(htmlContent, 'utf8') > 5 * 1024 * 1024) {
+      return res.status(400).json({ ok: false, error: 'El HTML supera el limite de 5 MB.' });
+    }
+    if (pdfFile) {
+      if (pdfFile.mimetype !== 'application/pdf' && !String(pdfFile.originalname || '').toLowerCase().endsWith('.pdf')) {
+        return res.status(400).json({ ok: false, error: 'El archivo PDF debe ser .pdf valido.' });
+      }
+      if (pdfFile.size > 50 * 1024 * 1024) {
+        return res.status(400).json({ ok: false, error: 'El PDF supera el limite de 50 MB.' });
+      }
+    }
+    tipo_producto = pdfFile ? 'html_pdf' : 'html';
+  } else if (categoria === 'infoproducto') {
+    if (!pdfFile) {
+      return res.status(400).json({ ok: false, error: 'El PDF es obligatorio para un infoproducto.' });
+    }
     if (pdfFile.mimetype !== 'application/pdf' && !String(pdfFile.originalname || '').toLowerCase().endsWith('.pdf')) {
-      return res.status(400).json({ ok: false, error: 'El archivo PDF debe ser .pdf valido.' });
+      return res.status(400).json({ ok: false, error: 'El archivo debe ser un PDF valido.' });
     }
     if (pdfFile.size > 50 * 1024 * 1024) {
       return res.status(400).json({ ok: false, error: 'El PDF supera el limite de 50 MB.' });
     }
+    tipo_producto = 'pdf';
+  } else if (categoria === 'contenido_digital') {
+    if (!packFile) {
+      return res.status(400).json({ ok: false, error: 'El archivo ZIP del pack es obligatorio para contenido digital.' });
+    }
+    const packName = String(packFile.originalname || '').toLowerCase();
+    const isZip = packFile.mimetype === 'application/zip'
+      || packFile.mimetype === 'application/x-zip-compressed'
+      || packName.endsWith('.zip');
+    if (!isZip) {
+      return res.status(400).json({ ok: false, error: 'El pack debe ser un archivo .zip valido.' });
+    }
+    if (packFile.size > 200 * 1024 * 1024) {
+      return res.status(400).json({ ok: false, error: 'El ZIP supera el limite de 200 MB.' });
+    }
+    tipo_producto = 'pack';
   }
 
   try {
     const slug     = await _generarSlugMiniappUnico(nombreTrim);
-    const r2Key    = 'miniapps/' + slug + '/app.html';
     const foto1Key = 'miniapps/' + slug + '/foto1.' + ext1;
     let foto2Key   = null;
-    let pdfKey     = null;
-    const tipo_producto = pdfFile ? 'html_pdf' : 'html';
 
-    await subirArchivo(r2Key, htmlContent, 'text/html');
     await subirArchivo(foto1Key, foto1.buffer, foto1.mimetype || 'image/jpeg');
 
     if (foto2) {
@@ -1907,9 +1948,20 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
       foto2Key = 'miniapps/' + slug + '/foto2.' + ext2;
       await subirArchivo(foto2Key, foto2.buffer, foto2.mimetype || 'image/jpeg');
     }
-    if (pdfFile) {
+
+    if (categoria === 'miniapp') {
+      r2Key = 'miniapps/' + slug + '/app.html';
+      await subirArchivo(r2Key, htmlContent, 'text/html');
+      if (pdfFile) {
+        pdfKey = 'miniapps/' + slug + '/producto.pdf';
+        await subirArchivo(pdfKey, pdfFile.buffer, 'application/pdf');
+      }
+    } else if (categoria === 'infoproducto') {
       pdfKey = 'miniapps/' + slug + '/producto.pdf';
       await subirArchivo(pdfKey, pdfFile.buffer, 'application/pdf');
+    } else if (categoria === 'contenido_digital') {
+      packKey = 'miniapps/' + slug + '/pack.zip';
+      await subirArchivo(packKey, packFile.buffer, 'application/zip');
     }
 
     const { data, error } = await supabase
@@ -1921,10 +1973,12 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
         descripcion:           descripcion || null,
         precio:                precioNum,
         precio_promocion:      (precioPromoNum > 0) ? precioPromoNum : null,
+        categoria,
         tipo_producto,
-        usa_ia,
+        usa_ia:                usaIaFinal,
         r2_key:                r2Key,
         pdf_key:               pdfKey,
+        pack_key:              packKey,
         foto1_key:             foto1Key,
         foto2_key:             foto2Key,
         disponible_vendedores: dispVendedores,
@@ -1934,12 +1988,12 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
         estado_aprobacion:     'pendiente',
         creado_en:             new Date().toISOString()
       })
-      .select('id, nombre, slug, precio, precio_promocion, tipo_producto, usa_ia, disponible_vendedores, comision_vendedor, estado, creado_en, r2_key, foto1_key')
+      .select('id, nombre, slug, categoria, precio, precio_promocion, tipo_producto, usa_ia, disponible_vendedores, comision_vendedor, estado, creado_en, r2_key, foto1_key, pack_key')
       .single();
 
     if (error) throw error;
 
-    console.log('[creador/miniapps/subir] creador=' + req.creador_id + ' slug=' + slug + ' tipo=' + tipo_producto);
+    console.log('[creador/miniapps/subir] creador=' + req.creador_id + ' slug=' + slug + ' cat=' + categoria + ' tipo=' + tipo_producto);
     res.json({
       ok: true,
       miniapp: data,
@@ -1989,7 +2043,7 @@ app.get('/api/creador/miniapps', requireCreador, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('miniapps')
-      .select('id, nombre, slug, precio, precio_promocion, tipo_producto, usa_ia, disponible_vendedores, comision_vendedor, estado, creado_en, foto1_key')
+      .select('id, nombre, slug, precio, precio_promocion, tipo_producto, categoria, usa_ia, disponible_vendedores, comision_vendedor, estado, creado_en, foto1_key')
       .eq('creador_id', req.creador_id)
       .order('creado_en', { ascending: false });
     if (error) throw error;

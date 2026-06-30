@@ -8,6 +8,33 @@ const CR_TABS = ['cuentas', 'subir', 'info'];
 var currentCreador = { id: null, nombre: '', email: '' };
 var _htmlMode = 'pegar';
 var _htmlFromFile = '';
+var _categoriaActiva = null;
+
+var CR_CATEGORIAS = ['infoproducto', 'contenido_digital', 'miniapp'];
+
+var CR_CATEGORIA_META = {
+  infoproducto: {
+    title: 'Publicar infoproducto',
+    sub: 'Sube tu PDF, las fotos de venta y configura precios.',
+    publish: 'Publicar infoproducto',
+    nombrePh: 'Ej: Guia completa de inversiones',
+    descPh: 'Describe tu infoproducto para vendedores y compradores...'
+  },
+  contenido_digital: {
+    title: 'Publicar contenido digital',
+    sub: 'Sube tu pack ZIP, las fotos de venta y configura precios.',
+    publish: 'Publicar contenido digital',
+    nombrePh: 'Ej: Pack 30 reels virales',
+    descPh: 'Describe tu pack de contenido para vendedores y compradores...'
+  },
+  miniapp: {
+    title: 'Publicar mini app',
+    sub: 'Sube el HTML, las fotos de venta y configura precios.',
+    publish: 'Publicar mini app',
+    nombrePh: 'Ej: Calculadora de macros IA',
+    descPh: 'Describe tu mini app para vendedores y compradores...'
+  }
+};
 
 /* ── Session helpers ─────────────────────────────────────── */
 
@@ -236,7 +263,63 @@ function onPdfSelected(input) {
   if (lbl) lbl.textContent = file ? file.name : 'Seleccionar PDF';
 }
 
+function onPdfInfoSelected(input) {
+  var file = input.files && input.files[0];
+  var lbl = document.getElementById('cr-pdf-info-label');
+  if (lbl) lbl.textContent = file ? file.name : 'Seleccionar PDF';
+}
+
+function onPackSelected(input) {
+  var file = input.files && input.files[0];
+  var lbl = document.getElementById('cr-pack-label');
+  if (lbl) lbl.textContent = file ? file.name : 'Seleccionar archivo ZIP';
+}
+
+function _updateCategoriaUI() {
+  CR_CATEGORIAS.forEach(function (cat) {
+    var btn = document.getElementById('cr-cat-btn-' + cat);
+    if (btn) btn.classList.toggle('active', cat === _categoriaActiva);
+  });
+
+  var stack = document.getElementById('cr-upload-stack');
+  if (stack) stack.hidden = !_categoriaActiva;
+
+  var meta = _categoriaActiva ? CR_CATEGORIA_META[_categoriaActiva] : null;
+  var titleEl = document.getElementById('cr-upload-hero-title');
+  var subEl   = document.getElementById('cr-upload-hero-sub');
+  var pubEl   = document.getElementById('cr-ma-publicar-text');
+  var nomInp  = document.getElementById('cr-ma-nombre');
+  var descInp = document.getElementById('cr-ma-desc');
+
+  if (titleEl) titleEl.textContent = meta ? meta.title : 'Publicar activo digital';
+  if (subEl)   subEl.textContent   = meta ? meta.sub : 'Elige el tipo de producto y completa el formulario.';
+  if (pubEl)   pubEl.textContent   = meta ? meta.publish : 'Publicar activo digital';
+  if (nomInp && meta) nomInp.placeholder = meta.nombrePh;
+  if (descInp && meta) descInp.placeholder = meta.descPh;
+
+  var blockHtml  = document.getElementById('cr-block-html');
+  var blockPdfMa = document.getElementById('cr-block-pdf-miniapp');
+  var blockPdfInfo = document.getElementById('cr-block-pdf-info');
+  var blockPack  = document.getElementById('cr-block-pack');
+  var optIa      = document.getElementById('cr-option-ia-wrap');
+
+  if (blockHtml)    blockHtml.hidden    = _categoriaActiva !== 'miniapp';
+  if (blockPdfMa)   blockPdfMa.hidden   = _categoriaActiva !== 'miniapp';
+  if (blockPdfInfo) blockPdfInfo.hidden = _categoriaActiva !== 'infoproducto';
+  if (blockPack)    blockPack.hidden    = _categoriaActiva !== 'contenido_digital';
+  if (optIa)        optIa.hidden        = _categoriaActiva !== 'miniapp';
+}
+
+function switchCategoriaActivo(cat) {
+  if (CR_CATEGORIAS.indexOf(cat) === -1) return;
+  _categoriaActiva = cat;
+  _updateCategoriaUI();
+  _clearMsg('cr-subir-msg');
+}
+
 function _resetSubirForm() {
+  _categoriaActiva = null;
+  _updateCategoriaUI();
   document.getElementById('cr-html-textarea').value = '';
   document.getElementById('cr-ma-nombre').value = '';
   document.getElementById('cr-ma-precio').value = '';
@@ -253,12 +336,18 @@ function _resetSubirForm() {
   var foto1 = document.getElementById('cr-foto1');
   var foto2 = document.getElementById('cr-foto2');
   var pdf = document.getElementById('cr-pdf');
+  var pdfInfo = document.getElementById('cr-pdf-info');
+  var pack = document.getElementById('cr-pack');
   if (foto1) foto1.value = '';
   if (foto2) foto2.value = '';
   if (pdf) pdf.value = '';
+  if (pdfInfo) pdfInfo.value = '';
+  if (pack) pack.value = '';
   previewFoto({ files: [] }, 'cr-foto1-preview');
   previewFoto({ files: [] }, 'cr-foto2-preview');
   onPdfSelected({ files: [] });
+  onPdfInfoSelected({ files: [] });
+  onPackSelected({ files: [] });
   switchHtmlMode('pegar');
   toggleComisionField();
 }
@@ -277,21 +366,43 @@ function toggleComisionField() {
 /* ── Subir mini app ──────────────────────────────────────── */
 
 async function publicarMiniapp() {
+  if (!_categoriaActiva) {
+    _showMsg('cr-subir-msg', 'Elige primero el tipo de activo digital.', false);
+    return;
+  }
+
   var btn = document.getElementById('cr-ma-publicar-btn');
   var btnText = document.getElementById('cr-ma-publicar-text');
-  var html = _obtenerHtml();
+  var html = _categoriaActiva === 'miniapp' ? _obtenerHtml() : '';
   var nombre = (document.getElementById('cr-ma-nombre').value || '').trim();
   var precio = parseFloat(document.getElementById('cr-ma-precio').value);
   var precioPromo = parseFloat(document.getElementById('cr-ma-precio-promo').value);
   var descripcion = (document.getElementById('cr-ma-desc').value || '').trim();
-  var usa_ia = document.getElementById('cr-ma-usa-ia').checked;
+  var usa_ia = _categoriaActiva === 'miniapp' && document.getElementById('cr-ma-usa-ia').checked;
   var disponible_vendedores = document.getElementById('cr-ma-vendedores').checked;
   var comision_vendedor = parseFloat(document.getElementById('cr-ma-comision').value) || 0;
   var foto1Input = document.getElementById('cr-foto1');
   var foto2Input = document.getElementById('cr-foto2');
   var pdfInput = document.getElementById('cr-pdf');
+  var pdfInfoInput = document.getElementById('cr-pdf-info');
+  var packInput = document.getElementById('cr-pack');
 
-  if (!html) { _showMsg('cr-subir-msg', 'El HTML no puede estar vacio.', false); return; }
+  if (_categoriaActiva === 'miniapp' && !html) {
+    _showMsg('cr-subir-msg', 'El HTML no puede estar vacio.', false);
+    return;
+  }
+  if (_categoriaActiva === 'infoproducto') {
+    if (!pdfInfoInput || !pdfInfoInput.files || !pdfInfoInput.files[0]) {
+      _showMsg('cr-subir-msg', 'El PDF es obligatorio para un infoproducto.', false);
+      return;
+    }
+  }
+  if (_categoriaActiva === 'contenido_digital') {
+    if (!packInput || !packInput.files || !packInput.files[0]) {
+      _showMsg('cr-subir-msg', 'El archivo ZIP del pack es obligatorio.', false);
+      return;
+    }
+  }
   if (!nombre) { _showMsg('cr-subir-msg', 'El nombre es obligatorio.', false); return; }
   if (!precio || precio <= 0) { _showMsg('cr-subir-msg', 'Ingresa un precio normal valido.', false); return; }
   if (!foto1Input || !foto1Input.files || !foto1Input.files[0]) {
@@ -300,7 +411,8 @@ async function publicarMiniapp() {
   }
 
   var fd = new FormData();
-  fd.append('html', html);
+  fd.append('categoria', _categoriaActiva);
+  if (_categoriaActiva === 'miniapp') fd.append('html', html);
   fd.append('nombre', nombre);
   fd.append('descripcion', descripcion);
   fd.append('precio', String(precio));
@@ -312,10 +424,17 @@ async function publicarMiniapp() {
   if (foto2Input && foto2Input.files && foto2Input.files[0]) {
     fd.append('foto2', foto2Input.files[0]);
   }
-  if (pdfInput && pdfInput.files && pdfInput.files[0]) {
+  if (_categoriaActiva === 'miniapp' && pdfInput && pdfInput.files && pdfInput.files[0]) {
     fd.append('pdf', pdfInput.files[0]);
   }
+  if (_categoriaActiva === 'infoproducto' && pdfInfoInput.files[0]) {
+    fd.append('pdf', pdfInfoInput.files[0]);
+  }
+  if (_categoriaActiva === 'contenido_digital' && packInput.files[0]) {
+    fd.append('pack', packInput.files[0]);
+  }
 
+  var publishLabel = (CR_CATEGORIA_META[_categoriaActiva] || {}).publish || 'Publicar';
   if (btn) btn.disabled = true;
   if (btnText) btnText.textContent = 'Subiendo...';
   _clearMsg('cr-subir-msg');
@@ -328,8 +447,8 @@ async function publicarMiniapp() {
     var d = await r.json();
     if (!d.ok) throw new Error(d.error || 'Error al publicar.');
 
-    var link = d.url || (MOTOR_URL + '/miniapps/' + (d.miniapp && d.miniapp.slug));
-    _showMsg('cr-subir-msg', 'Mini app publicada correctamente. Slug: ' + d.miniapp.slug + ' — ' + link, true);
+    var tipoLabel = _categoriaActiva === 'miniapp' ? 'Mini app' : (_categoriaActiva === 'infoproducto' ? 'Infoproducto' : 'Contenido digital');
+    _showMsg('cr-subir-msg', tipoLabel + ' publicado correctamente. Slug: ' + d.miniapp.slug, true);
 
     _resetSubirForm();
     cargarMiniappsLista();
@@ -337,7 +456,7 @@ async function publicarMiniapp() {
     _showMsg('cr-subir-msg', e.message || 'Error de conexion.', false);
   } finally {
     if (btn) btn.disabled = false;
-    if (btnText) btnText.textContent = 'Publicar mini app';
+    if (btnText) btnText.textContent = publishLabel;
   }
 }
 
@@ -367,8 +486,17 @@ async function cargarMiniappsLista() {
 
     wrap.innerHTML = list.map(function (m) {
       var imgUrl = MOTOR_URL + '/api/miniapps/asset/' + encodeURIComponent(m.slug) + '/foto1';
-      var tipoLabel = m.tipo_producto === 'html_pdf' ? 'HTML + PDF' : 'HTML';
-      var tipoClass = m.tipo_producto === 'html_pdf' ? 'cr-product-tag--pdf' : 'cr-product-tag--html';
+      var cat = m.categoria || 'miniapp';
+      var catLabels = { infoproducto: 'Infoproducto', contenido_digital: 'Contenido Digital', miniapp: 'Mini App' };
+      var catLabel = catLabels[cat] || 'Mini App';
+      var tipoLabel = m.tipo_producto === 'html_pdf' ? 'HTML + PDF'
+        : m.tipo_producto === 'pdf' ? 'PDF'
+        : m.tipo_producto === 'pack' ? 'ZIP Pack'
+        : 'HTML';
+      var tipoClass = m.tipo_producto === 'html_pdf' ? 'cr-product-tag--pdf'
+        : m.tipo_producto === 'pdf' ? 'cr-product-tag--pdf'
+        : m.tipo_producto === 'pack' ? 'cr-product-tag--pack'
+        : 'cr-product-tag--html';
       var iaBadge = m.usa_ia
         ? '<span class="cr-product-tag cr-product-tag--ia">Usa IA</span>'
         : '';
@@ -393,6 +521,7 @@ async function cargarMiniappsLista() {
             '<p class="cr-product-slug">' + _esc(m.slug) + '</p>' +
             '<div class="cr-product-prices">' + precioHtml + '</div>' +
             '<div class="cr-product-tags">' +
+              '<span class="cr-product-tag cr-product-tag--cat">' + catLabel + '</span>' +
               '<span class="cr-product-tag ' + tipoClass + '">' + tipoLabel + '</span>' +
               iaBadge +
             '</div>' +
@@ -531,6 +660,7 @@ async function cargarCuentasCreador() {
 document.addEventListener('DOMContentLoaded', function () {
   switchHtmlMode('pegar');
   toggleComisionField();
+  _updateCategoriaUI();
   try {
     var raw = sessionStorage.getItem(CR_SESION_KEY);
     if (raw) {
