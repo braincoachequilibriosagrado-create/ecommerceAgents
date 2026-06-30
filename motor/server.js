@@ -18,6 +18,7 @@ const SYSTEM_CONTENIDO   = require('./system-contenido');
 const SYSTEM_AVATAR      = require('./system-avatar');
 const agenteVentas       = require('./agente-ventas');
 const supabase           = require('./supabase');
+const { subirArchivo }   = require('./r2');
 
 const app  = express();
 const PORT = process.env.PORT || 3002;
@@ -1742,6 +1743,251 @@ app.post('/api/creador/login', async (req, res) => {
     });
   } catch (e) {
     console.error('[creador/login]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+const CREADOR_PARTE_PLATAFORMA_DEFAULT = 10;
+
+function _slugifyMiniapp(nombre) {
+  return String(nombre || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60) || 'miniapp';
+}
+
+async function _generarSlugMiniappUnico(nombre) {
+  const base = _slugifyMiniapp(nombre);
+  let slug = base;
+  let n = 0;
+  while (true) {
+    const { data } = await supabase.from('miniapps').select('id').eq('slug', slug).maybeSingle();
+    if (!data) return slug;
+    n += 1;
+    slug = base + '-' + n;
+  }
+}
+
+async function _miniappPerteneceCreador(miniapp_id, creador_id) {
+  const { data, error } = await supabase
+    .from('miniapps')
+    .select('id, creador_id, comision_vendedor, parte_plataforma, slug, nombre, precio')
+    .eq('id', miniapp_id)
+    .maybeSingle();
+  if (error || !data || data.creador_id !== creador_id) return null;
+  return data;
+}
+
+// POST /api/creador/miniapps/subir
+app.post('/api/creador/miniapps/subir', requireCreador, async (req, res) => {
+  const {
+    html, nombre, descripcion, precio,
+    usa_ia, disponible_vendedores, comision_vendedor, imagen_preview
+  } = req.body || {};
+
+  const htmlContent = String(html || '').trim();
+  const nombreTrim  = String(nombre || '').trim();
+  const precioNum   = Number(precio);
+
+  if (!htmlContent) {
+    return res.status(400).json({ ok: false, error: 'El HTML de la mini app no puede estar vacio.' });
+  }
+  if (!nombreTrim) {
+    return res.status(400).json({ ok: false, error: 'El nombre es obligatorio.' });
+  }
+  if (!precioNum || precioNum <= 0) {
+    return res.status(400).json({ ok: false, error: 'El precio es obligatorio y debe ser mayor a 0.' });
+  }
+
+  try {
+    const slug  = await _generarSlugMiniappUnico(nombreTrim);
+    const r2Key = 'miniapps/' + slug + '/app.html';
+
+    await subirArchivo(r2Key, htmlContent, 'text/html');
+
+    const dispVendedores = Boolean(disponible_vendedores);
+    const comisionNum    = dispVendedores ? Math.max(0, Number(comision_vendedor) || 0) : 0;
+
+    const { data, error } = await supabase
+      .from('miniapps')
+      .insert({
+        creador_id:            req.creador_id,
+        nombre:                nombreTrim,
+        slug,
+        descripcion:           String(descripcion || '').trim() || null,
+        precio:                precioNum,
+        usa_ia:                Boolean(usa_ia),
+        r2_key:                r2Key,
+        imagen_preview:        String(imagen_preview || '').trim() || null,
+        disponible_vendedores: dispVendedores,
+        comision_vendedor:     comisionNum,
+        parte_plataforma:      CREADOR_PARTE_PLATAFORMA_DEFAULT,
+        estado:                'activo',
+        creado_en:             new Date().toISOString()
+      })
+      .select('id, nombre, slug, precio, usa_ia, disponible_vendedores, comision_vendedor, estado, creado_en, r2_key')
+      .single();
+
+    if (error) throw error;
+
+    console.log('[creador/miniapps/subir] creador=' + req.creador_id + ' slug=' + slug);
+    res.json({
+      ok: true,
+      miniapp: data,
+      url: PUBLIC_BASE_URL + '/miniapps/' + slug
+    });
+  } catch (e) {
+    console.error('[creador/miniapps/subir]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// GET /api/creador/miniapps
+app.get('/api/creador/miniapps', requireCreador, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('miniapps')
+      .select('id, nombre, slug, precio, usa_ia, disponible_vendedores, comision_vendedor, estado, creado_en')
+      .eq('creador_id', req.creador_id)
+      .order('creado_en', { ascending: false });
+    if (error) throw error;
+    res.json({ ok: true, miniapps: data || [] });
+  } catch (e) {
+    console.error('[creador/miniapps]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// POST /api/creador/miniapps/toggle-vendedores
+app.post('/api/creador/miniapps/toggle-vendedores', requireCreador, async (req, res) => {
+  const { miniapp_id, disponible } = req.body || {};
+  if (!miniapp_id) {
+    return res.status(400).json({ ok: false, error: 'Se requiere miniapp_id.' });
+  }
+
+  try {
+    const mini = await _miniappPerteneceCreador(miniapp_id, req.creador_id);
+    if (!mini) {
+      return res.status(404).json({ ok: false, error: 'Mini app no encontrada.' });
+    }
+
+    const disp = Boolean(disponible);
+    const { data, error } = await supabase
+      .from('miniapps')
+      .update({ disponible_vendedores: disp })
+      .eq('id', miniapp_id)
+      .select('id, nombre, slug, disponible_vendedores')
+      .single();
+    if (error) throw error;
+
+    res.json({ ok: true, miniapp: data });
+  } catch (e) {
+    console.error('[creador/miniapps/toggle-vendedores]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// GET /api/creador/cuentas
+app.get('/api/creador/cuentas', requireCreador, async (req, res) => {
+  try {
+    const { data: miniapps, error: errM } = await supabase
+      .from('miniapps')
+      .select('id, nombre, slug, precio, comision_vendedor, parte_plataforma')
+      .eq('creador_id', req.creador_id);
+    if (errM) throw errM;
+
+    const ids = (miniapps || []).map(function (m) { return m.id; });
+    let compras = [];
+    if (ids.length) {
+      const { data: ventas, error: errV } = await supabase
+        .from('miniapp_compras')
+        .select('miniapp_id, monto, estado_pago')
+        .in('miniapp_id', ids)
+        .eq('estado_pago', 'pagado');
+      if (errV) throw errV;
+      compras = ventas || [];
+    }
+
+    const mapMini = {};
+    (miniapps || []).forEach(function (m) {
+      mapMini[m.id] = {
+        id: m.id,
+        nombre: m.nombre,
+        slug: m.slug,
+        ventas: 0,
+        ganancia: 0
+      };
+    });
+
+    let ventasTotales = 0;
+    let gananciaTotal = 0;
+
+    compras.forEach(function (c) {
+      const m = (miniapps || []).find(function (x) { return x.id === c.miniapp_id; });
+      if (!m || !mapMini[c.miniapp_id]) return;
+
+      const monto = Number(c.monto) || 0;
+      const comisionPct = Number(m.comision_vendedor) || 0;
+      const partePlat   = Number(m.parte_plataforma) || CREADOR_PARTE_PLATAFORMA_DEFAULT;
+      const comisionV   = monto * comisionPct / 100;
+      const ganancia    = Math.max(0, monto - comisionV - partePlat);
+
+      mapMini[c.miniapp_id].ventas   += 1;
+      mapMini[c.miniapp_id].ganancia += ganancia;
+      ventasTotales += 1;
+      gananciaTotal += ganancia;
+    });
+
+    res.json({
+      ok: true,
+      resumen: {
+        ventas_totales: ventasTotales,
+        ganancia_total: Math.round(gananciaTotal * 100) / 100,
+        por_pagar:      Math.round(gananciaTotal * 100) / 100
+      },
+      miniapps: Object.values(mapMini)
+    });
+  } catch (e) {
+    console.error('[creador/cuentas]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// GET /api/creador/info
+app.get('/api/creador/info', requireCreador, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('creadores')
+      .select('id, nombre, email')
+      .eq('id', req.creador_id)
+      .single();
+    if (error) throw error;
+    res.json({ ok: true, creador: data });
+  } catch (e) {
+    console.error('[creador/info GET]', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// POST /api/creador/info
+app.post('/api/creador/info', requireCreador, async (req, res) => {
+  const nombre = String((req.body || {}).nombre || '').trim();
+  if (!nombre) {
+    return res.status(400).json({ ok: false, error: 'El nombre es obligatorio.' });
+  }
+  try {
+    const { data, error } = await supabase
+      .from('creadores')
+      .update({ nombre })
+      .eq('id', req.creador_id)
+      .select('id, nombre, email')
+      .single();
+    if (error) throw error;
+    res.json({ ok: true, creador: data });
+  } catch (e) {
+    console.error('[creador/info POST]', e.message);
     res.status(500).json({ ok: false, error: e.message });
   }
 });

@@ -15,7 +15,8 @@
         <span class="cr-brand">EcommerceAgents</span>
         <span class="cr-brand-tag">Panel de Creadores</span>
       </div>
-      <div style="display:flex;align-items:center;">
+      <div class="cr-nav-right">
+        <span class="cr-nav-hola" id="cr-nav-hola" hidden>Hola, <strong id="cr-nav-nombre"></strong></span>
         <span class="cr-nav-badge" id="cr-nav-badge" hidden>Creador</span>
         <button type="button" class="cr-btn-logout" id="cr-nav-logout" hidden onclick="creadorLogout()">Salir</button>
       </div>
@@ -29,10 +30,7 @@
         <button type="button" class="cr-auth-tab active" id="cr-tab-login" onclick="switchAuthTab('login')">Iniciar sesion</button>
         <button type="button" class="cr-auth-tab" id="cr-tab-registro" onclick="switchAuthTab('registro')">Registrarse</button>
       </div>
-
       <div class="cr-auth-body">
-
-        <!-- Login -->
         <div id="cr-panel-login">
           <h1 class="cr-auth-title">Bienvenido de nuevo</h1>
           <p class="cr-auth-sub">Ingresa con tu email y contraseña para acceder a tu panel.</p>
@@ -49,48 +47,147 @@
           </div>
           <button type="button" class="cr-btn-primary" id="cr-login-btn" onclick="creadorLogin()">Entrar</button>
         </div>
-
-        <!-- Registro -->
         <div id="cr-panel-registro" hidden>
           <h1 class="cr-auth-title">Crear cuenta</h1>
           <p class="cr-auth-sub">Registrate para publicar y gestionar tus mini apps.</p>
           <div id="cr-reg-msg" class="cr-msg"></div>
           <div class="cr-field">
             <label class="cr-label" for="cr-reg-nombre">Nombre</label>
-            <input type="text" id="cr-reg-nombre" class="cr-input" placeholder="Tu nombre o alias" autocomplete="name" maxlength="80" />
+            <input type="text" id="cr-reg-nombre" class="cr-input" placeholder="Tu nombre o alias" maxlength="80" />
           </div>
           <div class="cr-field">
             <label class="cr-label" for="cr-reg-email">Email</label>
-            <input type="email" id="cr-reg-email" class="cr-input" placeholder="tu@email.com" autocomplete="email" />
+            <input type="email" id="cr-reg-email" class="cr-input" placeholder="tu@email.com" />
           </div>
           <div class="cr-field">
             <label class="cr-label" for="cr-reg-password">Contraseña</label>
-            <input type="password" id="cr-reg-password" class="cr-input" placeholder="Minimo 6 caracteres" autocomplete="new-password" />
+            <input type="password" id="cr-reg-password" class="cr-input" placeholder="Minimo 6 caracteres" />
           </div>
           <div class="cr-field">
             <label class="cr-label" for="cr-reg-confirm">Confirmar contraseña</label>
-            <input type="password" id="cr-reg-confirm" class="cr-input" placeholder="Repite tu contraseña" autocomplete="new-password"
+            <input type="password" id="cr-reg-confirm" class="cr-input" placeholder="Repite tu contraseña"
               onkeydown="if(event.key==='Enter')creadorRegistro()" />
           </div>
           <button type="button" class="cr-btn-primary" id="cr-reg-btn" onclick="creadorRegistro()">Crear cuenta</button>
         </div>
-
       </div>
     </div>
   </div>
 
-  <!-- Dashboard (placeholder) -->
-  <main id="cr-dashboard" class="cr-main" hidden>
-    <div class="cr-welcome-card">
-      <h1 class="cr-welcome-title">Bienvenido, <span id="cr-welcome-nombre">Creador</span></h1>
-      <p class="cr-welcome-sub">
-        Tu panel de creador esta listo. Aqui podras subir, editar y publicar tus mini apps.
-        El contenido del dashboard se agregara en el siguiente paso.
-      </p>
-      <span class="cr-welcome-badge">Panel en construccion</span>
-    </div>
-  </main>
+  <!-- Dashboard -->
+  <div id="cr-dashboard" hidden>
+    <nav class="cr-dash-tabs">
+      <button type="button" class="cr-dash-tab active" id="cr-dash-tab-subir" onclick="switchCrTab('subir')">Subir producto</button>
+      <button type="button" class="cr-dash-tab" id="cr-dash-tab-info" onclick="switchCrTab('info')">Informacion</button>
+      <button type="button" class="cr-dash-tab" id="cr-dash-tab-cuentas" onclick="switchCrTab('cuentas')">Cuentas</button>
+    </nav>
 
-  <script src="assets/js/creadores.js?v=1"></script>
+    <main class="cr-main">
+
+      <!-- SUBIR PRODUCTO -->
+      <section id="cr-panel-subir" class="cr-panel active">
+        <div class="cr-card">
+          <h2 class="cr-section-title">Publicar mini app</h2>
+          <p class="cr-section-sub">Sube el HTML de tu mini app y configura precio y opciones de venta.</p>
+          <div id="cr-subir-msg" class="cr-msg"></div>
+
+          <div class="cr-form-grid">
+            <div class="cr-field cr-field--full">
+              <label class="cr-label">Codigo HTML</label>
+              <div class="cr-html-tabs">
+                <button type="button" class="cr-html-tab active" id="cr-html-tab-pegar" onclick="switchHtmlMode('pegar')">Pegar codigo</button>
+                <button type="button" class="cr-html-tab" id="cr-html-tab-archivo" onclick="switchHtmlMode('archivo')">Subir archivo .html</button>
+              </div>
+              <textarea id="cr-html-textarea" class="cr-textarea" rows="10" placeholder="Pega aqui el HTML completo de tu mini app..."></textarea>
+              <div id="cr-html-file-wrap" hidden>
+                <input type="file" id="cr-html-file" class="cr-file-input" accept=".html,text/html" onchange="onHtmlFileSelected(this)" />
+                <p class="cr-hint" id="cr-html-file-name"></p>
+              </div>
+            </div>
+
+            <div class="cr-field">
+              <label class="cr-label" for="cr-ma-nombre">Nombre de la mini app</label>
+              <input type="text" id="cr-ma-nombre" class="cr-input" placeholder="Ej: Calculadora de macros" maxlength="120" />
+            </div>
+            <div class="cr-field">
+              <label class="cr-label" for="cr-ma-precio">Precio (USD)</label>
+              <input type="number" id="cr-ma-precio" class="cr-input" placeholder="9.99" min="0.01" step="0.01" />
+            </div>
+
+            <div class="cr-field cr-field--full">
+              <label class="cr-label" for="cr-ma-desc">Descripcion</label>
+              <textarea id="cr-ma-desc" class="cr-textarea cr-textarea--sm" rows="3" placeholder="Describe tu mini app para vendedores y compradores..."></textarea>
+            </div>
+
+            <div class="cr-field">
+              <label class="cr-label" for="cr-ma-preview">Imagen preview (URL, opcional)</label>
+              <input type="url" id="cr-ma-preview" class="cr-input" placeholder="https://..." />
+            </div>
+
+            <div class="cr-field cr-field--full cr-checks">
+              <label class="cr-check">
+                <input type="checkbox" id="cr-ma-usa-ia" />
+                <span>Usa IA (el comprador pondra su propia API key)</span>
+              </label>
+              <label class="cr-check">
+                <input type="checkbox" id="cr-ma-vendedores" onchange="toggleComisionField()" />
+                <span>Disponible para que los vendedores la vendan</span>
+              </label>
+            </div>
+
+            <div class="cr-field" id="cr-comision-wrap" hidden>
+              <label class="cr-label" for="cr-ma-comision">Comision del vendedor (%)</label>
+              <input type="number" id="cr-ma-comision" class="cr-input" placeholder="20" min="0" max="100" step="0.1" />
+            </div>
+          </div>
+
+          <button type="button" class="cr-btn-primary cr-btn-inline" id="cr-ma-publicar-btn" onclick="publicarMiniapp()">Publicar mini app</button>
+        </div>
+
+        <div class="cr-card cr-card--list">
+          <h3 class="cr-section-title cr-section-title--sm">Mis mini apps publicadas</h3>
+          <div id="cr-ma-lista" class="cr-ma-lista">
+            <p class="cr-empty">Cargando...</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- INFORMACION -->
+      <section id="cr-panel-info" class="cr-panel" hidden>
+        <div class="cr-card cr-card--narrow">
+          <h2 class="cr-section-title">Mi informacion</h2>
+          <p class="cr-section-sub">Actualiza tu nombre de creador. El email no se puede cambiar por ahora.</p>
+          <div id="cr-info-msg" class="cr-msg"></div>
+          <div class="cr-field">
+            <label class="cr-label" for="cr-info-nombre">Nombre</label>
+            <input type="text" id="cr-info-nombre" class="cr-input" maxlength="80" />
+          </div>
+          <div class="cr-field">
+            <label class="cr-label" for="cr-info-email">Email</label>
+            <input type="email" id="cr-info-email" class="cr-input" readonly disabled />
+          </div>
+          <button type="button" class="cr-btn-primary cr-btn-inline" id="cr-info-save-btn" onclick="guardarInfoCreador()">Guardar cambios</button>
+        </div>
+      </section>
+
+      <!-- CUENTAS -->
+      <section id="cr-panel-cuentas" class="cr-panel" hidden>
+        <div class="cr-stats-row" id="cr-cuentas-stats">
+          <div class="cr-stat-card"><div class="cr-stat-val" id="cr-stat-ventas">—</div><div class="cr-stat-lbl">Ventas totales</div></div>
+          <div class="cr-stat-card"><div class="cr-stat-val" id="cr-stat-ganancia">—</div><div class="cr-stat-lbl">Ganancia total</div></div>
+          <div class="cr-stat-card cr-stat-card--highlight"><div class="cr-stat-val" id="cr-stat-pagar">—</div><div class="cr-stat-lbl">Por pagar</div></div>
+        </div>
+        <div class="cr-card">
+          <h3 class="cr-section-title cr-section-title--sm">Ventas por mini app</h3>
+          <div id="cr-cuentas-tabla" class="cr-table-wrap">
+            <p class="cr-empty">Cargando...</p>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="assets/js/creadores.js?v=2"></script>
 </body>
 </html>
