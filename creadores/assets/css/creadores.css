@@ -120,8 +120,6 @@ body {
   object-position: center;
   display: block;
   flex-shrink: 0;
-  border: 2px solid rgba(255, 255, 255, 0.6);
-  box-shadow: 0 6px 18px rgba(15, 18, 34, 0.24);
 }
 
 .cr-nav-brand-text {
@@ -221,12 +219,13 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 36px 32px 8px;
+  padding: 10px 32px 4px;
+  margin-top: -6px;
 }
 
 .cr-auth-logo {
-  width: 180px;
-  height: 180px;
+  width: 234px;
+  height: 234px;
   object-fit: contain;
   object-position: center;
   display: block;
@@ -267,7 +266,7 @@ body {
 }
 
 .cr-auth-body {
-  padding: 24px 32px 32px;
+  padding: 12px 32px 32px;
   background: var(--white);
 }
 
@@ -1801,8 +1800,8 @@ body {
     height: 68px;
   }
   .cr-auth-logo {
-    width: 144px;
-    height: 144px;
+    width: 187px;
+    height: 187px;
   }
   .cr-nav-brand {
     flex: 1 1 auto;
