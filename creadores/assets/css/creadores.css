@@ -96,23 +96,40 @@ body {
   align-items: center;
   gap: 12px;
   text-decoration: none;
+  flex: 0 1 auto;
   min-width: 0;
+  max-width: 100%;
+}
+
+.cr-nav-logo-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 46px;
+  height: 46px;
+  overflow: hidden;
+  border-radius: 50%;
 }
 
 .cr-nav-logo {
-  height: 42px;
-  width: 42px;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: center;
   display: block;
-  object-fit: contain;
-  border-radius: 10px;
   flex-shrink: 0;
+  border: 2px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 4px 14px rgba(15, 18, 34, 0.22);
 }
 
 .cr-nav-brand-text {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
   min-width: 0;
+  flex: 0 1 auto;
 }
 
 .cr-nav-brand-name {
@@ -122,6 +139,7 @@ body {
   color: #fff;
   letter-spacing: -0.02em;
   line-height: 1.2;
+  white-space: nowrap;
 }
 
 .cr-nav-brand-sub {
@@ -129,6 +147,7 @@ body {
   font-weight: 500;
   color: rgba(255, 255, 255, 0.72);
   letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 
 .cr-nav-right {
@@ -205,10 +224,12 @@ body {
 }
 
 .cr-auth-logo {
-  height: 56px;
+  height: auto;
   width: auto;
-  max-width: 280px;
+  max-height: 64px;
+  max-width: min(300px, 78vw);
   object-fit: contain;
+  display: block;
 }
 
 .cr-auth-tabs {
@@ -1704,11 +1725,18 @@ body {
   .cr-navbar-inner {
     flex-wrap: wrap;
     padding: 12px 14px;
+    gap: 12px;
+  }
+  .cr-nav-brand {
+    flex: 1 1 auto;
+    min-width: 0;
   }
   .cr-nav-brand-text { display: none; }
   .cr-nav-right {
-    width: 100%;
+    width: auto;
+    flex: 0 0 auto;
     justify-content: flex-end;
+    margin-left: auto;
   }
   .cr-welcome-hero { padding: 20px 16px 4px; }
   .cr-main { padding: 16px 16px 40px; }
