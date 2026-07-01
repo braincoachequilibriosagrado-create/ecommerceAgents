@@ -2043,7 +2043,7 @@ app.get('/api/creador/miniapps', requireCreador, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('miniapps')
-      .select('id, nombre, slug, precio, precio_promocion, tipo_producto, categoria, usa_ia, disponible_vendedores, comision_vendedor, estado, creado_en, foto1_key')
+      .select('id, nombre, slug, precio, precio_promocion, tipo_producto, categoria, usa_ia, disponible_vendedores, comision_vendedor, estado, estado_aprobacion, motivo_rechazo, pagina_venta_slug, foto1_key, creado_en')
       .eq('creador_id', req.creador_id)
       .order('creado_en', { ascending: false });
     if (error) throw error;

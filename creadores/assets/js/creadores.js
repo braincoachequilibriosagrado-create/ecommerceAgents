@@ -3,7 +3,10 @@
 const MOTOR_URL = 'https://motor.ecommerceagents.store';
 
 const CR_SESION_KEY = 'ea_creador_sesion';
-const CR_TABS = ['cuentas', 'subir', 'info'];
+const CR_TABS = ['cuentas', 'catalogo', 'subir', 'info', 'contactar'];
+const CR_SOPORTE_WHATSAPP = '393246864824';
+const CR_SOPORTE_EMAIL = 'soporte@ecommerceagents.store';
+const CR_SOPORTE_WA_MSG = 'Hola, soy creador en MiniApps y necesito ayuda con...';
 
 var currentCreador = { id: null, nombre: '', email: '' };
 var _htmlMode = 'pegar';
@@ -204,9 +207,11 @@ function switchCrTab(tabId) {
     if (panel) { panel.hidden = !active; panel.classList.toggle('active', active); }
     if (btn)   btn.classList.toggle('active', active);
   });
-  if (tabId === 'subir')    cargarMiniappsLista();
-  if (tabId === 'info')     cargarInfoCreador();
-  if (tabId === 'cuentas')  cargarCuentasCreador();
+  if (tabId === 'subir')     cargarMiniappsLista();
+  if (tabId === 'catalogo')  cargarCatalogoCreador();
+  if (tabId === 'info')      cargarInfoCreador();
+  if (tabId === 'cuentas')   cargarCuentasCreador();
+  if (tabId === 'contactar') initContactarTab();
 }
 
 /* ── HTML input modes ────────────────────────────────────── */
@@ -551,6 +556,139 @@ async function toggleVendedores(miniappId, disponible) {
     alert(e.message || 'Error al actualizar.');
     cargarMiniappsLista();
   }
+}
+
+/* ── Mi catalogo ─────────────────────────────────────────── */
+
+function _crCategoriaLabel(cat) {
+  var map = { infoproducto: 'Infoproducto', contenido_digital: 'Contenido Digital', miniapp: 'Mini App' };
+  return map[cat] || 'Mini App';
+}
+
+function _crEstadoBadge(estado, motivo) {
+  var e = (estado || 'pendiente').toLowerCase();
+  if (e === 'aprobada') {
+    return '<span class="cr-status-badge cr-status-badge--aprobada">Aprobado</span>';
+  }
+  if (e === 'rechazada') {
+    var motivoHtml = motivo
+      ? '<p class="cr-status-motivo">' + _esc(motivo) + '</p>'
+      : '';
+    return '<span class="cr-status-badge cr-status-badge--rechazada">Rechazado</span>' + motivoHtml;
+  }
+  return '<span class="cr-status-badge cr-status-badge--pendiente">En revision</span>';
+}
+
+function _crPrecioHtml(m) {
+  if (m.precio_promocion && Number(m.precio_promocion) > 0) {
+    return '<span class="cr-product-price-old">' + _fmtUsd(m.precio) + '</span>' +
+      '<span class="cr-product-price-promo">' + _fmtUsd(m.precio_promocion) + '</span>';
+  }
+  return '<span class="cr-product-price-promo">' + _fmtUsd(m.precio) + '</span>';
+}
+
+function copiarLinkCatalogo(url) {
+  if (!url) return;
+  function ok() { alert('Enlace copiado.'); }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(ok).catch(function () {
+      window.prompt('Copia este enlace:', url);
+    });
+  } else {
+    window.prompt('Copia este enlace:', url);
+  }
+}
+
+async function cargarCatalogoCreador() {
+  var wrap = document.getElementById('cr-catalogo-lista');
+  if (!wrap) return;
+  wrap.innerHTML = '<p class="cr-empty">Cargando...</p>';
+
+  try {
+    var r = await _creadorFetch(MOTOR_URL + '/api/creador/miniapps');
+    var d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'Error');
+
+    var list = d.miniapps || [];
+    if (!list.length) {
+      wrap.innerHTML = '<p class="cr-empty">Aun no has publicado ningun producto. Ve a Subir producto para empezar.</p>';
+      return;
+    }
+
+    wrap.innerHTML = list.map(function (m) {
+      var imgUrl = MOTOR_URL + '/api/miniapps/asset/' + encodeURIComponent(m.slug) + '/foto1';
+      var cat = m.categoria || 'miniapp';
+      var estado = (m.estado_aprobacion || 'pendiente').toLowerCase();
+      var paginaHtml = '';
+      if (estado === 'aprobada' && m.pagina_venta_slug) {
+        var pagLink = MOTOR_URL + '/p/' + m.pagina_venta_slug;
+        paginaHtml =
+          '<div class="cr-catalogo-pagina">' +
+            '<span class="cr-catalogo-pagina-lbl">Pagina de venta</span>' +
+            '<div class="cr-catalogo-pagina-row">' +
+              '<a class="cr-catalogo-link" href="' + _esc(pagLink) + '" target="_blank" rel="noopener noreferrer">' + _esc(pagLink) + '</a>' +
+              '<button type="button" class="cr-btn-copy" onclick="copiarLinkCatalogo(' + JSON.stringify(pagLink) + ')">Copiar</button>' +
+            '</div>' +
+          '</div>';
+      }
+
+      return (
+        '<article class="cr-product-card cr-catalogo-card">' +
+          '<div class="cr-product-thumb">' +
+            '<img src="' + imgUrl + '" alt="' + _esc(m.nombre) + '" loading="lazy" onerror="this.parentElement.classList.add(\'cr-product-thumb--empty\')" />' +
+          '</div>' +
+          '<div class="cr-product-body">' +
+            '<h4 class="cr-product-name">' + _esc(m.nombre) + '</h4>' +
+            '<p class="cr-product-slug">' + _esc(m.slug) + '</p>' +
+            '<div class="cr-product-tags">' +
+              '<span class="cr-product-tag cr-product-tag--cat">' + _crCategoriaLabel(cat) + '</span>' +
+              _crEstadoBadge(estado, m.motivo_rechazo) +
+            '</div>' +
+            '<div class="cr-product-prices">' + _crPrecioHtml(m) + '</div>' +
+            paginaHtml +
+          '</div>' +
+        '</article>'
+      );
+    }).join('');
+  } catch (e) {
+    wrap.innerHTML = '<p class="cr-empty cr-empty--err">' + _esc(e.message) + '</p>';
+  }
+}
+
+/* ── Contactar ─────────────────────────────────────────── */
+
+function _crWaUrl(mensaje) {
+  return 'https://wa.me/' + CR_SOPORTE_WHATSAPP + '?text=' + encodeURIComponent(mensaje || CR_SOPORTE_WA_MSG);
+}
+
+function initContactarTab() {
+  var waLink = document.getElementById('cr-contact-wa-link');
+  if (waLink) waLink.href = _crWaUrl(CR_SOPORTE_WA_MSG);
+  var nomInput = document.getElementById('cr-contact-nombre');
+  if (nomInput && currentCreador.nombre && !nomInput.value.trim()) {
+    nomInput.value = currentCreador.nombre;
+  }
+}
+
+function _crContactoMensajeCompleto() {
+  var nombre = (document.getElementById('cr-contact-nombre').value || '').trim();
+  var mensaje = (document.getElementById('cr-contact-mensaje').value || '').trim();
+  var partes = [CR_SOPORTE_WA_MSG];
+  if (nombre) partes.push('Nombre: ' + nombre);
+  if (mensaje) partes.push(mensaje);
+  return partes.join('\n\n');
+}
+
+function enviarContactoWhatsApp() {
+  window.open(_crWaUrl(_crContactoMensajeCompleto()), '_blank', 'noopener,noreferrer');
+}
+
+function enviarContactoEmail() {
+  var nombre = (document.getElementById('cr-contact-nombre').value || '').trim();
+  var mensaje = (document.getElementById('cr-contact-mensaje').value || '').trim();
+  var subject = encodeURIComponent('Soporte creador MiniApps' + (nombre ? ' — ' + nombre : ''));
+  var body = encodeURIComponent(_crContactoMensajeCompleto());
+  window.location.href = 'mailto:' + CR_SOPORTE_EMAIL + '?subject=' + subject + '&body=' + body;
 }
 
 /* ── Informacion ─────────────────────────────────────────── */
