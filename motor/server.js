@@ -2366,7 +2366,7 @@ app.get('/api/catalogo/miniapps', async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('miniapps')
-      .select('id, nombre, slug, descripcion, precio, precio_promocion, comision_vendedor, usa_ia, tipo_producto, foto1_key, pagina_venta_slug, creado_en')
+      .select('id, nombre, slug, descripcion, precio, precio_promocion, comision_vendedor, usa_ia, tipo_producto, categoria, foto1_key, pagina_venta_slug, creado_en')
       .eq('estado_aprobacion', 'aprobada')
       .eq('disponible_vendedores', true)
       .not('pagina_venta_slug', 'is', null)

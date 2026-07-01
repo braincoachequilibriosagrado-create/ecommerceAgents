@@ -630,6 +630,12 @@
           <div id="agent-grid-catalogo" class="products-grid"></div>
         </div>
         <div id="cat-sub-digitales" class="cat-sub-panel" role="tabpanel" hidden>
+          <div class="ea-cat-filtro" id="cat-miniapps-filtro-wrap" role="tablist" aria-label="Filtrar por categoria">
+            <button type="button" class="ea-cat-chip active" id="cat-miniapps-filtro-todos" onclick="switchCatalogoMiniappsFiltro('')">Todos</button>
+            <button type="button" class="ea-cat-chip" id="cat-miniapps-filtro-infoproducto" onclick="switchCatalogoMiniappsFiltro('infoproducto')">Infoproductos</button>
+            <button type="button" class="ea-cat-chip" id="cat-miniapps-filtro-contenido_digital" onclick="switchCatalogoMiniappsFiltro('contenido_digital')">Contenido Digital</button>
+            <button type="button" class="ea-cat-chip" id="cat-miniapps-filtro-miniapp" onclick="switchCatalogoMiniappsFiltro('miniapp')">Mini Apps</button>
+          </div>
           <div id="agent-grid-miniapps" class="products-grid"></div>
         </div>
       </div>
@@ -2053,7 +2059,7 @@
 
 </div>
 
-<script src="assets/js/app.js?v=23"></script>
+<script src="assets/js/app.js?v=24"></script>
 
 <!-- ALBUM DE IMAGENES DEL PRODUCTO -->
 <div id="album-modal" class="album-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="album-nombre">

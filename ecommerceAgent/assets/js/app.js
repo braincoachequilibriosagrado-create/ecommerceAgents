@@ -911,6 +911,8 @@ const EA_SESION_KEY = 'ea_sesion'; // sessionStorage key para la sesion activa
 // null = aun no cargado; [] = cargado pero vacio; [...] = productos reales
 var _catalogoSupa = null;
 var _catalogoMiniapps = null;
+var _catalogoMiniappsFiltro = '';
+var CATALOG_MINIAPPS_CATEGORIAS = ['', 'infoproducto', 'contenido_digital', 'miniapp'];
 var _catalogoSubTabActivo = 'fisicos';
 
 // Convierte un producto de Supabase al formato que espera buildProductCardHtml
@@ -1598,6 +1600,10 @@ function _tipoMiniappLabel(tipo) {
   var t = String(tipo || '').toLowerCase();
   return t.indexOf('pdf') !== -1 ? 'Mini App + PDF' : 'Mini App';
 }
+function _categoriaMiniappLabel(cat) {
+  var map = { infoproducto: 'Infoproducto', contenido_digital: 'Contenido Digital', miniapp: 'Mini App' };
+  return map[cat] || 'Mini App';
+}
 function _fmtPrecioMiniapp(n) {
   var v = Number(n);
   if (!Number.isFinite(v)) return '0';
@@ -1616,7 +1622,10 @@ function switchCatalogoSubTab(tabId) {
       btn.setAttribute('aria-selected', active ? 'true' : 'false');
     }
   });
-  if (tabId === 'digitales') renderCatalogoMiniappsGrid();
+  if (tabId === 'digitales') {
+    switchCatalogoMiniappsFiltro(_catalogoMiniappsFiltro || '');
+    renderCatalogoMiniappsGrid();
+  }
   else if (_catalogoSupa === null) renderCatalogoGrid();
   else renderProductGrid('agent-grid-catalogo', _catalogoSupa, 'catalogo');
 }
@@ -1638,6 +1647,7 @@ function buildMiniappCardHtml(m, mode) {
     : '<div class="product-price-line product-price-line--sale">Precio: <span>$' + _fmtPrecioMiniapp(precioN) + '</span></div>';
 
   var tagsHtml =
+    '<span class="product-tag tag-categoria">' + _esc(_categoriaMiniappLabel(m.categoria || 'miniapp')) + '</span>' +
     '<span class="product-tag tag-available">' + _esc(tipoLbl) + '</span>' +
     '<span class="product-tag tag-available ma-tag-comision">Comision: ' + comPct + '%</span>' +
     (m.usa_ia ? '<span class="product-tag tag-limited">IA</span>' : '');
@@ -1680,7 +1690,7 @@ function buildMiniappCardHtml(m, mode) {
     '</div>' +
     '<div class="product-info">' +
     '<div class="product-meta-top">' +
-    '<span class="product-cat">Activo digital</span></div>' +
+    '<span class="product-cat">' + _esc(_categoriaMiniappLabel(m.categoria || 'miniapp')) + '</span></div>' +
     '<div class="product-name">' + _esc(m.nombre) + '</div>' +
     '<div class="product-prices">' + precioHtml + '</div>' +
     '<div class="product-tags-row">' + tagsHtml + '</div>' +
@@ -1689,16 +1699,34 @@ function buildMiniappCardHtml(m, mode) {
   );
 }
 
+function switchCatalogoMiniappsFiltro(cat) {
+  _catalogoMiniappsFiltro = cat || '';
+  CATALOG_MINIAPPS_CATEGORIAS.forEach(function (c) {
+    var btnId = c ? 'cat-miniapps-filtro-' + c : 'cat-miniapps-filtro-todos';
+    var btn = document.getElementById(btnId);
+    if (btn) btn.classList.toggle('active', c === _catalogoMiniappsFiltro);
+  });
+  renderCatalogoMiniappsGrid();
+}
+
 function renderCatalogoMiniappsGrid() {
   var gridEl = document.getElementById('agent-grid-miniapps');
   if (!gridEl) return;
 
   if (_catalogoMiniapps !== null) {
-    if (!_catalogoMiniapps.length) {
-      gridEl.innerHTML = '<p style="padding:40px 24px;color:#888;text-align:center;font-style:italic;">No hay activos digitales disponibles en este momento.</p>';
+    var list = _catalogoMiniapps;
+    if (_catalogoMiniappsFiltro) {
+      list = list.filter(function (m) {
+        return (m.categoria || 'miniapp') === _catalogoMiniappsFiltro;
+      });
+    }
+    if (!list.length) {
+      gridEl.innerHTML = _catalogoMiniapps.length
+        ? '<p style="padding:40px 24px;color:#888;text-align:center;font-style:italic;">No hay activos en esta categoria.</p>'
+        : '<p style="padding:40px 24px;color:#888;text-align:center;font-style:italic;">No hay activos digitales disponibles en este momento.</p>';
       return;
     }
-    gridEl.innerHTML = _catalogoMiniapps.map(function (m) {
+    gridEl.innerHTML = list.map(function (m) {
       return buildMiniappCardHtml(m, 'catalogo');
     }).join('');
     return;
