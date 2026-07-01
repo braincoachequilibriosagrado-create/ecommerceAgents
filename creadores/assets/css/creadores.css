@@ -81,8 +81,8 @@ body {
   gap: 16px;
   max-width: 1180px;
   margin: 0 auto;
-  padding: 14px 22px;
-  min-height: 80px;
+  padding: 10px 22px;
+  min-height: 96px;
   background: var(--cr-glass);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
@@ -106,15 +106,15 @@ body {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 64px;
-  height: 64px;
+  width: 76px;
+  height: 76px;
   overflow: hidden;
   border-radius: 50%;
 }
 
 .cr-nav-logo {
-  width: 64px;
-  height: 64px;
+  width: 76px;
+  height: 76px;
   border-radius: 50%;
   object-fit: cover;
   object-position: center;
@@ -225,8 +225,8 @@ body {
 }
 
 .cr-auth-logo {
-  width: 110px;
-  height: 110px;
+  width: 150px;
+  height: 150px;
   border-radius: 50%;
   object-fit: cover;
   object-position: center;
@@ -1790,18 +1790,18 @@ body {
   .cr-products-grid { grid-template-columns: 1fr; }
   .cr-navbar-inner {
     flex-wrap: wrap;
-    padding: 12px 14px;
+    padding: 10px 14px;
     gap: 12px;
-    min-height: 72px;
+    min-height: 88px;
   }
   .cr-nav-logo-wrap,
   .cr-nav-logo {
-    width: 56px;
-    height: 56px;
+    width: 68px;
+    height: 68px;
   }
   .cr-auth-logo {
-    width: 96px;
-    height: 96px;
+    width: 120px;
+    height: 120px;
   }
   .cr-nav-brand {
     flex: 1 1 auto;
