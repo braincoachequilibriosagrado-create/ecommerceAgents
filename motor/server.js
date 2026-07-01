@@ -3781,12 +3781,12 @@ app.get('/mi-compra/:codigo', async (req, res) => {
 
     const { data: miniapp, error: mErr } = await supabase
       .from('miniapps')
-      .select('id, nombre, slug, pdf_key, tipo_producto, pagina_venta_slug')
+      .select('id, nombre, slug, pdf_key, pack_key, categoria, tipo_producto, pagina_venta_slug')
       .eq('id', compra.miniapp_id)
       .maybeSingle();
     if (mErr || !miniapp) {
       res.status(404).setHeader('Content-Type', 'text/html; charset=utf-8');
-      return res.send(_htmlAccesoInvalido('Producto no encontrado', 'La mini app asociada a esta compra ya no esta disponible.'));
+      return res.send(_htmlAccesoInvalido('Producto no encontrado', 'El activo digital asociado a esta compra ya no esta disponible.'));
     }
 
     if (!fs.existsSync(ENTREGA_MINIAPP_TEMPLATE)) {
@@ -3800,23 +3800,55 @@ app.get('/mi-compra/:codigo', async (req, res) => {
       .maybeSingle();
     const colores = _extractMiniappColors(pagina && pagina.html);
 
+    const categoria = String(miniapp.categoria || 'miniapp').toLowerCase();
+    const esMiniapp = categoria === 'miniapp';
+    const esInfoproducto = categoria === 'infoproducto';
+    const esContenido = categoria === 'contenido_digital';
+    const tienePdf = !!miniapp.pdf_key;
+    const tienePack = !!miniapp.pack_key;
+
     const linkUnico = PUBLIC_BASE_URL + '/mi-compra/' + compra.codigo_acceso;
     const appUrl    = PUBLIC_BASE_URL + '/usar-miniapp/' + compra.codigo_acceso;
-    const pdfUrl    = miniapp.pdf_key
+    const pdfUrl    = tienePdf
       ? PUBLIC_BASE_URL + '/descargar-pdf/' + compra.codigo_acceso
       : '';
+    const packUrl   = tienePack
+      ? PUBLIC_BASE_URL + '/descargar-pack/' + compra.codigo_acceso
+      : '';
+
+    let productoEtiqueta = 'Tu producto';
+    let pdfTitulo = 'Descarga tu PDF';
+    let pdfDesc = 'Tu producto incluye un PDF premium. Descargalo y guardalo.';
+    let pdfBtn = 'Descargar PDF →';
+
+    if (esInfoproducto) {
+      productoEtiqueta = 'Tu infoproducto';
+      pdfTitulo = 'Descarga tu infoproducto';
+      pdfDesc = 'Tu PDF esta listo. Descargalo y guardalo en un lugar seguro.';
+      pdfBtn = 'Descargar PDF →';
+    } else if (esContenido) {
+      productoEtiqueta = 'Tu contenido digital';
+    }
 
     let html = fs.readFileSync(ENTREGA_MINIAPP_TEMPLATE, 'utf-8');
-    html = _processTemplateBlock(html, 'PDF', !!miniapp.pdf_key);
+    html = _processTemplateBlock(html, 'MINIAPP', esMiniapp);
+    html = _processTemplateBlock(html, 'PDF', tienePdf && (esMiniapp || esInfoproducto));
+    html = _processTemplateBlock(html, 'PACK', esContenido && tienePack);
+    html = _processTemplateBlock(html, 'CONTENIDO_PENDIENTE', esContenido && !tienePack);
     html = _replaceTemplateMarkers(html, {
-      NOMBRE:     miniapp.nombre,
-      CODIGO:     compra.codigo_acceso,
-      LINK_UNICO: linkUnico,
-      APP_URL:    appUrl,
-      PDF_URL:    pdfUrl,
-      COLOR_1:    colores.color_1,
-      COLOR_2:    colores.color_2,
-      COLOR_3:    colores.color_3
+      NOMBRE:            miniapp.nombre,
+      CODIGO:            compra.codigo_acceso,
+      LINK_UNICO:        linkUnico,
+      APP_URL:           appUrl,
+      PDF_URL:           pdfUrl,
+      PACK_URL:          packUrl,
+      PRODUCTO_ETIQUETA: productoEtiqueta,
+      PDF_TITULO:        pdfTitulo,
+      PDF_DESCRIPCION:   pdfDesc,
+      PDF_BTN:           pdfBtn,
+      COLOR_1:           colores.color_1,
+      COLOR_2:           colores.color_2,
+      COLOR_3:           colores.color_3
     });
 
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -3843,11 +3875,14 @@ app.get('/usar-miniapp/:codigo', async (req, res) => {
 
     const { data: miniapp, error: mErr } = await supabase
       .from('miniapps')
-      .select('r2_key, nombre')
+      .select('r2_key, nombre, categoria')
       .eq('id', compra.miniapp_id)
       .maybeSingle();
     if (mErr || !miniapp || !miniapp.r2_key) {
       return res.status(404).send('Mini app no encontrada.');
+    }
+    if (String(miniapp.categoria || 'miniapp').toLowerCase() !== 'miniapp') {
+      return res.status(404).send('Este producto no incluye una mini app para abrir.');
     }
 
     const contenido = await obtenerArchivo(miniapp.r2_key);
@@ -3889,6 +3924,42 @@ app.get('/descargar-pdf/:codigo', async (req, res) => {
   } catch (e) {
     console.error('[descargar-pdf]', e.message);
     res.status(500).send('Error al descargar el PDF.');
+  }
+});
+
+// ── Descargar pack ZIP del comprador ──────────────────────────────────────────
+app.get('/descargar-pack/:codigo', async (req, res) => {
+  const codigo = String(req.params.codigo || '').trim().toUpperCase();
+  if (!codigo) {
+    return res.status(400).send('Codigo invalido.');
+  }
+
+  try {
+    const compra = await _buscarCompraPorCodigo(codigo);
+    if (!compra || compra.estado_pago !== 'pagado') {
+      return res.status(403).send('Acceso no valido o pago pendiente.');
+    }
+
+    const { data: miniapp, error: mErr } = await supabase
+      .from('miniapps')
+      .select('pack_key, nombre, slug, categoria')
+      .eq('id', compra.miniapp_id)
+      .maybeSingle();
+    if (mErr || !miniapp) {
+      return res.status(404).send('Producto no encontrado.');
+    }
+    if (!miniapp.pack_key) {
+      return res.status(404).send('Este producto no incluye un pack para descargar.');
+    }
+
+    const buf = await obtenerArchivoBuffer(miniapp.pack_key);
+    const filename = (miniapp.slug || 'contenido') + '.zip';
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', 'attachment; filename="' + filename + '"');
+    res.send(buf);
+  } catch (e) {
+    console.error('[descargar-pack]', e.message);
+    res.status(500).send('Error al descargar el pack.');
   }
 });
 
@@ -5195,6 +5266,7 @@ app.listen(PORT, () => {
   console.log(`[motor]   GET  http://localhost:${PORT}/mi-compra/:codigo`);
   console.log(`[motor]   GET  http://localhost:${PORT}/usar-miniapp/:codigo`);
   console.log(`[motor]   GET  http://localhost:${PORT}/descargar-pdf/:codigo`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/descargar-pack/:codigo`);
   console.log(`[motor]   POST http://localhost:${PORT}/api/pedidos/crear`);
   console.log(`[motor]   GET  http://localhost:${PORT}/api/admin/pedidos`);
   console.log(`[motor]   POST http://localhost:${PORT}/api/admin/pedidos/actualizar`);

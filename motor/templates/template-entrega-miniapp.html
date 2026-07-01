@@ -11,8 +11,14 @@
   {{CODIGO}}         -> codigo unico del comprador
   {{LINK_UNICO}}     -> link completo personal del comprador
   {{APP_URL}}        -> URL para usar/abrir la mini app (el HTML)
-  {{TIENE_PDF}}      -> bloque {{#IF_PDF}}...{{/IF_PDF}} si hay PDF
-  {{PDF_URL}}        -> URL para descargar el PDF
+  {{PDF_URL}}        -> URL para descargar el PDF (protegida por codigo)
+  {{PACK_URL}}       -> URL para descargar el pack ZIP (protegida por codigo)
+  {{PRODUCTO_ETIQUETA}} -> etiqueta sobre el nombre del producto
+  {{PDF_TITULO}}, {{PDF_DESCRIPCION}}, {{PDF_BTN}} -> textos del bloque PDF
+  {{#IF_MINIAPP}}...{{/IF_MINIAPP}}     -> solo categoria miniapp
+  {{#IF_PDF}}...{{/IF_PDF}}             -> descarga PDF (miniapp con pdf o infoproducto)
+  {{#IF_PACK}}...{{/IF_PACK}}           -> descarga pack (contenido digital)
+  {{#IF_CONTENIDO_PENDIENTE}}...{{/IF_CONTENIDO_PENDIENTE}} -> contenido digital sin pack aun
   {{COLOR_1}}, {{COLOR_2}}, {{COLOR_3}} -> colores (mismos de la pagina de venta)
 -->
 <style>
@@ -169,9 +175,10 @@
     </div>
 
     <div class="body">
-      <div class="product-name">Tu producto</div>
+      <div class="product-name">{{PRODUCTO_ETIQUETA}}</div>
       <div class="product-title">{{NOMBRE}}</div>
 
+      {{#IF_MINIAPP}}
       <!-- USAR LA MINI APP -->
       <div class="block-item">
         <h3>
@@ -181,18 +188,41 @@
         <p>Ábrela ahora y empieza a usarla. Funciona directo en tu navegador.</p>
         <a href="{{APP_URL}}" target="_blank" class="btn btn-grad btn-full">Abrir mini app →</a>
       </div>
+      {{/IF_MINIAPP}}
 
       {{#IF_PDF}}
       <!-- DESCARGAR PDF -->
       <div class="block-item">
         <h3>
           <svg viewBox="0 0 24 24" fill="none" stroke="var(--c3)" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          Descarga tu PDF
+          {{PDF_TITULO}}
         </h3>
-        <p>Tu producto incluye un PDF premium. Descárgalo y guárdalo.</p>
-        <a href="{{PDF_URL}}" target="_blank" class="btn btn-grad btn-full">Descargar PDF →</a>
+        <p>{{PDF_DESCRIPCION}}</p>
+        <a href="{{PDF_URL}}" target="_blank" class="btn btn-grad btn-full">{{PDF_BTN}}</a>
       </div>
       {{/IF_PDF}}
+
+      {{#IF_PACK}}
+      <!-- DESCARGAR PACK -->
+      <div class="block-item">
+        <h3>
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--c2)" stroke-width="2"><path d="M21 8v13H3V8M1 3h22v5H1V3zM10 12h4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Descarga tu contenido
+        </h3>
+        <p>Tu pack digital está listo. Descárgalo y descomprímelo en tu dispositivo.</p>
+        <a href="{{PACK_URL}}" target="_blank" class="btn btn-grad btn-full">Descargar pack →</a>
+      </div>
+      {{/IF_PACK}}
+
+      {{#IF_CONTENIDO_PENDIENTE}}
+      <div class="block-item">
+        <h3>
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--c2)" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01" stroke-linecap="round"/></svg>
+          Contenido en preparación
+        </h3>
+        <p>Tu compra está confirmada. El contenido digital estará disponible aquí pronto. Guarda tu enlace personal para volver cuando quieras.</p>
+      </div>
+      {{/IF_CONTENIDO_PENDIENTE}}
 
       <!-- LINK UNICO -->
       <div class="block-item">
@@ -213,7 +243,7 @@
     </div>
 
     <div class="footer">
-      Distribuido por <b>MiniApps</b> · Pequeñas apps, grandes soluciones
+      Distribuido por <b>EcommerceAgents</b> · Activos digitales listos para usar
     </div>
   </div>
 
