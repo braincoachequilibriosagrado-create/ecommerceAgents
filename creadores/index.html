@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/css/creadores.css?v=15" />
+  <link rel="stylesheet" href="assets/css/creadores.css?v=17" />
 </head>
 <body>
 
@@ -54,9 +54,21 @@
           </div>
           <div class="cr-field">
             <label class="cr-label" for="cr-login-password">Contraseña</label>
-            <input type="password" id="cr-login-password" class="cr-input" placeholder="Tu contraseña" autocomplete="current-password"
-              onkeydown="if(event.key==='Enter')creadorLogin()" />
+            <div class="cr-password-wrap">
+              <input type="password" id="cr-login-password" class="cr-input cr-input--password" placeholder="Tu contraseña" autocomplete="current-password"
+                onkeydown="if(event.key==='Enter')creadorLogin()" />
+              <button type="button" class="cr-password-toggle" id="cr-login-password-toggle" aria-label="Mostrar contraseña"
+                onclick="toggleCrPassword('cr-login-password','cr-login-password-toggle')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </div>
           </div>
+          <label class="cr-remember" for="cr-login-recordar">
+            <input type="checkbox" id="cr-login-recordar" />
+            <span>Recordarme</span>
+          </label>
           <button type="button" class="cr-btn-primary" id="cr-login-btn" onclick="creadorLogin()">Entrar</button>
         </div>
         <div id="cr-panel-registro" hidden>
@@ -73,12 +85,28 @@
           </div>
           <div class="cr-field">
             <label class="cr-label" for="cr-reg-password">Contraseña</label>
-            <input type="password" id="cr-reg-password" class="cr-input" placeholder="Minimo 6 caracteres" />
+            <div class="cr-password-wrap">
+              <input type="password" id="cr-reg-password" class="cr-input cr-input--password" placeholder="Minimo 6 caracteres" />
+              <button type="button" class="cr-password-toggle" id="cr-reg-password-toggle" aria-label="Mostrar contraseña"
+                onclick="toggleCrPassword('cr-reg-password','cr-reg-password-toggle')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </div>
           </div>
           <div class="cr-field">
             <label class="cr-label" for="cr-reg-confirm">Confirmar contraseña</label>
-            <input type="password" id="cr-reg-confirm" class="cr-input" placeholder="Repite tu contraseña"
-              onkeydown="if(event.key==='Enter')creadorRegistro()" />
+            <div class="cr-password-wrap">
+              <input type="password" id="cr-reg-confirm" class="cr-input cr-input--password" placeholder="Repite tu contraseña"
+                onkeydown="if(event.key==='Enter')creadorRegistro()" />
+              <button type="button" class="cr-password-toggle" id="cr-reg-confirm-toggle" aria-label="Mostrar contraseña"
+                onclick="toggleCrPassword('cr-reg-confirm','cr-reg-confirm-toggle')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </div>
           </div>
           <button type="button" class="cr-btn-primary" id="cr-reg-btn" onclick="creadorRegistro()">Crear cuenta</button>
         </div>
@@ -421,6 +449,6 @@
     </main>
   </div>
 
-  <script src="assets/js/creadores.js?v=14"></script>
+  <script src="assets/js/creadores.js?v=15"></script>
 </body>
 </html>

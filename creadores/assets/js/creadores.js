@@ -3,6 +3,8 @@
 const MOTOR_URL = 'https://motor.ecommerceagents.store';
 
 const CR_SESION_KEY = 'ea_creador_sesion';
+const CR_EMAIL_KEY = 'ea_creador_last_email';
+const CR_REMEMBER_PREF_KEY = 'ea_creador_remember';
 const CR_TABS = ['cuentas', 'catalogo', 'subir', 'info', 'contactar'];
 const CR_SOPORTE_WHATSAPP = '393246864824';
 const CR_SOPORTE_EMAIL = 'soporte@ecommerceagents.store';
@@ -45,19 +47,88 @@ function _getCreadorId() {
   return currentCreador.id || null;
 }
 
-function _guardarSesion(c) {
+function _leerSesionAlmacenada() {
+  try {
+    var raw = localStorage.getItem(CR_SESION_KEY);
+    if (raw) {
+      var c = JSON.parse(raw);
+      if (c && c.id) return { c: c, persistent: true };
+    }
+    raw = sessionStorage.getItem(CR_SESION_KEY);
+    if (raw) {
+      c = JSON.parse(raw);
+      if (c && c.id) return { c: c, persistent: false };
+    }
+  } catch (e) {}
+  return null;
+}
+
+function _aplicarSesionMemoria(c) {
   currentCreador.id     = c.id;
   currentCreador.nombre = c.nombre || '';
   currentCreador.email  = c.email  || '';
-  try { sessionStorage.setItem(CR_SESION_KEY, JSON.stringify(c)); } catch (e) {}
   _actualizarNavNombre();
 }
 
-function _restaurarSesion(c) { _guardarSesion(c); }
+function _guardarSesion(c, recordarme) {
+  _aplicarSesionMemoria(c);
+  var payload = JSON.stringify(c);
+  try {
+    if (recordarme) {
+      localStorage.setItem(CR_SESION_KEY, payload);
+      sessionStorage.removeItem(CR_SESION_KEY);
+      localStorage.setItem(CR_REMEMBER_PREF_KEY, '1');
+    } else {
+      sessionStorage.setItem(CR_SESION_KEY, payload);
+      localStorage.removeItem(CR_SESION_KEY);
+      localStorage.setItem(CR_REMEMBER_PREF_KEY, '0');
+    }
+  } catch (e) {}
+}
+
+function _actualizarSesionAlmacenada(partial) {
+  var stored = _leerSesionAlmacenada();
+  if (!stored) return;
+  var u = Object.assign({}, stored.c, partial);
+  try {
+    var payload = JSON.stringify(u);
+    if (stored.persistent) localStorage.setItem(CR_SESION_KEY, payload);
+    else sessionStorage.setItem(CR_SESION_KEY, payload);
+  } catch (e) {}
+}
+
+function _guardarEmailReciente(email) {
+  try { if (email) localStorage.setItem(CR_EMAIL_KEY, email); } catch (e) {}
+}
 
 function _limpiarSesion() {
   currentCreador = { id: null, nombre: '', email: '' };
-  try { sessionStorage.removeItem(CR_SESION_KEY); } catch (e) {}
+  try {
+    sessionStorage.removeItem(CR_SESION_KEY);
+    localStorage.removeItem(CR_SESION_KEY);
+  } catch (e) {}
+}
+
+function _crPassIconShow() {
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+}
+
+function _crPassIconHide() {
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>' +
+    '<path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>' +
+    '<line x1="1" y1="1" x2="23" y2="23"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/></svg>';
+}
+
+function toggleCrPassword(inputId, btnId) {
+  var input = document.getElementById(inputId);
+  var btn   = document.getElementById(btnId);
+  if (!input || !btn) return;
+  var visible = input.type === 'text';
+  input.type = visible ? 'password' : 'text';
+  btn.innerHTML = visible ? _crPassIconShow() : _crPassIconHide();
+  btn.setAttribute('aria-label', visible ? 'Mostrar contraseña' : 'Ocultar contraseña');
 }
 
 function _actualizarNavNombre() {
@@ -154,7 +225,9 @@ async function creadorLogin() {
     });
     var d = await r.json();
     if (!d.ok) throw new Error(d.error || 'Error al iniciar sesion.');
-    _restaurarSesion(d.creador);
+    var recordarme = !!(document.getElementById('cr-login-recordar') && document.getElementById('cr-login-recordar').checked);
+    _guardarSesion(d.creador, recordarme);
+    _guardarEmailReciente(email);
     mostrarDashboard();
   } catch (e) {
     _showMsg('cr-login-msg', e.message || 'Error de conexion.', false);
@@ -182,7 +255,8 @@ async function creadorRegistro() {
     });
     var d = await r.json();
     if (!d.ok) throw new Error(d.error || 'Error al registrarse.');
-    _restaurarSesion(d.creador);
+    _guardarSesion(d.creador, false);
+    _guardarEmailReciente(email);
     mostrarDashboard();
   } catch (e) {
     _showMsg('cr-reg-msg', e.message || 'Error de conexion.', false);
@@ -744,14 +818,7 @@ async function cargarInfoCreador() {
     if (d.creador.nombre) {
       currentCreador.nombre = d.creador.nombre;
       _actualizarNavNombre();
-      try {
-        var raw = sessionStorage.getItem(CR_SESION_KEY);
-        if (raw) {
-          var u = JSON.parse(raw);
-          u.nombre = d.creador.nombre;
-          sessionStorage.setItem(CR_SESION_KEY, JSON.stringify(u));
-        }
-      } catch (_) {}
+      _actualizarSesionAlmacenada({ nombre: d.creador.nombre });
     }
   } catch (e) {
     _showMsg('cr-info-msg', e.message || 'Error al cargar.', false);
@@ -774,14 +841,7 @@ async function guardarInfoCreador() {
     if (!d.ok) throw new Error(d.error || 'Error');
     currentCreador.nombre = d.creador.nombre;
     _actualizarNavNombre();
-    try {
-      var raw = sessionStorage.getItem(CR_SESION_KEY);
-      if (raw) {
-        var u = JSON.parse(raw);
-        u.nombre = d.creador.nombre;
-        sessionStorage.setItem(CR_SESION_KEY, JSON.stringify(u));
-      }
-    } catch (_) {}
+    _actualizarSesionAlmacenada({ nombre: d.creador.nombre });
     _showMsg('cr-info-msg', 'Informacion actualizada correctamente.', true);
   } catch (e) {
     _showMsg('cr-info-msg', e.message || 'Error al guardar.', false);
@@ -846,14 +906,20 @@ document.addEventListener('DOMContentLoaded', function () {
   toggleComisionField();
   _updateCategoriaUI();
   try {
-    var raw = sessionStorage.getItem(CR_SESION_KEY);
-    if (raw) {
-      var c = JSON.parse(raw);
-      if (c && c.id) {
-        _restaurarSesion(c);
-        mostrarDashboard();
-        return;
-      }
+    var lastEmail = localStorage.getItem(CR_EMAIL_KEY);
+    if (lastEmail) {
+      var emailEl = document.getElementById('cr-login-email');
+      if (emailEl) emailEl.value = lastEmail;
+    }
+    var rememberEl = document.getElementById('cr-login-recordar');
+    if (rememberEl) rememberEl.checked = localStorage.getItem(CR_REMEMBER_PREF_KEY) === '1';
+  } catch (e) {}
+  try {
+    var stored = _leerSesionAlmacenada();
+    if (stored && stored.c && stored.c.id) {
+      _aplicarSesionMemoria(stored.c);
+      mostrarDashboard();
+      return;
     }
   } catch (e) {}
   mostrarAuth();

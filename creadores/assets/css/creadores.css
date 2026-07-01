@@ -81,8 +81,8 @@ body {
   gap: 16px;
   max-width: 1180px;
   margin: 0 auto;
-  padding: 12px 20px;
-  min-height: 64px;
+  padding: 14px 22px;
+  min-height: 80px;
   background: var(--cr-glass);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
@@ -106,22 +106,22 @@ body {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 46px;
-  height: 46px;
+  width: 64px;
+  height: 64px;
   overflow: hidden;
   border-radius: 50%;
 }
 
 .cr-nav-logo {
-  width: 46px;
-  height: 46px;
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
   object-fit: cover;
   object-position: center;
   display: block;
   flex-shrink: 0;
   border: 2px solid rgba(255, 255, 255, 0.6);
-  box-shadow: 0 4px 14px rgba(15, 18, 34, 0.22);
+  box-shadow: 0 6px 18px rgba(15, 18, 34, 0.24);
 }
 
 .cr-nav-brand-text {
@@ -134,7 +134,7 @@ body {
 
 .cr-nav-brand-name {
   font-family: var(--font-display);
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 700;
   color: #fff;
   letter-spacing: -0.02em;
@@ -143,7 +143,7 @@ body {
 }
 
 .cr-nav-brand-sub {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.72);
   letter-spacing: 0.04em;
@@ -219,17 +219,20 @@ body {
 
 .cr-auth-logo-wrap {
   display: flex;
+  align-items: center;
   justify-content: center;
-  padding: 32px 32px 0;
+  padding: 36px 32px 8px;
 }
 
 .cr-auth-logo {
-  height: auto;
-  width: auto;
-  max-height: 64px;
-  max-width: min(300px, 78vw);
-  object-fit: contain;
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: center;
   display: block;
+  border: 2px solid rgba(255, 255, 255, 0.65);
+  box-shadow: 0 10px 28px rgba(15, 18, 34, 0.22);
 }
 
 .cr-auth-tabs {
@@ -310,6 +313,69 @@ body {
   border-color: var(--c-indigo);
   box-shadow: 0 0 0 4px rgba(91, 40, 224, 0.12);
   background: #fff;
+}
+
+.cr-password-wrap {
+  position: relative;
+}
+
+.cr-input--password {
+  padding-right: 46px;
+}
+
+.cr-password-toggle {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  color: var(--cr-dark-soft);
+  cursor: pointer;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: color 0.15s, background 0.15s;
+}
+
+.cr-password-toggle:hover {
+  color: var(--c-indigo);
+  background: rgba(91, 40, 224, 0.08);
+}
+
+.cr-password-toggle:focus-visible {
+  outline: 2px solid var(--c-indigo);
+  outline-offset: 2px;
+}
+
+.cr-password-toggle svg {
+  width: 20px;
+  height: 20px;
+  pointer-events: none;
+}
+
+.cr-remember {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--cr-dark-soft);
+  cursor: pointer;
+  margin: 2px 0 18px;
+  user-select: none;
+}
+
+.cr-remember input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--c-indigo);
+  cursor: pointer;
 }
 
 .cr-msg {
@@ -1726,6 +1792,16 @@ body {
     flex-wrap: wrap;
     padding: 12px 14px;
     gap: 12px;
+    min-height: 72px;
+  }
+  .cr-nav-logo-wrap,
+  .cr-nav-logo {
+    width: 56px;
+    height: 56px;
+  }
+  .cr-auth-logo {
+    width: 96px;
+    height: 96px;
   }
   .cr-nav-brand {
     flex: 1 1 auto;
