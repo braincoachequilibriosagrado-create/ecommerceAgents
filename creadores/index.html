@@ -3,22 +3,28 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MiniApps — Panel de Creadores</title>
+  <title>Activos Digitales — Panel Creador</title>
   <link rel="icon" type="image/png" href="assets/img/logo.png?v=2" />
-  <link rel="stylesheet" href="assets/css/creadores.css?v=12" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/creadores.css?v=13" />
 </head>
 <body>
 
   <!-- Navbar -->
   <header class="cr-navbar">
     <div class="cr-navbar-inner">
-      <div class="cr-nav-left" aria-hidden="true"></div>
       <a href="#" class="cr-nav-brand" onclick="return false;">
-        <img src="assets/img/logo.png?v=2" alt="MiniApps" class="cr-nav-logo" />
+        <img src="assets/img/logo.png?v=2" alt="Activos Digitales" class="cr-nav-logo" />
+        <span class="cr-nav-brand-text">
+          <span class="cr-nav-brand-name">Activos Digitales</span>
+          <span class="cr-nav-brand-sub">Panel Creador</span>
+        </span>
       </a>
       <div class="cr-nav-right">
         <span class="cr-nav-hola" id="cr-nav-hola" hidden>Hola, <strong id="cr-nav-nombre"></strong></span>
-        <span class="cr-nav-badge" id="cr-nav-badge" hidden>Creador</span>
+        <span class="cr-nav-badge" id="cr-nav-badge" hidden>CREADOR</span>
         <button type="button" class="cr-btn-logout" id="cr-nav-logout" hidden onclick="creadorLogout()">Salir</button>
       </div>
     </div>
@@ -80,6 +86,12 @@
 
   <!-- Dashboard -->
   <div id="cr-dashboard" hidden>
+    <div class="cr-welcome-hero">
+      <p class="cr-welcome-eyebrow">BIENVENIDO DE VUELTA</p>
+      <h1 class="cr-welcome-title">Tu estudio digital</h1>
+      <p class="cr-welcome-sub">Gestiona tus activos, sube productos y revisa tus ganancias desde un solo lugar.</p>
+    </div>
+
     <nav class="cr-dash-tabs">
       <button type="button" class="cr-dash-tab active" id="cr-dash-tab-cuentas" onclick="switchCrTab('cuentas')">Cuentas</button>
       <button type="button" class="cr-dash-tab" id="cr-dash-tab-catalogo" onclick="switchCrTab('catalogo')">Mi catalogo</button>
@@ -407,6 +419,6 @@
     </main>
   </div>
 
-  <script src="assets/js/creadores.js?v=12"></script>
+  <script src="assets/js/creadores.js?v=13"></script>
 </body>
 </html>
