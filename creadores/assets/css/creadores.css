@@ -235,14 +235,15 @@ body {
 .cr-auth-tabs {
   display: flex;
   gap: 8px;
-  padding: 0 24px;
+  padding: 18px 24px 0;
   margin-bottom: 4px;
+  background: var(--white);
 }
 
 .cr-auth-tab {
   flex: 1;
   padding: 12px 14px;
-  background: var(--cr-surface);
+  background: var(--white);
   border: 1px solid var(--cr-border);
   border-radius: 12px;
   font-family: var(--font-ui);
@@ -260,12 +261,15 @@ body {
 
 .cr-auth-tab.active {
   color: var(--c-indigo);
-  background: #fff;
+  background: var(--white);
   border-color: var(--cr-accent-border);
-  box-shadow: 0 6px 18px rgba(91, 40, 224, 0.12);
+  box-shadow: none;
 }
 
-.cr-auth-body { padding: 24px 32px 32px; }
+.cr-auth-body {
+  padding: 24px 32px 32px;
+  background: var(--white);
+}
 
 .cr-auth-title {
   font-family: var(--font-display);
