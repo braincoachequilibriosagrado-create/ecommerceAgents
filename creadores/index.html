@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>MiniApps — Panel de Creadores</title>
   <link rel="icon" type="image/png" href="assets/img/logo.png?v=2" />
-  <link rel="stylesheet" href="assets/css/creadores.css?v=10" />
+  <link rel="stylesheet" href="assets/css/creadores.css?v=11" />
 </head>
 <body>
 
@@ -205,17 +205,18 @@
               </div>
             </div>
 
-            <!-- Contenido digital: ZIP obligatorio -->
-            <div id="cr-block-pack" class="cr-product-block" hidden>
-              <label class="cr-label" for="cr-pack">Pack de contenido (ZIP) <span class="cr-req">*</span></label>
-              <p class="cr-hint cr-hint--block">Sube tu pack de videos/reels en un archivo ZIP. Comprime tus videos en un archivo .zip antes de subir.</p>
+            <!-- Contenido digital: videos multiples -->
+            <div id="cr-block-videos" class="cr-product-block" hidden>
+              <label class="cr-label" for="cr-videos">Videos del producto <span class="cr-req">*</span></label>
+              <p class="cr-hint cr-hint--block">Sube tus videos (hasta 30). El comprador los verá y descargará individualmente. Formatos: mp4, mov, webm. Max 100 MB por video.</p>
               <div class="cr-file-zone cr-file-zone--compact">
-                <input type="file" id="cr-pack" class="cr-file-input-hidden" accept=".zip,application/zip,application/x-zip-compressed" onchange="onPackSelected(this)" />
-                <label for="cr-pack" class="cr-file-zone-label cr-file-zone-label--compact">
-                  <span class="cr-file-zone-icon">ZIP</span>
-                  <span id="cr-pack-label">Seleccionar archivo ZIP</span>
+                <input type="file" id="cr-videos" class="cr-file-input-hidden" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm" multiple onchange="onVideosSelected(this)" />
+                <label for="cr-videos" class="cr-file-zone-label cr-file-zone-label--compact">
+                  <span class="cr-file-zone-icon">VID</span>
+                  <span id="cr-videos-label">Seleccionar videos</span>
                 </label>
               </div>
+              <div id="cr-videos-list" class="cr-videos-list" hidden></div>
             </div>
           </div>
 
@@ -392,6 +393,6 @@
     </main>
   </div>
 
-  <script src="assets/js/creadores.js?v=10"></script>
+  <script src="assets/js/creadores.js?v=11"></script>
 </body>
 </html>

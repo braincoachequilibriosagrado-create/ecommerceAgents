@@ -25,10 +25,10 @@ var CR_CATEGORIA_META = {
   },
   contenido_digital: {
     title: 'Publicar contenido digital',
-    sub: 'Sube tu pack ZIP, las fotos de venta y configura precios.',
+    sub: 'Sube tus videos, las fotos de venta y configura precios.',
     publish: 'Publicar contenido digital',
     nombrePh: 'Ej: Pack 30 reels virales',
-    descPh: 'Describe tu pack de contenido para vendedores y compradores...'
+    descPh: 'Describe tu contenido digital para vendedores y compradores...'
   },
   miniapp: {
     title: 'Publicar mini app',
@@ -274,10 +274,37 @@ function onPdfInfoSelected(input) {
   if (lbl) lbl.textContent = file ? file.name : 'Seleccionar PDF';
 }
 
-function onPackSelected(input) {
-  var file = input.files && input.files[0];
-  var lbl = document.getElementById('cr-pack-label');
-  if (lbl) lbl.textContent = file ? file.name : 'Seleccionar archivo ZIP';
+function onVideosSelected(input) {
+  var files = input.files ? Array.prototype.slice.call(input.files) : [];
+  var lbl = document.getElementById('cr-videos-label');
+  var listEl = document.getElementById('cr-videos-list');
+
+  if (files.length > 30) {
+    _showMsg('cr-subir-msg', 'Maximo 30 videos por producto.', false);
+    input.value = '';
+    files = [];
+  }
+
+  if (lbl) {
+    lbl.textContent = files.length
+      ? files.length + ' video' + (files.length === 1 ? '' : 's') + ' seleccionado' + (files.length === 1 ? '' : 's')
+      : 'Seleccionar videos';
+  }
+
+  if (!listEl) return;
+  if (!files.length) {
+    listEl.hidden = true;
+    listEl.innerHTML = '';
+    return;
+  }
+
+  listEl.hidden = false;
+  listEl.innerHTML = files.map(function (f, i) {
+    var mb = (f.size / (1024 * 1024)).toFixed(1);
+    return '<div class="cr-video-item"><span class="cr-video-item-num">' + (i + 1) + '</span>' +
+      '<span class="cr-video-item-name">' + _esc(f.name) + '</span>' +
+      '<span class="cr-video-item-size">' + mb + ' MB</span></div>';
+  }).join('');
 }
 
 function _updateCategoriaUI() {
@@ -305,13 +332,13 @@ function _updateCategoriaUI() {
   var blockHtml  = document.getElementById('cr-block-html');
   var blockPdfMa = document.getElementById('cr-block-pdf-miniapp');
   var blockPdfInfo = document.getElementById('cr-block-pdf-info');
-  var blockPack  = document.getElementById('cr-block-pack');
+  var blockVideos = document.getElementById('cr-block-videos');
   var optIa      = document.getElementById('cr-option-ia-wrap');
 
   if (blockHtml)    blockHtml.hidden    = _categoriaActiva !== 'miniapp';
   if (blockPdfMa)   blockPdfMa.hidden   = _categoriaActiva !== 'miniapp';
   if (blockPdfInfo) blockPdfInfo.hidden = _categoriaActiva !== 'infoproducto';
-  if (blockPack)    blockPack.hidden    = _categoriaActiva !== 'contenido_digital';
+  if (blockVideos)  blockVideos.hidden  = _categoriaActiva !== 'contenido_digital';
   if (optIa)        optIa.hidden        = _categoriaActiva !== 'miniapp';
 }
 
@@ -342,17 +369,17 @@ function _resetSubirForm() {
   var foto2 = document.getElementById('cr-foto2');
   var pdf = document.getElementById('cr-pdf');
   var pdfInfo = document.getElementById('cr-pdf-info');
-  var pack = document.getElementById('cr-pack');
+  var videosInput = document.getElementById('cr-videos');
   if (foto1) foto1.value = '';
   if (foto2) foto2.value = '';
   if (pdf) pdf.value = '';
   if (pdfInfo) pdfInfo.value = '';
-  if (pack) pack.value = '';
+  if (videosInput) videosInput.value = '';
   previewFoto({ files: [] }, 'cr-foto1-preview');
   previewFoto({ files: [] }, 'cr-foto2-preview');
   onPdfSelected({ files: [] });
   onPdfInfoSelected({ files: [] });
-  onPackSelected({ files: [] });
+  onVideosSelected({ files: [] });
   switchHtmlMode('pegar');
   toggleComisionField();
 }
@@ -390,7 +417,7 @@ async function publicarMiniapp() {
   var foto2Input = document.getElementById('cr-foto2');
   var pdfInput = document.getElementById('cr-pdf');
   var pdfInfoInput = document.getElementById('cr-pdf-info');
-  var packInput = document.getElementById('cr-pack');
+  var videosInput = document.getElementById('cr-videos');
 
   if (_categoriaActiva === 'miniapp' && !html) {
     _showMsg('cr-subir-msg', 'El HTML no puede estar vacio.', false);
@@ -403,9 +430,20 @@ async function publicarMiniapp() {
     }
   }
   if (_categoriaActiva === 'contenido_digital') {
-    if (!packInput || !packInput.files || !packInput.files[0]) {
-      _showMsg('cr-subir-msg', 'El archivo ZIP del pack es obligatorio.', false);
+    if (!videosInput || !videosInput.files || !videosInput.files.length) {
+      _showMsg('cr-subir-msg', 'Debes subir al menos un video.', false);
       return;
+    }
+    if (videosInput.files.length > 30) {
+      _showMsg('cr-subir-msg', 'Maximo 30 videos por producto.', false);
+      return;
+    }
+    for (var vi = 0; vi < videosInput.files.length; vi++) {
+      var vf = videosInput.files[vi];
+      if (vf.size > 100 * 1024 * 1024) {
+        _showMsg('cr-subir-msg', 'El video "' + vf.name + '" supera 100 MB.', false);
+        return;
+      }
     }
   }
   if (!nombre) { _showMsg('cr-subir-msg', 'El nombre es obligatorio.', false); return; }
@@ -435,8 +473,10 @@ async function publicarMiniapp() {
   if (_categoriaActiva === 'infoproducto' && pdfInfoInput.files[0]) {
     fd.append('pdf', pdfInfoInput.files[0]);
   }
-  if (_categoriaActiva === 'contenido_digital' && packInput.files[0]) {
-    fd.append('pack', packInput.files[0]);
+  if (_categoriaActiva === 'contenido_digital' && videosInput && videosInput.files) {
+    for (var vj = 0; vj < videosInput.files.length; vj++) {
+      fd.append('videos', videosInput.files[vj]);
+    }
   }
 
   var publishLabel = (CR_CATEGORIA_META[_categoriaActiva] || {}).publish || 'Publicar';

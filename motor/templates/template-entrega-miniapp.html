@@ -17,8 +17,10 @@
   {{PDF_TITULO}}, {{PDF_DESCRIPCION}}, {{PDF_BTN}} -> textos del bloque PDF
   {{#IF_MINIAPP}}...{{/IF_MINIAPP}}     -> solo categoria miniapp
   {{#IF_PDF}}...{{/IF_PDF}}             -> descarga PDF (miniapp con pdf o infoproducto)
-  {{#IF_PACK}}...{{/IF_PACK}}           -> descarga pack (contenido digital)
-  {{#IF_CONTENIDO_PENDIENTE}}...{{/IF_CONTENIDO_PENDIENTE}} -> contenido digital sin pack aun
+  {{#IF_PACK}}...{{/IF_PACK}}           -> descarga pack ZIP (legacy)
+  {{#IF_VIDEOS}}...{{/IF_VIDEOS}}       -> lista de videos individuales (contenido digital)
+  {{VIDEOS_HTML}}                       -> HTML de la lista generado por el backend
+  {{#IF_CONTENIDO_PENDIENTE}}...{{/IF_CONTENIDO_PENDIENTE}} -> contenido digital sin videos aun
   {{COLOR_1}}, {{COLOR_2}}, {{COLOR_3}} -> colores (mismos de la pagina de venta)
 -->
 <style>
@@ -158,9 +160,33 @@
     font-size: 14px; font-weight: 600; opacity: 0; transition: all .3s; z-index: 100;
   }
   .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+  .video-list { display: flex; flex-direction: column; gap: 10px; }
+  .video-item {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper);
+  }
+  .video-item-info { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1; }
+  .video-item-num {
+    width: 28px; height: 28px; border-radius: 50%; background: var(--grad); color: #fff;
+    font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex: none;
+  }
+  .video-item-name { font-size: 14px; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .video-item-actions { display: flex; gap: 8px; flex: none; }
+  .btn-video { padding: 10px 16px; font-size: 13px; }
+  .btn-video-dl {
+    padding: 10px 14px; font-size: 13px; font-weight: 700; color: var(--slate);
+    background: var(--white); border: 1.5px solid var(--line); border-radius: 11px; text-decoration: none;
+    transition: border-color .15s, color .15s;
+  }
+  .btn-video-dl:hover { border-color: var(--c2); color: var(--ink); }
+
   @media (max-width: 520px) {
     .link-row { flex-direction: column; }
     .btn-copy { width: 100%; }
+    .video-item { flex-direction: column; align-items: stretch; }
+    .video-item-actions { width: 100%; }
+    .btn-video, .btn-video-dl { flex: 1; text-align: center; }
   }
 </style>
 </head>
@@ -201,6 +227,18 @@
         <a href="{{PDF_URL}}" target="_blank" class="btn btn-grad btn-full">{{PDF_BTN}}</a>
       </div>
       {{/IF_PDF}}
+
+      {{#IF_VIDEOS}}
+      <!-- LISTA DE VIDEOS -->
+      <div class="block-item">
+        <h3>
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--c2)" stroke-width="2"><path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Tus videos
+        </h3>
+        <p>Accede a cada video por separado. Puedes verlos en el navegador o descargarlos a tu dispositivo.</p>
+        <div class="video-list">{{VIDEOS_HTML}}</div>
+      </div>
+      {{/IF_VIDEOS}}
 
       {{#IF_PACK}}
       <!-- DESCARGAR PACK -->

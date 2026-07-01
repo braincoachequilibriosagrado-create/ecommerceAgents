@@ -3,6 +3,7 @@ const express       = require('express');
 const cors          = require('cors');
 const path          = require('path');
 const fs            = require('fs');
+const crypto        = require('crypto');
 const bcrypt        = require('bcrypt');
 const { exec }      = require('child_process');
 const { promisify } = require('util');
@@ -136,15 +137,21 @@ const uploadReaccionFields = upload.fields([{ name: 'reaccionMemeFile', maxCount
 const uploadContenidoImg   = upload.single('imagen');
 const uploadAvatarFields   = upload.fields([{ name: 'fotoAvatar', maxCount: 1 }, { name: 'fotoProducto', maxCount: 1 }]);
 
-// Multer en memoria para subida de activos digitales (fotos, PDF, ZIP pack)
+// Multer en disco para subida de activos digitales (fotos, PDF, videos)
 const uploadMiniappFields = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 200 * 1024 * 1024 }
+  storage: multer.diskStorage({
+    destination: TEMP_DIR,
+    filename: function (req, file, cb) {
+      const ext = path.extname(file.originalname).toLowerCase() || '.bin';
+      cb(null, Date.now() + '_' + Math.random().toString(36).slice(2) + ext);
+    }
+  }),
+  limits: { fileSize: 100 * 1024 * 1024 }
 }).fields([
-  { name: 'pdf',   maxCount: 1 },
-  { name: 'pack',  maxCount: 1 },
-  { name: 'foto1', maxCount: 1 },
-  { name: 'foto2', maxCount: 1 }
+  { name: 'pdf',    maxCount: 1 },
+  { name: 'foto1',  maxCount: 1 },
+  { name: 'foto2',  maxCount: 1 },
+  { name: 'videos', maxCount: 30 }
 ]);
 
 const CREADOR_CATEGORIAS = ['infoproducto', 'contenido_digital', 'miniapp'];
@@ -1839,6 +1846,66 @@ function _mimeFromKey(key) {
   return 'application/octet-stream';
 }
 
+function _readUploadFile(file) {
+  if (!file) return null;
+  if (file.buffer && file.buffer.length) return file.buffer;
+  if (file.path && fs.existsSync(file.path)) return fs.readFileSync(file.path);
+  return null;
+}
+
+function _cleanupUploadFiles(files) {
+  if (!files) return;
+  Object.keys(files).forEach(function (field) {
+    (files[field] || []).forEach(function (f) {
+      if (f.path && fs.existsSync(f.path)) {
+        try { fs.unlinkSync(f.path); } catch (e) { /* ignore */ }
+      }
+    });
+  });
+}
+
+function _extVideo(mimetype, originalname) {
+  const name = String(originalname || '').toLowerCase();
+  const mime = String(mimetype || '').toLowerCase();
+  if (mime === 'video/mp4' || name.endsWith('.mp4')) return 'mp4';
+  if (mime === 'video/quicktime' || name.endsWith('.mov')) return 'mov';
+  if (mime === 'video/webm' || name.endsWith('.webm')) return 'webm';
+  return null;
+}
+
+function _mimeVideoExt(ext) {
+  const e = String(ext || '').toLowerCase();
+  if (e === 'mp4') return 'video/mp4';
+  if (e === 'mov') return 'video/quicktime';
+  if (e === 'webm') return 'video/webm';
+  return 'application/octet-stream';
+}
+
+function _escapeHtmlEntrega(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function _buildVideosEntregaHtml(videos, codigo) {
+  if (!videos || !videos.length) return '';
+  return videos.map(function (v, idx) {
+    const baseUrl = PUBLIC_BASE_URL + '/descargar-video/' + encodeURIComponent(codigo) + '/' + encodeURIComponent(v.id);
+    const nombre = _escapeHtmlEntrega(v.nombre || ('Video ' + (idx + 1)));
+    return (
+      '<div class="video-item">' +
+      '<div class="video-item-info">' +
+      '<span class="video-item-num">' + (idx + 1) + '</span>' +
+      '<span class="video-item-name">' + nombre + '</span>' +
+      '</div>' +
+      '<div class="video-item-actions">' +
+      '<a href="' + baseUrl + '" target="_blank" rel="noopener" class="btn btn-grad btn-video">Ver</a>' +
+      '<a href="' + baseUrl + '?download=1" class="btn btn-video-dl">Descargar</a>' +
+      '</div></div>'
+    );
+  }).join('');
+}
+
 // POST /api/creador/miniapps/subir  (multipart/form-data)
 app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, async (req, res) => {
   const body            = req.body || {};
@@ -1856,11 +1923,11 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
     return res.status(400).json({ ok: false, error: 'Categoria invalida. Use infoproducto, contenido_digital o miniapp.' });
   }
 
-  const files   = req.files || {};
-  const foto1   = files.foto1 && files.foto1[0];
-  const foto2   = files.foto2 && files.foto2[0];
-  const pdfFile = files.pdf && files.pdf[0];
-  const packFile = files.pack && files.pack[0];
+  const files      = req.files || {};
+  const foto1      = files.foto1 && files.foto1[0];
+  const foto2      = files.foto2 && files.foto2[0];
+  const pdfFile    = files.pdf && files.pdf[0];
+  const videoFiles = files.videos || [];
 
   if (!nombreTrim) {
     return res.status(400).json({ ok: false, error: 'El nombre es obligatorio.' });
@@ -1920,20 +1987,23 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
     }
     tipo_producto = 'pdf';
   } else if (categoria === 'contenido_digital') {
-    if (!packFile) {
-      return res.status(400).json({ ok: false, error: 'El archivo ZIP del pack es obligatorio para contenido digital.' });
+    if (!videoFiles.length) {
+      return res.status(400).json({ ok: false, error: 'Debes subir al menos un video para contenido digital.' });
     }
-    const packName = String(packFile.originalname || '').toLowerCase();
-    const isZip = packFile.mimetype === 'application/zip'
-      || packFile.mimetype === 'application/x-zip-compressed'
-      || packName.endsWith('.zip');
-    if (!isZip) {
-      return res.status(400).json({ ok: false, error: 'El pack debe ser un archivo .zip valido.' });
+    if (videoFiles.length > 30) {
+      return res.status(400).json({ ok: false, error: 'Maximo 30 videos por producto.' });
     }
-    if (packFile.size > 200 * 1024 * 1024) {
-      return res.status(400).json({ ok: false, error: 'El ZIP supera el limite de 200 MB.' });
+    for (let vi = 0; vi < videoFiles.length; vi++) {
+      const vf = videoFiles[vi];
+      const vExt = _extVideo(vf.mimetype, vf.originalname);
+      if (!vExt) {
+        return res.status(400).json({ ok: false, error: 'Video ' + (vi + 1) + ': solo se permiten mp4, mov o webm.' });
+      }
+      if (vf.size > 100 * 1024 * 1024) {
+        return res.status(400).json({ ok: false, error: 'Video ' + (vi + 1) + ' supera el limite de 100 MB.' });
+      }
     }
-    tipo_producto = 'pack';
+    tipo_producto = 'videos';
   }
 
   try {
@@ -1941,27 +2011,39 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
     const foto1Key = 'miniapps/' + slug + '/foto1.' + ext1;
     let foto2Key   = null;
 
-    await subirArchivo(foto1Key, foto1.buffer, foto1.mimetype || 'image/jpeg');
+    const foto1Buf = _readUploadFile(foto1);
+    await subirArchivo(foto1Key, foto1Buf, foto1.mimetype || 'image/jpeg');
 
     if (foto2) {
       const ext2 = _extImagen(foto2.mimetype, foto2.originalname);
       foto2Key = 'miniapps/' + slug + '/foto2.' + ext2;
-      await subirArchivo(foto2Key, foto2.buffer, foto2.mimetype || 'image/jpeg');
+      await subirArchivo(foto2Key, _readUploadFile(foto2), foto2.mimetype || 'image/jpeg');
     }
+
+    const videoRows = [];
 
     if (categoria === 'miniapp') {
       r2Key = 'miniapps/' + slug + '/app.html';
       await subirArchivo(r2Key, htmlContent, 'text/html');
       if (pdfFile) {
         pdfKey = 'miniapps/' + slug + '/producto.pdf';
-        await subirArchivo(pdfKey, pdfFile.buffer, 'application/pdf');
+        await subirArchivo(pdfKey, _readUploadFile(pdfFile), 'application/pdf');
       }
     } else if (categoria === 'infoproducto') {
       pdfKey = 'miniapps/' + slug + '/producto.pdf';
-      await subirArchivo(pdfKey, pdfFile.buffer, 'application/pdf');
+      await subirArchivo(pdfKey, _readUploadFile(pdfFile), 'application/pdf');
     } else if (categoria === 'contenido_digital') {
-      packKey = 'miniapps/' + slug + '/pack.zip';
-      await subirArchivo(packKey, packFile.buffer, 'application/zip');
+      for (let vi = 0; vi < videoFiles.length; vi++) {
+        const vf = videoFiles[vi];
+        const vExt = _extVideo(vf.mimetype, vf.originalname);
+        const videoKey = 'miniapps/' + slug + '/videos/' + (vi + 1) + '.' + vExt;
+        await subirArchivo(videoKey, _readUploadFile(vf), _mimeVideoExt(vExt));
+        videoRows.push({
+          video_key: videoKey,
+          nombre: path.basename(vf.originalname || '') || ('Video ' + (vi + 1)),
+          orden: vi
+        });
+      }
     }
 
     const { data, error } = await supabase
@@ -1993,19 +2075,36 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
 
     if (error) throw error;
 
-    console.log('[creador/miniapps/subir] creador=' + req.creador_id + ' slug=' + slug + ' cat=' + categoria + ' tipo=' + tipo_producto);
+    if (videoRows.length) {
+      const inserts = videoRows.map(function (v) {
+        return {
+          miniapp_id: data.id,
+          video_key:  v.video_key,
+          nombre:     v.nombre,
+          orden:      v.orden,
+          creado_en:  new Date().toISOString()
+        };
+      });
+      const { error: vErr } = await supabase.from('miniapp_videos').insert(inserts);
+      if (vErr) throw vErr;
+    }
+
+    console.log('[creador/miniapps/subir] creador=' + req.creador_id + ' slug=' + slug + ' cat=' + categoria + ' tipo=' + tipo_producto + ' videos=' + videoRows.length);
     res.json({
       ok: true,
       miniapp: data,
+      videos: videoRows.length,
       url: PUBLIC_BASE_URL + '/miniapps/' + slug
     });
   } catch (e) {
     console.error('[creador/miniapps/subir]', e.message);
     res.status(500).json({ ok: false, error: e.message });
+  } finally {
+    _cleanupUploadFiles(req.files);
   }
 });
 
-// GET /api/miniapps/asset/:slug/:file  — sirve foto1 o foto2 desde R2 (publico)
+// GET /api/miniapps/asset/:slug/:file  — SOLO fotos de venta (publicas). Productos (html/pdf/video) nunca aqui.
 app.get('/api/miniapps/asset/:slug/:file', async (req, res) => {
   const slug = String(req.params.slug || '').trim();
   const file = String(req.params.file || '').trim();
@@ -2871,8 +2970,12 @@ function _miniappPrecioVenta(miniapp) {
 
 function _generarCodigoAcceso() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const len   = 14;
+  const bytes = crypto.randomBytes(len);
   let code = '';
-  for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  for (let i = 0; i < len; i++) {
+    code += chars[bytes[i] % chars.length];
+  }
   return code;
 }
 
@@ -2904,13 +3007,166 @@ async function _buscarMiniappPorPaginaSlug(slugPagina) {
 async function _buscarCompraPorCodigo(codigo) {
   const cod = String(codigo || '').trim().toUpperCase();
   if (!cod) return null;
-  const { data, error } = await supabase
+  const colsFull = 'id, miniapp_id, miniapp_slug, codigo_acceso, comprador_email, ref_vendedor, vendedor_id, monto, estado_pago, descargas_count, descargas_max, creado_en';
+  const colsBase = 'id, miniapp_id, miniapp_slug, codigo_acceso, comprador_email, ref_vendedor, vendedor_id, monto, estado_pago, creado_en';
+
+  let { data, error } = await supabase
     .from('miniapp_compras')
-    .select('id, miniapp_id, miniapp_slug, codigo_acceso, comprador_email, ref_vendedor, vendedor_id, monto, estado_pago, creado_en')
+    .select(colsFull)
     .eq('codigo_acceso', cod)
     .maybeSingle();
+
+  if (error && /descargas_count|descargas_max|column|schema cache/.test(String(error.message || ''))) {
+    ({ data, error } = await supabase
+      .from('miniapp_compras')
+      .select(colsBase)
+      .eq('codigo_acceso', cod)
+      .maybeSingle());
+    if (data) {
+      data.descargas_count = 0;
+      data.descargas_max   = ENTREGA_DESCARGAS_MAX_DEFAULT;
+    }
+  }
+
   if (error) throw error;
   return data || null;
+}
+
+// ── Seguridad entrega digital ─────────────────────────────────────────────────
+const ENTREGA_DESCARGAS_MAX_DEFAULT = 20;
+const ENTREGA_RATE_MAX              = 20;
+const ENTREGA_RATE_WINDOW_MS        = 60 * 1000;
+const ENTREGA_MSG_INVALIDO          = 'Acceso no valido';
+const ENTREGA_MSG_LIMITE            = 'Limite de accesos alcanzado. Contacta soporte.';
+const ENTREGA_MSG_RATE              = 'Demasiados intentos. Intenta de nuevo en unos minutos.';
+
+const _entregaRateMap = new Map();
+
+function _getClientIp(req) {
+  const xf = req.headers['x-forwarded-for'];
+  if (xf) return String(xf).split(',')[0].trim();
+  return req.ip || (req.socket && req.socket.remoteAddress) || 'unknown';
+}
+
+function _entregaRateLimitCleanup(now) {
+  if (_entregaRateMap.size < 2000) return;
+  _entregaRateMap.forEach(function (entry, ip) {
+    if (now >= entry.resetAt) _entregaRateMap.delete(ip);
+  });
+}
+
+function _entregaRateLimitPermitir(req) {
+  const ip  = _getClientIp(req);
+  const now = Date.now();
+  _entregaRateLimitCleanup(now);
+
+  let entry = _entregaRateMap.get(ip);
+  if (!entry || now >= entry.resetAt) {
+    entry = { count: 0, resetAt: now + ENTREGA_RATE_WINDOW_MS };
+    _entregaRateMap.set(ip, entry);
+  }
+  entry.count += 1;
+  return entry.count <= ENTREGA_RATE_MAX;
+}
+
+function _entregaCodigoValidoFormato(codigo) {
+  const cod = String(codigo || '').trim().toUpperCase();
+  return /^[A-Z0-9]{4,32}$/.test(cod) ? cod : null;
+}
+
+function _denegarEntregaTexto(res, reason, status) {
+  if (reason === 'rate') {
+    return res.status(429).send(ENTREGA_MSG_RATE);
+  }
+  if (reason === 'limit') {
+    return res.status(403).send(ENTREGA_MSG_LIMITE);
+  }
+  return res.status(status || 403).send(ENTREGA_MSG_INVALIDO);
+}
+
+function _denegarEntregaHtml(res, reason, status) {
+  if (reason === 'rate') {
+    return res.status(429).send(_htmlAccesoInvalido('Acceso no valido', ENTREGA_MSG_RATE));
+  }
+  if (reason === 'limit') {
+    return res.status(403).send(_htmlAccesoInvalido('Acceso no valido', ENTREGA_MSG_LIMITE));
+  }
+  return res.status(status || 403).send(_htmlAccesoInvalido('Acceso no valido', ENTREGA_MSG_INVALIDO));
+}
+
+async function _entregaValidarCompra(codigo) {
+  const cod = _entregaCodigoValidoFormato(codigo);
+  if (!cod) {
+    return { ok: false, reason: 'invalid' };
+  }
+  const compra = await _buscarCompraPorCodigo(cod);
+  if (!compra || compra.estado_pago !== 'pagado') {
+    return { ok: false, reason: 'invalid' };
+  }
+  return { ok: true, compra };
+}
+
+async function _logAccesoEntrega(compra, recurso, ip) {
+  try {
+    const { error } = await supabase.from('miniapp_accesos_log').insert({
+      compra_id:     compra.id,
+      codigo_acceso: compra.codigo_acceso,
+      recurso:       String(recurso || 'unknown').slice(0, 64),
+      ip_address:    String(ip || '').slice(0, 64),
+      creado_en:     new Date().toISOString()
+    });
+    if (error) {
+      console.warn('[entrega/log]', error.message);
+    }
+  } catch (e) {
+    console.warn('[entrega/log]', e.message);
+  }
+}
+
+async function _consumirCuotaDescarga(compra, recurso, req) {
+  const ip     = _getClientIp(req);
+  const maxRaw = Number(compra.descargas_max);
+  const limite = Number.isFinite(maxRaw) && maxRaw > 0 ? maxRaw : ENTREGA_DESCARGAS_MAX_DEFAULT;
+  const actual = Number(compra.descargas_count) || 0;
+
+  if (actual >= limite) {
+    return { ok: false, reason: 'limit' };
+  }
+
+  const { data, error } = await supabase
+    .from('miniapp_compras')
+    .update({ descargas_count: actual + 1 })
+    .eq('id', compra.id)
+    .lt('descargas_count', limite)
+    .select('descargas_count, descargas_max')
+    .maybeSingle();
+
+  if (error) {
+    if (/descargas_count|descargas_max|column|schema cache/.test(String(error.message || ''))) {
+      console.warn('[entrega/cuota] columnas descargas_* ausentes — ejecuta migracion Supabase');
+      await _logAccesoEntrega(compra, recurso, ip);
+      return { ok: true, degraded: true };
+    }
+    console.error('[entrega/cuota]', error.message);
+    return { ok: false, reason: 'invalid' };
+  }
+
+  if (!data) {
+    return { ok: false, reason: 'limit' };
+  }
+
+  compra.descargas_count = data.descargas_count;
+  await _logAccesoEntrega(compra, recurso, ip);
+  return { ok: true };
+}
+
+function _entregaCodigoGate(req, res, next) {
+  if (!_entregaRateLimitPermitir(req)) {
+    const isHtml = req.path.indexOf('/mi-compra/') === 0;
+    if (isHtml) return _denegarEntregaHtml(res, 'rate');
+    return _denegarEntregaTexto(res, 'rate');
+  }
+  next();
 }
 
 function _htmlAccesoInvalido(titulo, mensaje) {
@@ -3739,7 +3995,7 @@ app.post('/api/miniapp/comprar-prueba', async (req, res) => {
 
     const emailClean = String(comprador_email || '').trim() || null;
 
-    const { error: insErr } = await supabase.from('miniapp_compras').insert({
+    const insertPayload = {
       miniapp_id:      miniapp.id,
       miniapp_slug:    miniapp.slug,
       codigo_acceso:   codigo,
@@ -3747,8 +4003,17 @@ app.post('/api/miniapp/comprar-prueba', async (req, res) => {
       ref_vendedor:    refClean || null,
       vendedor_id,
       monto,
-      estado_pago:     'pagado'
-    });
+      estado_pago:     'pagado',
+      descargas_count: 0,
+      descargas_max:   ENTREGA_DESCARGAS_MAX_DEFAULT
+    };
+
+    let { error: insErr } = await supabase.from('miniapp_compras').insert(insertPayload);
+    if (insErr && /descargas_count|descargas_max|column|schema cache/.test(String(insErr.message || ''))) {
+      delete insertPayload.descargas_count;
+      delete insertPayload.descargas_max;
+      ({ error: insErr } = await supabase.from('miniapp_compras').insert(insertPayload));
+    }
     if (insErr) throw insErr;
 
     const link_unico = PUBLIC_BASE_URL + '/mi-compra/' + codigo;
@@ -3760,24 +4025,17 @@ app.post('/api/miniapp/comprar-prueba', async (req, res) => {
   }
 });
 
-// ── Pagina de entrega post-compra ─────────────────────────────────────────────
-app.get('/mi-compra/:codigo', async (req, res) => {
-  const codigo = String(req.params.codigo || '').trim().toUpperCase();
-  if (!codigo) {
-    res.status(400).setHeader('Content-Type', 'text/html; charset=utf-8');
-    return res.send(_htmlAccesoInvalido('Acceso no valido', 'El codigo de acceso no es valido.'));
-  }
+// ── Pagina de entrega post-compra (ver pagina NO consume cuota) ───────────────
+app.get('/mi-compra/:codigo', _entregaCodigoGate, async (req, res) => {
+  const codigo = String(req.params.codigo || '').trim();
 
   try {
-    const compra = await _buscarCompraPorCodigo(codigo);
-    if (!compra) {
-      res.status(404).setHeader('Content-Type', 'text/html; charset=utf-8');
-      return res.send(_htmlAccesoInvalido('Acceso no valido', 'No encontramos una compra con ese codigo. Verifica el enlace.'));
+    const validacion = await _entregaValidarCompra(codigo);
+    if (!validacion.ok) {
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      return _denegarEntregaHtml(res, validacion.reason);
     }
-    if (compra.estado_pago !== 'pagado') {
-      res.status(403).setHeader('Content-Type', 'text/html; charset=utf-8');
-      return res.send(_htmlAccesoInvalido('Pago pendiente', 'Tu compra aun no esta confirmada. Contacta soporte si ya pagaste.'));
-    }
+    const compra = validacion.compra;
 
     const { data: miniapp, error: mErr } = await supabase
       .from('miniapps')
@@ -3785,8 +4043,8 @@ app.get('/mi-compra/:codigo', async (req, res) => {
       .eq('id', compra.miniapp_id)
       .maybeSingle();
     if (mErr || !miniapp) {
-      res.status(404).setHeader('Content-Type', 'text/html; charset=utf-8');
-      return res.send(_htmlAccesoInvalido('Producto no encontrado', 'El activo digital asociado a esta compra ya no esta disponible.'));
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      return _denegarEntregaHtml(res, 'invalid', 403);
     }
 
     if (!fs.existsSync(ENTREGA_MINIAPP_TEMPLATE)) {
@@ -3805,6 +4063,18 @@ app.get('/mi-compra/:codigo', async (req, res) => {
     const esInfoproducto = categoria === 'infoproducto';
     const esContenido = categoria === 'contenido_digital';
     const tienePdf = !!miniapp.pdf_key;
+
+    let videos = [];
+    if (esContenido) {
+      const { data: vids, error: vErr } = await supabase
+        .from('miniapp_videos')
+        .select('id, nombre, orden')
+        .eq('miniapp_id', miniapp.id)
+        .order('orden', { ascending: true });
+      if (vErr) throw vErr;
+      videos = vids || [];
+    }
+    const tieneVideos = videos.length > 0;
     const tienePack = !!miniapp.pack_key;
 
     const linkUnico = PUBLIC_BASE_URL + '/mi-compra/' + compra.codigo_acceso;
@@ -3815,6 +4085,7 @@ app.get('/mi-compra/:codigo', async (req, res) => {
     const packUrl   = tienePack
       ? PUBLIC_BASE_URL + '/descargar-pack/' + compra.codigo_acceso
       : '';
+    const videosHtml = _buildVideosEntregaHtml(videos, compra.codigo_acceso);
 
     let productoEtiqueta = 'Tu producto';
     let pdfTitulo = 'Descarga tu PDF';
@@ -3833,8 +4104,9 @@ app.get('/mi-compra/:codigo', async (req, res) => {
     let html = fs.readFileSync(ENTREGA_MINIAPP_TEMPLATE, 'utf-8');
     html = _processTemplateBlock(html, 'MINIAPP', esMiniapp);
     html = _processTemplateBlock(html, 'PDF', tienePdf && (esMiniapp || esInfoproducto));
-    html = _processTemplateBlock(html, 'PACK', esContenido && tienePack);
-    html = _processTemplateBlock(html, 'CONTENIDO_PENDIENTE', esContenido && !tienePack);
+    html = _processTemplateBlock(html, 'VIDEOS', esContenido && tieneVideos);
+    html = _processTemplateBlock(html, 'PACK', esContenido && !tieneVideos && tienePack);
+    html = _processTemplateBlock(html, 'CONTENIDO_PENDIENTE', esContenido && !tieneVideos && !tienePack);
     html = _replaceTemplateMarkers(html, {
       NOMBRE:            miniapp.nombre,
       CODIGO:            compra.codigo_acceso,
@@ -3842,6 +4114,7 @@ app.get('/mi-compra/:codigo', async (req, res) => {
       APP_URL:           appUrl,
       PDF_URL:           pdfUrl,
       PACK_URL:          packUrl,
+      VIDEOS_HTML:       videosHtml,
       PRODUCTO_ETIQUETA: productoEtiqueta,
       PDF_TITULO:        pdfTitulo,
       PDF_DESCRIPCION:   pdfDesc,
@@ -3856,22 +4129,18 @@ app.get('/mi-compra/:codigo', async (req, res) => {
   } catch (e) {
     console.error('[mi-compra]', e.message);
     res.status(500).setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.send(_htmlAccesoInvalido('Error', 'No pudimos cargar tu pagina de acceso. Intenta de nuevo.'));
+    res.send(_htmlAccesoInvalido('Acceso no valido', ENTREGA_MSG_INVALIDO));
   }
 });
 
-// ── Servir mini app al comprador ──────────────────────────────────────────────
-app.get('/usar-miniapp/:codigo', async (req, res) => {
-  const codigo = String(req.params.codigo || '').trim().toUpperCase();
-  if (!codigo) {
-    return res.status(400).send('Codigo invalido.');
-  }
+// ── Servir mini app al comprador (protegido por codigo + cuota) ───────────────
+app.get('/usar-miniapp/:codigo', _entregaCodigoGate, async (req, res) => {
+  const codigo = String(req.params.codigo || '').trim();
 
   try {
-    const compra = await _buscarCompraPorCodigo(codigo);
-    if (!compra || compra.estado_pago !== 'pagado') {
-      return res.status(403).send('Acceso no valido o pago pendiente.');
-    }
+    const validacion = await _entregaValidarCompra(codigo);
+    if (!validacion.ok) return _denegarEntregaTexto(res, validacion.reason);
+    const compra = validacion.compra;
 
     const { data: miniapp, error: mErr } = await supabase
       .from('miniapps')
@@ -3879,33 +4148,33 @@ app.get('/usar-miniapp/:codigo', async (req, res) => {
       .eq('id', compra.miniapp_id)
       .maybeSingle();
     if (mErr || !miniapp || !miniapp.r2_key) {
-      return res.status(404).send('Mini app no encontrada.');
+      return _denegarEntregaTexto(res, 'invalid', 403);
     }
     if (String(miniapp.categoria || 'miniapp').toLowerCase() !== 'miniapp') {
-      return res.status(404).send('Este producto no incluye una mini app para abrir.');
+      return _denegarEntregaTexto(res, 'invalid', 403);
     }
+
+    const cuota = await _consumirCuotaDescarga(compra, 'miniapp', req);
+    if (!cuota.ok) return _denegarEntregaTexto(res, cuota.reason);
 
     const contenido = await obtenerArchivo(miniapp.r2_key);
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'private, no-store');
     res.send(contenido);
   } catch (e) {
     console.error('[usar-miniapp]', e.message);
-    res.status(500).send('Error al cargar la mini app.');
+    res.status(500).send(ENTREGA_MSG_INVALIDO);
   }
 });
 
-// ── Descargar PDF del comprador ───────────────────────────────────────────────
-app.get('/descargar-pdf/:codigo', async (req, res) => {
-  const codigo = String(req.params.codigo || '').trim().toUpperCase();
-  if (!codigo) {
-    return res.status(400).send('Codigo invalido.');
-  }
+// ── Descargar PDF del comprador (protegido por codigo + cuota) ────────────────
+app.get('/descargar-pdf/:codigo', _entregaCodigoGate, async (req, res) => {
+  const codigo = String(req.params.codigo || '').trim();
 
   try {
-    const compra = await _buscarCompraPorCodigo(codigo);
-    if (!compra || compra.estado_pago !== 'pagado') {
-      return res.status(403).send('Acceso no valido o pago pendiente.');
-    }
+    const validacion = await _entregaValidarCompra(codigo);
+    if (!validacion.ok) return _denegarEntregaTexto(res, validacion.reason);
+    const compra = validacion.compra;
 
     const { data: miniapp, error: mErr } = await supabase
       .from('miniapps')
@@ -3913,53 +4182,100 @@ app.get('/descargar-pdf/:codigo', async (req, res) => {
       .eq('id', compra.miniapp_id)
       .maybeSingle();
     if (mErr || !miniapp || !miniapp.pdf_key) {
-      return res.status(404).send('Este producto no incluye PDF.');
+      return _denegarEntregaTexto(res, 'invalid', 403);
     }
+
+    const cuota = await _consumirCuotaDescarga(compra, 'pdf', req);
+    if (!cuota.ok) return _denegarEntregaTexto(res, cuota.reason);
 
     const buf = await obtenerArchivoBuffer(miniapp.pdf_key);
     const filename = (miniapp.slug || 'producto') + '.pdf';
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'attachment; filename="' + filename + '"');
+    res.setHeader('Cache-Control', 'private, no-store');
     res.send(buf);
   } catch (e) {
     console.error('[descargar-pdf]', e.message);
-    res.status(500).send('Error al descargar el PDF.');
+    res.status(500).send(ENTREGA_MSG_INVALIDO);
   }
 });
 
-// ── Descargar pack ZIP del comprador ──────────────────────────────────────────
-app.get('/descargar-pack/:codigo', async (req, res) => {
-  const codigo = String(req.params.codigo || '').trim().toUpperCase();
-  if (!codigo) {
-    return res.status(400).send('Codigo invalido.');
-  }
+// ── Descargar pack ZIP del comprador (legacy, protegido) ──────────────────────
+app.get('/descargar-pack/:codigo', _entregaCodigoGate, async (req, res) => {
+  const codigo = String(req.params.codigo || '').trim();
 
   try {
-    const compra = await _buscarCompraPorCodigo(codigo);
-    if (!compra || compra.estado_pago !== 'pagado') {
-      return res.status(403).send('Acceso no valido o pago pendiente.');
-    }
+    const validacion = await _entregaValidarCompra(codigo);
+    if (!validacion.ok) return _denegarEntregaTexto(res, validacion.reason);
+    const compra = validacion.compra;
 
     const { data: miniapp, error: mErr } = await supabase
       .from('miniapps')
       .select('pack_key, nombre, slug, categoria')
       .eq('id', compra.miniapp_id)
       .maybeSingle();
-    if (mErr || !miniapp) {
-      return res.status(404).send('Producto no encontrado.');
+    if (mErr || !miniapp || !miniapp.pack_key) {
+      return _denegarEntregaTexto(res, 'invalid', 403);
     }
-    if (!miniapp.pack_key) {
-      return res.status(404).send('Este producto no incluye un pack para descargar.');
-    }
+
+    const cuota = await _consumirCuotaDescarga(compra, 'pack', req);
+    if (!cuota.ok) return _denegarEntregaTexto(res, cuota.reason);
 
     const buf = await obtenerArchivoBuffer(miniapp.pack_key);
     const filename = (miniapp.slug || 'contenido') + '.zip';
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', 'attachment; filename="' + filename + '"');
+    res.setHeader('Cache-Control', 'private, no-store');
     res.send(buf);
   } catch (e) {
     console.error('[descargar-pack]', e.message);
-    res.status(500).send('Error al descargar el pack.');
+    res.status(500).send(ENTREGA_MSG_INVALIDO);
+  }
+});
+
+// ── Ver / descargar video individual (protegido por codigo + cuota) ───────────
+app.get('/descargar-video/:codigo/:video_id', _entregaCodigoGate, async (req, res) => {
+  const codigo  = String(req.params.codigo || '').trim();
+  const videoId = String(req.params.video_id || '').trim();
+
+  try {
+    const validacion = await _entregaValidarCompra(codigo);
+    if (!validacion.ok) return _denegarEntregaTexto(res, validacion.reason);
+    const compra = validacion.compra;
+
+    if (!videoId) {
+      return _denegarEntregaTexto(res, 'invalid', 403);
+    }
+
+    const { data: video, error: vErr } = await supabase
+      .from('miniapp_videos')
+      .select('id, video_key, nombre, miniapp_id')
+      .eq('id', videoId)
+      .eq('miniapp_id', compra.miniapp_id)
+      .maybeSingle();
+    if (vErr || !video || !video.video_key) {
+      return _denegarEntregaTexto(res, 'invalid', 403);
+    }
+
+    const cuota = await _consumirCuotaDescarga(compra, 'video:' + videoId, req);
+    if (!cuota.ok) return _denegarEntregaTexto(res, cuota.reason);
+
+    const buf = await obtenerArchivoBuffer(video.video_key);
+    const ext = path.extname(video.video_key).toLowerCase();
+    const mime = _mimeVideoExt(ext.replace('.', ''));
+    const safeName = String(video.nombre || 'video').replace(/[^\w\s.-]/g, '_').trim() || 'video';
+    const filename = safeName + (ext || '.mp4');
+    const asDownload = req.query.download === '1' || req.query.download === 'true';
+    const disposition = asDownload ? 'attachment' : 'inline';
+
+    res.setHeader('Content-Type', mime);
+    res.setHeader('Content-Disposition', disposition + '; filename="' + filename + '"');
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.send(buf);
+  } catch (e) {
+    console.error('[descargar-video]', e.message);
+    res.status(500).send(ENTREGA_MSG_INVALIDO);
   }
 });
 
@@ -5267,6 +5583,7 @@ app.listen(PORT, () => {
   console.log(`[motor]   GET  http://localhost:${PORT}/usar-miniapp/:codigo`);
   console.log(`[motor]   GET  http://localhost:${PORT}/descargar-pdf/:codigo`);
   console.log(`[motor]   GET  http://localhost:${PORT}/descargar-pack/:codigo`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/descargar-video/:codigo/:video_id`);
   console.log(`[motor]   POST http://localhost:${PORT}/api/pedidos/crear`);
   console.log(`[motor]   GET  http://localhost:${PORT}/api/admin/pedidos`);
   console.log(`[motor]   POST http://localhost:${PORT}/api/admin/pedidos/actualizar`);
