@@ -6,10 +6,10 @@
 /* ============================================================
    AUTH — login / logout del panel admin
    ============================================================ */
-var _ADMIN_KEY_STORAGE = 'ea_admin_key';
+var _ADMIN_TOKEN_STORAGE = 'ea_admin_jwt';
 
-function _getAdminKey() {
-  return sessionStorage.getItem(_ADMIN_KEY_STORAGE) || '';
+function _getAdminToken() {
+  return sessionStorage.getItem(_ADMIN_TOKEN_STORAGE) || '';
 }
 
 function _adminShowLogin() {
@@ -46,8 +46,8 @@ function adminLogin() {
   })
     .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
     .then(function (res) {
-      if (!res.data.ok) throw new Error(res.data.error || 'Credenciales incorrectas');
-      sessionStorage.setItem(_ADMIN_KEY_STORAGE, res.data.adminKey);
+      if (!res.data.ok || !res.data.token) throw new Error(res.data.error || 'Credenciales incorrectas');
+      sessionStorage.setItem(_ADMIN_TOKEN_STORAGE, res.data.token);
       _adminShowPanel();
       renderInventario();
     })
@@ -60,19 +60,19 @@ function adminLogin() {
 }
 
 function adminLogout() {
-  sessionStorage.removeItem(_ADMIN_KEY_STORAGE);
+  sessionStorage.removeItem(_ADMIN_TOKEN_STORAGE);
   _adminShowLogin();
 }
 
-/** Wrapper de fetch que añade el header x-admin-key y redirige al login en 401 */
+/** Wrapper de fetch que añade Authorization Bearer y redirige al login en 401 */
 function _adminFetch(url, opts) {
   opts = opts || {};
-  var key = _getAdminKey();
-  if (!key) {
+  var token = _getAdminToken();
+  if (!token) {
     _adminShowLogin();
     return Promise.reject(new Error('Sin sesion de admin'));
   }
-  var baseHeaders = { 'x-admin-key': key };
+  var baseHeaders = { 'Authorization': 'Bearer ' + token };
   if (opts.headers) {
     opts.headers = Object.assign({}, opts.headers, baseHeaders);
   } else {
@@ -80,7 +80,7 @@ function _adminFetch(url, opts) {
   }
   return fetch(url, opts).then(function (r) {
     if (r.status === 401) {
-      sessionStorage.removeItem(_ADMIN_KEY_STORAGE);
+      sessionStorage.removeItem(_ADMIN_TOKEN_STORAGE);
       _adminShowLogin();
       throw new Error('Sesion expirada. Vuelve a iniciar sesion.');
     }
@@ -2193,8 +2193,8 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   // Auth check: mostrar login o panel según sessionStorage
-  var key = _getAdminKey();
-  if (!key) {
+  var token = _getAdminToken();
+  if (!token) {
     _adminShowLogin();
     return;
   }

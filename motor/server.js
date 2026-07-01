@@ -21,6 +21,7 @@ const agenteVentas       = require('./agente-ventas');
 const supabase           = require('./supabase');
 const { subirArchivo, obtenerArchivo, obtenerArchivoBuffer } = require('./r2');
 const { generarPaginaVentaMiniapp } = require('./generar-pagina-miniapp');
+const jwtAuth = require('./jwt-auth');
 
 const app  = express();
 const PORT = process.env.PORT || 3002;
@@ -31,27 +32,31 @@ const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || 'https://motor.ecommercea
 const ENTREGA_MINIAPP_TEMPLATE = path.join(__dirname, 'templates', 'template-entrega-miniapp.html');
 const DEFAULT_MINIAPP_COLORS = { color_1: '#2f86ff', color_2: '#7c3aed', color_3: '#ff5a3c' };
 
-// ── Autenticación de admin ─────────────────────────────────────────────────────
-const ADMIN_API_KEY  = process.env.ADMIN_API_KEY  || '';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
+// ── Autenticación JWT ─────────────────────────────────────────────────────────
+function _authUnauthorized(res) {
+  return res.status(401).json({ ok: false, error: 'No autorizado' });
+}
+
+function _verifyJwtRole(req, res, role) {
+  const decoded = jwtAuth.decodeAuth(req);
+  if (!decoded || decoded.role !== role || !decoded.sub) {
+    _authUnauthorized(res);
+    return null;
+  }
+  return decoded;
+}
 
 function requireAdmin(req, res, next) {
-  const key = req.headers['x-admin-key'];
-  if (!ADMIN_API_KEY || !key || key !== ADMIN_API_KEY) {
-    return res.status(401).json({ ok: false, error: 'No autorizado' });
-  }
+  const decoded = _verifyJwtRole(req, res, jwtAuth.ROLES.ADMIN);
+  if (!decoded) return;
+  req.admin = true;
   next();
 }
 
-// ── Autenticación de usuario en endpoints de IA ────────────────────────────────
-// TODO produccion: reemplazar el usuario_id directo por un token de sesion firmado (JWT)
-//   para que el cliente no pueda falsificar el id. Pasos: 1) al hacer login devolver
-//   un JWT firmado con el id y una clave secreta, 2) verificarlo aqui con jwt.verify().
 async function requireUsuario(req, res, next) {
-  const usuario_id = req.headers['x-usuario-id'];
-  if (!usuario_id) {
-    return res.status(401).json({ ok: false, error: 'No autorizado' });
-  }
+  const decoded = _verifyJwtRole(req, res, jwtAuth.ROLES.VENDEDOR);
+  if (!decoded) return;
+  const usuario_id = String(decoded.sub);
   try {
     const { data, error } = await supabase
       .from('usuarios')
@@ -59,21 +64,19 @@ async function requireUsuario(req, res, next) {
       .eq('id', usuario_id)
       .maybeSingle();
     if (error || !data || !data.activo) {
-      return res.status(401).json({ ok: false, error: 'No autorizado' });
+      return _authUnauthorized(res);
     }
-    req.usuario_id = usuario_id; // disponible en el handler siguiente
+    req.usuario_id = usuario_id;
     next();
   } catch (e) {
-    return res.status(401).json({ ok: false, error: 'No autorizado' });
+    return _authUnauthorized(res);
   }
 }
 
-// ── Autenticación de creadores de mini apps ───────────────────────────────────
 async function requireCreador(req, res, next) {
-  const creador_id = req.headers['x-creador-id'];
-  if (!creador_id) {
-    return res.status(401).json({ ok: false, error: 'No autorizado' });
-  }
+  const decoded = _verifyJwtRole(req, res, jwtAuth.ROLES.CREADOR);
+  if (!decoded) return;
+  const creador_id = String(decoded.sub);
   try {
     const { data, error } = await supabase
       .from('creadores')
@@ -81,15 +84,25 @@ async function requireCreador(req, res, next) {
       .eq('id', creador_id)
       .maybeSingle();
     if (error || !data || data.estado !== 'activo') {
-      return res.status(401).json({ ok: false, error: 'No autorizado' });
+      return _authUnauthorized(res);
     }
     req.creador_id = creador_id;
     req.creador    = data;
     next();
   } catch (e) {
-    return res.status(401).json({ ok: false, error: 'No autorizado' });
+    return _authUnauthorized(res);
   }
 }
+
+function _forbidUnlessSelf(req, res, targetId) {
+  if (targetId != null && String(targetId) !== String(req.usuario_id)) {
+    res.status(403).json({ ok: false, error: 'No autorizado' });
+    return false;
+  }
+  return true;
+}
+
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 
 // Verifica y descuenta créditos de Supabase.
 // Si costo <= 0 resuelve sin tocar la BD. Devuelve { ok, creditos_restantes } o { ok:false, error }.
@@ -1587,8 +1600,14 @@ app.post('/api/admin/login', (req, res) => {
   if (!password || !ADMIN_PASSWORD || password !== ADMIN_PASSWORD) {
     return res.status(401).json({ ok: false, error: 'Contraseña incorrecta' });
   }
-  console.log('[admin/login] Acceso concedido');
-  res.json({ ok: true, adminKey: ADMIN_API_KEY });
+  try {
+    const token = jwtAuth.signAdminToken();
+    console.log('[admin/login] Acceso concedido (JWT)');
+    res.json({ ok: true, token });
+  } catch (e) {
+    console.error('[admin/login]', e.message);
+    res.status(500).json({ ok: false, error: 'Error de autenticacion en el servidor.' });
+  }
 });
 
 // Devuelve datos del usuario si todo es correcto. NUNCA devuelve codigo_seguridad.
@@ -1619,8 +1638,17 @@ app.post('/api/login', async (req, res) => {
       return res.json({ ok: false, error: 'Tu cuenta aun no esta activa. Contacta al administrador.' });
     }
 
+    let token;
+    try {
+      token = jwtAuth.signVendedorToken(data.id);
+    } catch (jwtErr) {
+      console.error('[login] JWT:', jwtErr.message);
+      return res.status(503).json({ ok: false, error: 'Servidor de autenticacion no configurado.' });
+    }
+
     return res.json({
       ok: true,
+      token,
       usuario: {
         id:              data.id,
         codigo:          data.codigo,
@@ -1723,7 +1751,11 @@ app.post('/api/creador/registro', async (req, res) => {
     if (error) throw error;
 
     console.log('[creador/registro] nuevo creador:', data.email);
-    res.json({ ok: true, creador: data });
+    res.json({
+      ok: true,
+      token: jwtAuth.signCreadorToken(data.id),
+      creador: data
+    });
   } catch (e) {
     console.error('[creador/registro]', e.message);
     res.status(500).json({ ok: false, error: e.message });
@@ -1765,6 +1797,7 @@ app.post('/api/creador/login', async (req, res) => {
     console.log('[creador/login] ok:', data.email);
     res.json({
       ok: true,
+      token: jwtAuth.signCreadorToken(data.id),
       creador: { id: data.id, nombre: data.nombre, email: data.email }
     });
   } catch (e) {
@@ -2416,11 +2449,13 @@ app.get('/api/checkout/asesor', async (req, res) => {
 // ── Mis Productos (por vendedor) ──────────────────────────────────────────────
 
 // POST /api/mis-productos/agregar
-app.post('/api/mis-productos/agregar', async (req, res) => {
-  const { usuario_id, producto_id } = req.body || {};
-  if (!usuario_id || !producto_id) {
-    return res.status(400).json({ ok: false, error: 'Se requiere usuario_id y producto_id.' });
+app.post('/api/mis-productos/agregar', requireUsuario, async (req, res) => {
+  const { producto_id } = req.body || {};
+  const usuario_id = req.usuario_id;
+  if (!producto_id) {
+    return res.status(400).json({ ok: false, error: 'Se requiere producto_id.' });
   }
+  if (req.body && req.body.usuario_id && !_forbidUnlessSelf(req, res, req.body.usuario_id)) return;
   try {
     // Traer código del usuario y buscar página de venta activa para el producto
     const [{ data: usuario, error: uErr }, { data: paginas, error: pgErr }] = await Promise.all([
@@ -2456,8 +2491,9 @@ app.post('/api/mis-productos/agregar', async (req, res) => {
 });
 
 // GET /api/mis-productos/:usuario_id
-app.get('/api/mis-productos/:usuario_id', async (req, res) => {
+app.get('/api/mis-productos/:usuario_id', requireUsuario, async (req, res) => {
   const { usuario_id } = req.params;
+  if (!_forbidUnlessSelf(req, res, usuario_id)) return;
   try {
     const { data, error } = await supabase
       .from('mis_productos')
@@ -2473,11 +2509,13 @@ app.get('/api/mis-productos/:usuario_id', async (req, res) => {
 });
 
 // POST /api/mis-productos/quitar
-app.post('/api/mis-productos/quitar', async (req, res) => {
-  const { usuario_id, producto_id } = req.body || {};
-  if (!usuario_id || !producto_id) {
-    return res.status(400).json({ ok: false, error: 'Se requiere usuario_id y producto_id.' });
+app.post('/api/mis-productos/quitar', requireUsuario, async (req, res) => {
+  const { producto_id } = req.body || {};
+  const usuario_id = req.usuario_id;
+  if (!producto_id) {
+    return res.status(400).json({ ok: false, error: 'Se requiere producto_id.' });
   }
+  if (req.body && req.body.usuario_id && !_forbidUnlessSelf(req, res, req.body.usuario_id)) return;
   try {
     const { error } = await supabase
       .from('mis_productos')
@@ -2513,11 +2551,13 @@ app.get('/api/catalogo/miniapps', async (req, res) => {
 });
 
 // POST /api/mis-miniapps/agregar
-app.post('/api/mis-miniapps/agregar', async (req, res) => {
-  const { usuario_id, miniapp_id } = req.body || {};
-  if (!usuario_id || !miniapp_id) {
-    return res.status(400).json({ ok: false, error: 'Se requiere usuario_id y miniapp_id.' });
+app.post('/api/mis-miniapps/agregar', requireUsuario, async (req, res) => {
+  const { miniapp_id } = req.body || {};
+  const usuario_id = req.usuario_id;
+  if (!miniapp_id) {
+    return res.status(400).json({ ok: false, error: 'Se requiere miniapp_id.' });
   }
+  if (req.body && req.body.usuario_id && !_forbidUnlessSelf(req, res, req.body.usuario_id)) return;
   try {
     const { data: usuario, error: uErr } = await supabase
       .from('usuarios')
@@ -2565,8 +2605,9 @@ app.post('/api/mis-miniapps/agregar', async (req, res) => {
 });
 
 // GET /api/mis-miniapps/:usuario_id
-app.get('/api/mis-miniapps/:usuario_id', async (req, res) => {
+app.get('/api/mis-miniapps/:usuario_id', requireUsuario, async (req, res) => {
   const { usuario_id } = req.params;
+  if (!_forbidUnlessSelf(req, res, usuario_id)) return;
   try {
     const { data, error } = await supabase
       .from('mis_miniapps')
@@ -2585,11 +2626,13 @@ app.get('/api/mis-miniapps/:usuario_id', async (req, res) => {
 });
 
 // POST /api/mis-miniapps/quitar
-app.post('/api/mis-miniapps/quitar', async (req, res) => {
-  const { usuario_id, miniapp_id } = req.body || {};
-  if (!usuario_id || !miniapp_id) {
-    return res.status(400).json({ ok: false, error: 'Se requiere usuario_id y miniapp_id.' });
+app.post('/api/mis-miniapps/quitar', requireUsuario, async (req, res) => {
+  const { miniapp_id } = req.body || {};
+  const usuario_id = req.usuario_id;
+  if (!miniapp_id) {
+    return res.status(400).json({ ok: false, error: 'Se requiere miniapp_id.' });
   }
+  if (req.body && req.body.usuario_id && !_forbidUnlessSelf(req, res, req.body.usuario_id)) return;
   try {
     const { error } = await supabase
       .from('mis_miniapps')
@@ -2732,13 +2775,15 @@ app.post('/api/admin/productos/eliminar', async (req, res) => {
 // ── Usuario: actualizar nombre propio ─────────────────────────────────────────
 
 // POST /api/usuario/nombre
-// Guarda el nombre personalizado del usuario en Supabase.
-// Body: { id, nombre }
-app.post('/api/usuario/nombre', async (req, res) => {
-  const { id, nombre } = req.body || {};
-  if (!id || !nombre || !nombre.trim()) {
-    return res.status(400).json({ ok: false, error: 'Se requiere id y nombre.' });
+// Guarda el nombre personalizado del usuario autenticado en Supabase.
+// Body: { nombre } — el id se toma del JWT, no del body.
+app.post('/api/usuario/nombre', requireUsuario, async (req, res) => {
+  const { nombre } = req.body || {};
+  const id = req.usuario_id;
+  if (!nombre || !nombre.trim()) {
+    return res.status(400).json({ ok: false, error: 'Se requiere nombre.' });
   }
+  if (req.body && req.body.id && !_forbidUnlessSelf(req, res, req.body.id)) return;
   try {
     const { error } = await supabase
       .from('usuarios')
@@ -4858,8 +4903,9 @@ app.post('/api/admin/miniapps/rechazar', async (req, res) => {
   }
 });
 
-app.get('/api/ventas/usuario/:usuario_id', async (req, res) => {
+app.get('/api/ventas/usuario/:usuario_id', requireUsuario, async (req, res) => {
   const { usuario_id } = req.params;
+  if (!_forbidUnlessSelf(req, res, usuario_id)) return;
   try {
     const { data: pedidos, error: errP } = await supabase
       .from('pedidos')
@@ -4916,12 +4962,10 @@ app.get('/api/ventas/usuario/:usuario_id', async (req, res) => {
   }
 });
 
-// GET /api/vendedor/miniapps-comisiones?usuario_id= — comisiones acumuladas del vendedor
-app.get('/api/vendedor/miniapps-comisiones', async (req, res) => {
-  const usuario_id = String(req.query.usuario_id || '').trim();
-  if (!usuario_id) {
-    return res.status(400).json({ ok: false, error: 'Se requiere usuario_id.' });
-  }
+// GET /api/vendedor/miniapps-comisiones — comisiones acumuladas del vendedor autenticado
+app.get('/api/vendedor/miniapps-comisiones', requireUsuario, async (req, res) => {
+  const usuario_id = req.usuario_id;
+  if (req.query.usuario_id && !_forbidUnlessSelf(req, res, req.query.usuario_id)) return;
 
   try {
     const { data: compras, error: cErr } = await supabase
@@ -5035,10 +5079,11 @@ const COSTO_MOTOR_IA = {
 };
 
 // GET /api/creditos/:usuario_id — saldo actual
-app.get('/api/creditos/:usuario_id', async (req, res) => {
+app.get('/api/creditos/:usuario_id', requireUsuario, async (req, res) => {
+  if (!_forbidUnlessSelf(req, res, req.params.usuario_id)) return;
   try {
     const { data, error } = await supabase
-      .from('usuarios').select('creditos_ia').eq('id', req.params.usuario_id).single();
+      .from('usuarios').select('creditos_ia').eq('id', req.usuario_id).single();
     if (error) throw error;
     res.json({ ok: true, creditos: data.creditos_ia ?? 0 });
   } catch (e) {
@@ -5049,8 +5094,10 @@ app.get('/api/creditos/:usuario_id', async (req, res) => {
 
 // POST /api/creditos/descontar — verifica y descuenta (requiere sesion de usuario)
 app.post('/api/creditos/descontar', requireUsuario, async (req, res) => {
-  const { usuario_id, cantidad, motor, descripcion } = req.body || {};
-  if (!usuario_id || !cantidad || Number(cantidad) <= 0) {
+  const { cantidad, motor, descripcion } = req.body || {};
+  const usuario_id = req.usuario_id;
+  if (req.body && req.body.usuario_id && !_forbidUnlessSelf(req, res, req.body.usuario_id)) return;
+  if (!cantidad || Number(cantidad) <= 0) {
     return res.status(400).json({ ok: false, error: 'Parametros invalidos' });
   }
   const cant = Number(cantidad);
@@ -5579,6 +5626,11 @@ app.post('/api/ia/gemini-vision', requireUsuario, async (req, res) => {
 
 // ── Arranque ──────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
+  if (!jwtAuth.JWT_SECRET || jwtAuth.JWT_SECRET.length < 16) {
+    console.warn('[motor] ADVERTENCIA: JWT_SECRET no configurado — los logins fallaran hasta configurarlo en .env');
+  } else {
+    console.log('[motor] Autenticacion JWT activa');
+  }
   console.log(`[motor] Servidor corriendo en http://localhost:${PORT}`);
   console.log('[motor] Endpoints:');
   console.log(`[motor]   POST http://localhost:${PORT}/api/monetizacion/tendencias`);

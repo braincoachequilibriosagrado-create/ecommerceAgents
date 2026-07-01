@@ -3,6 +3,7 @@
 const MOTOR_URL = 'https://motor.ecommerceagents.store';
 
 const CR_SESION_KEY = 'ea_creador_sesion';
+const CR_TOKEN_KEY = 'ea_creador_jwt';
 const CR_EMAIL_KEY = 'ea_creador_last_email';
 const CR_REMEMBER_PREF_KEY = 'ea_creador_remember';
 const CR_TABS = ['cuentas', 'catalogo', 'subir', 'info', 'contactar'];
@@ -47,17 +48,39 @@ function _getCreadorId() {
   return currentCreador.id || null;
 }
 
+function _getCreadorToken() {
+  try {
+    var t = localStorage.getItem(CR_TOKEN_KEY);
+    if (t) return t;
+    return sessionStorage.getItem(CR_TOKEN_KEY) || null;
+  } catch (e) { return null; }
+}
+
+function _guardarToken(token, recordarme) {
+  try {
+    if (recordarme) {
+      localStorage.setItem(CR_TOKEN_KEY, token);
+      sessionStorage.removeItem(CR_TOKEN_KEY);
+    } else {
+      sessionStorage.setItem(CR_TOKEN_KEY, token);
+      localStorage.removeItem(CR_TOKEN_KEY);
+    }
+  } catch (e) {}
+}
+
 function _leerSesionAlmacenada() {
   try {
     var raw = localStorage.getItem(CR_SESION_KEY);
-    if (raw) {
-      var c = JSON.parse(raw);
-      if (c && c.id) return { c: c, persistent: true };
+    var token = localStorage.getItem(CR_TOKEN_KEY);
+    var persistent = true;
+    if (!raw || !token) {
+      raw = sessionStorage.getItem(CR_SESION_KEY);
+      token = sessionStorage.getItem(CR_TOKEN_KEY);
+      persistent = false;
     }
-    raw = sessionStorage.getItem(CR_SESION_KEY);
-    if (raw) {
-      c = JSON.parse(raw);
-      if (c && c.id) return { c: c, persistent: false };
+    if (raw && token) {
+      var c = JSON.parse(raw);
+      if (c && c.id) return { c: c, token: token, persistent: persistent };
     }
   } catch (e) {}
   return null;
@@ -70,7 +93,7 @@ function _aplicarSesionMemoria(c) {
   _actualizarNavNombre();
 }
 
-function _guardarSesion(c, recordarme) {
+function _guardarSesion(c, recordarme, token) {
   _aplicarSesionMemoria(c);
   var payload = JSON.stringify(c);
   try {
@@ -83,6 +106,7 @@ function _guardarSesion(c, recordarme) {
       localStorage.removeItem(CR_SESION_KEY);
       localStorage.setItem(CR_REMEMBER_PREF_KEY, '0');
     }
+    if (token) _guardarToken(token, recordarme);
   } catch (e) {}
 }
 
@@ -106,6 +130,8 @@ function _limpiarSesion() {
   try {
     sessionStorage.removeItem(CR_SESION_KEY);
     localStorage.removeItem(CR_SESION_KEY);
+    sessionStorage.removeItem(CR_TOKEN_KEY);
+    localStorage.removeItem(CR_TOKEN_KEY);
   } catch (e) {}
 }
 
@@ -138,14 +164,15 @@ function _actualizarNavNombre() {
 }
 
 function _creadorFetch(url, opts) {
-  var uid = _getCreadorId();
+  var token = _getCreadorToken();
   opts = opts || {};
   if (!opts.headers) opts.headers = {};
-  if (uid) opts.headers['x-creador-id'] = uid;
+  if (token) opts.headers['Authorization'] = 'Bearer ' + token;
   return fetch(url, opts).then(function (r) {
     if (r.status === 401) {
       _limpiarSesion();
       mostrarAuth();
+      switchAuthTab('login');
       return Promise.reject(new Error('Sesion expirada. Vuelve a iniciar sesion.'));
     }
     return r;
@@ -224,9 +251,9 @@ async function creadorLogin() {
       body: JSON.stringify({ email, password })
     });
     var d = await r.json();
-    if (!d.ok) throw new Error(d.error || 'Error al iniciar sesion.');
+    if (!d.ok || !d.token) throw new Error(d.error || 'Error al iniciar sesion.');
     var recordarme = !!(document.getElementById('cr-login-recordar') && document.getElementById('cr-login-recordar').checked);
-    _guardarSesion(d.creador, recordarme);
+    _guardarSesion(d.creador, recordarme, d.token);
     _guardarEmailReciente(email);
     mostrarDashboard();
   } catch (e) {
@@ -254,8 +281,8 @@ async function creadorRegistro() {
       body: JSON.stringify({ nombre, email, password })
     });
     var d = await r.json();
-    if (!d.ok) throw new Error(d.error || 'Error al registrarse.');
-    _guardarSesion(d.creador, false);
+    if (!d.ok || !d.token) throw new Error(d.error || 'Error al registrarse.');
+    _guardarSesion(d.creador, false, d.token);
     _guardarEmailReciente(email);
     mostrarDashboard();
   } catch (e) {

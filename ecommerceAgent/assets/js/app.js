@@ -242,7 +242,7 @@ async function sendAriaChat() {
   try {
     const response = await fetch(MOTOR_IA_URL + '/api/ia/gemini-vision', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-usuario-id': _getUsuarioId() || '' },
+      headers: _withAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         system_instruction: { parts: [{ text: systemContext }] },
         contents: ariaChatHistory,
@@ -370,7 +370,7 @@ async function analyzeProduct() {
   try {
     const response = await fetch(MOTOR_IA_URL + '/api/ia/gemini-vision', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-usuario-id': _getUsuarioId() || '' },
+      headers: _withAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         contents: [{
           parts: [
@@ -451,7 +451,7 @@ async function tryGenerateImage(prompt) {
   try {
     const response = await fetch(MOTOR_IA_URL + '/api/ia/gemini-imagen', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-usuario-id': _getUsuarioId() || '' },
+      headers: _withAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ prompt })
     });
     const data = await response.json();
@@ -605,7 +605,7 @@ Escribir en español latino, tono cercano y emocionante. Formato limpio con etiq
   try {
     const response = await fetch(MOTOR_IA_URL + '/api/ia/groq', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-usuario-id': _getUsuarioId() || '' },
+      headers: _withAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         system: systemPrompt,
         messages: [{ role: 'user', content: userPrompt }],
@@ -652,7 +652,7 @@ En español latino, dinámico y conversacional.`;
   try {
     const response = await fetch(MOTOR_IA_URL + '/api/ia/groq', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-usuario-id': _getUsuarioId() || '' },
+      headers: _withAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         system: systemPrompt,
         messages: [{ role: 'user', content: userPrompt }],
@@ -721,7 +721,7 @@ En español, formato claro con secciones.`;
   try {
     const response = await fetch(MOTOR_IA_URL + '/api/ia/groq', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-usuario-id': _getUsuarioId() || '' },
+      headers: _withAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         system: systemPrompt,
         messages: [{ role: 'user', content: userPrompt }],
@@ -752,7 +752,7 @@ async function callGroq(prompt) {
   try {
     const response = await fetch(MOTOR_IA_URL + '/api/ia/groq', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-usuario-id': _getUsuarioId() || '' },
+      headers: _withAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ prompt, max_tokens: 1500, temperature: 0.8 })
     });
     const data = await response.json();
@@ -905,7 +905,8 @@ const EA_MIS_LINKS_KEY     = 'ea_mis_productos_links';
 const EA_MIS_MINIAPPS_IDS_KEY   = 'ea_mis_miniapps_ids';
 const EA_MIS_MINIAPPS_LINKS_KEY = 'ea_mis_miniapps_links';
 
-const EA_SESION_KEY = 'ea_sesion'; // sessionStorage key para la sesion activa
+const EA_SESION_KEY = 'ea_sesion'; // sessionStorage / localStorage perfil usuario
+const EA_TOKEN_KEY  = 'ea_jwt_token';
 
 // Cache de productos reales traidos de Supabase via motor
 // null = aun no cargado; [] = cargado pero vacio; [...] = productos reales
@@ -1487,15 +1488,58 @@ function copiarLinkVenta(slug) {
 
 // Obtiene el usuario_id de la sesion activa
 function _getUsuarioId() {
-  try { return (JSON.parse(sessionStorage.getItem(EA_SESION_KEY) || '{}')).id || null; }
+  try { return (JSON.parse(_getSesionRaw() || '{}')).id || null; }
   catch (e) { return null; }
+}
+
+function _getSesionRaw() {
+  try {
+    return sessionStorage.getItem(EA_SESION_KEY) || localStorage.getItem(EA_SESION_KEY) || null;
+  } catch (e) { return null; }
+}
+
+function _getJwtToken() {
+  try {
+    return sessionStorage.getItem(EA_TOKEN_KEY) || localStorage.getItem(EA_TOKEN_KEY) || null;
+  } catch (e) { return null; }
+}
+
+function _guardarSesionAuth(usuario, token, recordarme) {
+  var payload = JSON.stringify(usuario);
+  var store = recordarme ? localStorage : sessionStorage;
+  var other = recordarme ? sessionStorage : localStorage;
+  try {
+    store.setItem(EA_SESION_KEY, payload);
+    store.setItem(EA_TOKEN_KEY, token);
+    other.removeItem(EA_SESION_KEY);
+    other.removeItem(EA_TOKEN_KEY);
+  } catch (e) {}
+}
+
+function _limpiarSesionAuth() {
+  try {
+    sessionStorage.removeItem(EA_SESION_KEY);
+    localStorage.removeItem(EA_SESION_KEY);
+    sessionStorage.removeItem(EA_TOKEN_KEY);
+    localStorage.removeItem(EA_TOKEN_KEY);
+  } catch (e) {}
+}
+
+function _withAuthHeaders(headers) {
+  var h = Object.assign({}, headers || {});
+  var token = _getJwtToken();
+  if (token) h['Authorization'] = 'Bearer ' + token;
+  delete h['x-usuario-id'];
+  return h;
 }
 
 // Precarga mis_productos de Supabase al entrar al dashboard (para que otros tabs los vean)
 function _precargarMisProductos() {
   var uid = _getUsuarioId();
-  if (!uid) return;
-  fetch(MOTOR_URL + '/api/mis-productos/' + encodeURIComponent(uid))
+  if (!uid || !_getJwtToken()) return;
+  fetch(MOTOR_URL + '/api/mis-productos/' + encodeURIComponent(uid), {
+    headers: _withAuthHeaders({})
+  })
     .then(function (r) { return r.json(); })
     .then(function (data) {
       if (!data.ok) return;
@@ -1525,8 +1569,8 @@ function anadirProductoAMisProductos(slug) {
 
   fetch(MOTOR_URL + '/api/mis-productos/agregar', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ usuario_id: uid, producto_id: producto.id })
+    headers: _withAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ producto_id: producto.id })
   })
     .then(function (r) { return r.json(); })
     .then(function (data) {
@@ -1565,8 +1609,8 @@ function quitarProductoDeMisProductos(slug) {
 
   fetch(MOTOR_URL + '/api/mis-productos/quitar', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ usuario_id: uid, producto_id: producto.id })
+    headers: _withAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ producto_id: producto.id })
   })
     .then(function (r) { return r.json(); })
     .then(function (data) {
@@ -1763,8 +1807,8 @@ function anadirMiniappAMis(miniappId) {
 
   fetch(MOTOR_URL + '/api/mis-miniapps/agregar', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ usuario_id: uid, miniapp_id: miniappId })
+    headers: _withAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ miniapp_id: miniappId })
   })
     .then(function (r) { return r.json(); })
     .then(function (data) {
@@ -1823,8 +1867,8 @@ function quitarMiniappDeMisProductos(miniappId) {
 
   fetch(MOTOR_URL + '/api/mis-miniapps/quitar', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ usuario_id: uid, miniapp_id: miniappId })
+    headers: _withAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ miniapp_id: miniappId })
   })
     .then(function (r) { return r.json(); })
     .then(function (data) {
@@ -1851,7 +1895,9 @@ function renderMisMiniappsGrid() {
   gridEl.hidden = false;
   if (emptyEl) emptyEl.hidden = true;
 
-  fetch(MOTOR_URL + '/api/mis-miniapps/' + encodeURIComponent(uid))
+  fetch(MOTOR_URL + '/api/mis-miniapps/' + encodeURIComponent(uid), {
+    headers: _withAuthHeaders({})
+  })
     .then(function (r) { return r.json(); })
     .then(function (data) {
       if (!data.ok) throw new Error(data.error || 'Error');
@@ -1903,7 +1949,9 @@ function renderMisMiniappsGrid() {
 function _precargarMisMiniapps() {
   var uid = _getUsuarioId();
   if (!uid) return;
-  fetch(MOTOR_URL + '/api/mis-miniapps/' + encodeURIComponent(uid))
+  fetch(MOTOR_URL + '/api/mis-miniapps/' + encodeURIComponent(uid), {
+    headers: _withAuthHeaders({})
+  })
     .then(function (r) { return r.json(); })
     .then(function (data) {
       if (!data.ok) return;
@@ -2264,7 +2312,9 @@ function eaMiniappsComisionesRender() {
     return;
   }
 
-  fetch(MOTOR_URL + '/api/vendedor/miniapps-comisiones?usuario_id=' + encodeURIComponent(uid))
+  fetch(MOTOR_URL + '/api/vendedor/miniapps-comisiones', {
+    headers: _withAuthHeaders({})
+  })
     .then(function (r) { return r.json(); })
     .then(function (data) {
       if (!data.ok) throw new Error(data.error || 'Error del servidor');
@@ -2297,7 +2347,9 @@ function eaVentasRender() {
     return;
   }
 
-  fetch(MOTOR_URL + '/api/ventas/usuario/' + encodeURIComponent(uid))
+  fetch(MOTOR_URL + '/api/ventas/usuario/' + encodeURIComponent(uid), {
+    headers: _withAuthHeaders({})
+  })
     .then(function (r) { return r.json(); })
     .then(function (data) {
       if (!data.ok) throw new Error(data.error || 'Error del servidor');
@@ -2752,15 +2804,21 @@ function _actualizarCreditosUI(n) {
 }
 
 // Wrapper de fetch para todos los endpoints de motor/IA.
-// Añade x-usuario-id automáticamente y convierte 401/402 en error con .sinCreditos=true.
+// Añade Authorization Bearer y convierte 401/402 en error con .sinCreditos=true.
 function _motorFetch(url, opts) {
-  var uid = _getUsuarioId();
-  if (!uid) return Promise.reject(_mkSinSesion());
+  var token = _getJwtToken();
+  if (!token) return Promise.reject(_mkSinSesion());
   opts = opts || {};
   if (!opts.headers) opts.headers = {};
-  opts.headers['x-usuario-id'] = uid;
+  opts.headers['Authorization'] = 'Bearer ' + token;
+  delete opts.headers['x-usuario-id'];
   return fetch(url, opts).then(function (r) {
-    if (r.status === 401 || r.status === 402) {
+    if (r.status === 401) {
+      _limpiarSesionAuth();
+      cerrarSesion();
+      return Promise.reject(_mkSinSesion());
+    }
+    if (r.status === 402) {
       return r.json().then(function (d) {
         var err = new Error(d.error || 'Sin creditos o no autorizado');
         err.sinCreditos = true;
@@ -2771,17 +2829,16 @@ function _motorFetch(url, opts) {
     return r;
   });
 }
-
 // Descuenta créditos en el motor; devuelve Promise.
 // Si cantidad <= 0 resuelve inmediatamente (sin llamada de red).
 function _descontarCreditos(cantidad, motor, desc) {
-  var uid = _getUsuarioId();
-  if (!uid) return Promise.reject(_mkSinSesion());
+  var token = _getJwtToken();
+  if (!token) return Promise.reject(_mkSinSesion());
   if (!cantidad || cantidad <= 0) return Promise.resolve({ creditos_restantes: currentAgent.creditos_ia });
   return fetch(MOTOR_URL + '/api/creditos/descontar', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ usuario_id: uid, cantidad: cantidad, motor: motor, descripcion: desc })
+    headers: _withAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ cantidad: cantidad, motor: motor, descripcion: desc })
   })
     .then(function (r) { return r.json(); })
     .then(function (d) {
@@ -2807,7 +2864,9 @@ function _mkSinSesion() {
 function _cargarCreditosReales() {
   var uid = _getUsuarioId();
   if (!uid) return;
-  fetch(MOTOR_URL + '/api/creditos/' + encodeURIComponent(uid))
+  fetch(MOTOR_URL + '/api/creditos/' + encodeURIComponent(uid), {
+    headers: _withAuthHeaders({})
+  })
     .then(function (r) { return r.json(); })
     .then(function (d) { if (d.ok) _actualizarCreditosUI(d.creditos); })
     .catch(function () {});
@@ -3465,7 +3524,7 @@ async function ventasGuardarConfig() {
     if (uid) {
       var rWa = await fetch(MOTOR_IA_URL + '/api/usuario/whatsapp', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-usuario-id': uid },
+        headers: _withAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ whatsapp: waContacto })
       });
       var dWa = await rWa.json();
@@ -5887,7 +5946,7 @@ function getContenidoData() {
 async function llamarGroqContenido(prompt) {
   const response = await fetch(MOTOR_IA_URL + '/api/ia/groq', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-usuario-id': _getUsuarioId() || '' },
+    headers: _withAuthHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ prompt, max_tokens: 2000, temperature: 0.9 })
   });
   const data = await response.json();
@@ -6712,7 +6771,7 @@ async function enviarChatARIA() {
   try {
     const response = await fetch(MOTOR_IA_URL + '/api/ia/groq', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-usuario-id': _getUsuarioId() || '' },
+      headers: _withAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         system: systemContext,
         messages: ariaChatSecHistory,
@@ -6901,13 +6960,15 @@ async function loginConSupabase() {
 
     const data = await resp.json();
 
-    if (data.ok) {
+    if (data.ok && data.token) {
       // Si el usuario escribio su nombre, usarlo como nombre de display
       if (nombre) data.usuario.nombre = nombre;
 
+      var recordarme = !!(rememberEl && rememberEl.checked);
+
       // Recordar codigo y nombre (nunca la clave)
       try {
-        if (rememberEl && rememberEl.checked) {
+        if (recordarme) {
           localStorage.setItem('ea_recordar_usuario', codigo);
           if (nombre) localStorage.setItem('ea_recordar_nombre', nombre);
           else        localStorage.removeItem('ea_recordar_nombre');
@@ -6917,16 +6978,17 @@ async function loginConSupabase() {
         }
       } catch (e) {}
 
+      _guardarSesionAuth(data.usuario, data.token, recordarme);
+
       // Si el usuario escribio nombre, persistirlo en Supabase (fire-and-forget)
       if (nombre && data.usuario.id) {
         fetch(MOTOR_URL + '/api/usuario/nombre', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: data.usuario.id, nombre })
+          headers: _withAuthHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ nombre })
         }).catch(function() {}); // silencioso: no bloquea el login
       }
 
-      try { sessionStorage.setItem(EA_SESION_KEY, JSON.stringify(data.usuario)); } catch (e) {}
       _eaRestaurarSesion(data.usuario);
       if (claveEl)  claveEl.value  = '';
       showPage('page-dashboard');
@@ -6954,7 +7016,7 @@ function _loginMostrarError(msg) {
 
 function cerrarSesion() {
   try {
-    sessionStorage.removeItem(EA_SESION_KEY);
+    _limpiarSesionAuth();
     sessionStorage.removeItem(EA_DISPLAY_NAME_KEY);
     sessionStorage.removeItem(EA_PIXEL_ID_KEY);
     sessionStorage.removeItem(EA_MIS_PRODUCTOS_KEY);
@@ -6989,10 +7051,11 @@ function cerrarSesion() {
 // ══════════════════════════════════════════════════════
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Restaurar sesion activa si existe
+  // Restaurar sesion activa si existe (perfil + JWT)
   try {
-    const raw = sessionStorage.getItem(EA_SESION_KEY);
-    if (raw) {
+    const raw = _getSesionRaw();
+    const token = _getJwtToken();
+    if (raw && token) {
       const u = JSON.parse(raw);
       if (u && u.codigo) {
         _eaRestaurarSesion(u);
@@ -7126,10 +7189,7 @@ function chatSetEnviando(enviando) {
 function chatLlamarGroq(historial) {
   return fetch(MOTOR_URL + '/api/ia/groq', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-usuario-id': _getUsuarioId() || ''
-    },
+    headers: _withAuthHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({
       system: SYSTEM_PROMPT,
       messages: historial,
