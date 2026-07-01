@@ -790,12 +790,17 @@ async function guardarInfoCreador() {
   }
 }
 
+function _catLabelCuentas(cat) {
+  var map = { infoproducto: 'Infoproducto', contenido_digital: 'Contenido Digital', miniapp: 'Mini App' };
+  return map[cat] || 'Mini App';
+}
+
 /* ── Cuentas ─────────────────────────────────────────────── */
 
 async function cargarCuentasCreador() {
   document.getElementById('cr-stat-ventas').textContent   = '...';
+  document.getElementById('cr-stat-brutos').textContent   = '...';
   document.getElementById('cr-stat-ganancia').textContent  = '...';
-  document.getElementById('cr-stat-pagar').textContent    = '...';
   document.getElementById('cr-cuentas-tabla').innerHTML = '<p class="cr-empty">Cargando...</p>';
 
   try {
@@ -804,28 +809,29 @@ async function cargarCuentasCreador() {
     if (!d.ok) throw new Error(d.error || 'Error');
 
     var res = d.resumen || {};
-    document.getElementById('cr-stat-ventas').textContent  = res.ventas_totales || 0;
-    document.getElementById('cr-stat-ganancia').textContent = _fmtUsd(res.ganancia_total);
-    document.getElementById('cr-stat-pagar').textContent   = _fmtUsd(res.por_pagar);
+    document.getElementById('cr-stat-ventas').textContent  = res.total_ventas != null ? res.total_ventas : (res.ventas_totales || 0);
+    document.getElementById('cr-stat-brutos').textContent  = _fmtUsd(res.ingresos_brutos || 0);
+    document.getElementById('cr-stat-ganancia').textContent = _fmtUsd(res.total_creador != null ? res.total_creador : (res.ganancia_total || 0));
 
-    var apps = d.miniapps || [];
-    if (!apps.length) {
-      document.getElementById('cr-cuentas-tabla').innerHTML = '<p class="cr-empty">No tienes mini apps publicadas.</p>';
+    var productos = d.productos || d.miniapps || [];
+    if (!productos.length) {
+      document.getElementById('cr-cuentas-tabla').innerHTML = '<p class="cr-empty">Aun no tienes productos publicados.</p>';
       return;
     }
 
-    var rows = apps.map(function (m) {
+    var rows = productos.map(function (p) {
       return '<tr>' +
-        '<td class="cr-td-name">' + _esc(m.nombre) + '</td>' +
-        '<td class="cr-td-muted">' + _esc(m.slug) + '</td>' +
-        '<td>' + (m.ventas || 0) + '</td>' +
-        '<td class="cr-td-money">' + _fmtUsd(m.ganancia) + '</td>' +
+        '<td class="cr-td-name">' + _esc(p.nombre) + '</td>' +
+        '<td><span class="cr-cat-pill">' + _esc(_catLabelCuentas(p.categoria)) + '</span></td>' +
+        '<td>' + (p.ventas || 0) + '</td>' +
+        '<td class="cr-td-muted">' + _fmtUsd(p.ingresos_brutos || 0) + '</td>' +
+        '<td class="cr-td-money">' + _fmtUsd(p.ganancia || 0) + '</td>' +
       '</tr>';
     }).join('');
 
     document.getElementById('cr-cuentas-tabla').innerHTML =
       '<table class="cr-table">' +
-      '<thead><tr><th>Mini app</th><th>Slug</th><th>Ventas</th><th>Tu ganancia</th></tr></thead>' +
+      '<thead><tr><th>Producto</th><th>Categoria</th><th>Ventas</th><th>Total generado</th><th>Tu ganancia</th></tr></thead>' +
       '<tbody>' + rows + '</tbody></table>';
   } catch (e) {
     document.getElementById('cr-cuentas-tabla').innerHTML =

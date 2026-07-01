@@ -608,6 +608,39 @@ body {
   letter-spacing: 0.05em;
 }
 
+.cr-stat-note {
+  margin: 10px 0 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--cr-muted);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.cr-cuentas-intro {
+  margin-bottom: 18px;
+}
+
+.cr-cuentas-intro .cr-section-title {
+  margin-bottom: 6px;
+}
+
+.cr-stats-row--cuentas {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.cr-cat-pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--cr-accent-light);
+  color: var(--cr-accent);
+  border: 1px solid rgba(184, 151, 58, 0.25);
+}
+
 .cr-table-wrap { overflow-x: auto; }
 
 .cr-table {

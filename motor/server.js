@@ -1795,6 +1795,20 @@ function _calcParteCreadorMiniapp(monto, comisionVendedorPct) {
   return _roundMoney(Math.max(0, m - _calcPartePlataformaMiniapp(m) - _calcComisionVendedorMiniapp(m, comisionVendedorPct)));
 }
 
+function _compraTuvoVendedor(compra) {
+  if (!compra) return false;
+  if (compra.vendedor_id) return true;
+  const ref = String(compra.ref_vendedor || '').trim();
+  return ref.length > 0;
+}
+
+function _calcParteCreadorVenta(monto, comisionVendedorPct, tuvoVendedor) {
+  const m = Number(monto) || 0;
+  const plat = _calcPartePlataformaMiniapp(m);
+  const comV = tuvoVendedor ? _calcComisionVendedorMiniapp(m, comisionVendedorPct) : 0;
+  return _roundMoney(Math.max(0, m - plat - comV));
+}
+
 function _slugifyMiniapp(nombre) {
   return String(nombre || '')
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -2187,7 +2201,7 @@ app.get('/api/creador/cuentas', requireCreador, async (req, res) => {
   try {
     const { data: miniapps, error: errM } = await supabase
       .from('miniapps')
-      .select('id, nombre, slug, precio, comision_vendedor, parte_plataforma')
+      .select('id, nombre, slug, categoria, precio, comision_vendedor')
       .eq('creador_id', req.creador_id);
     if (errM) throw errM;
 
@@ -2196,7 +2210,7 @@ app.get('/api/creador/cuentas', requireCreador, async (req, res) => {
     if (ids.length) {
       const { data: ventas, error: errV } = await supabase
         .from('miniapp_compras')
-        .select('miniapp_id, monto, estado_pago')
+        .select('miniapp_id, monto, estado_pago, ref_vendedor, vendedor_id')
         .in('miniapp_id', ids)
         .eq('estado_pago', 'pagado');
       if (errV) throw errV;
@@ -2206,41 +2220,61 @@ app.get('/api/creador/cuentas', requireCreador, async (req, res) => {
     const mapMini = {};
     (miniapps || []).forEach(function (m) {
       mapMini[m.id] = {
-        id: m.id,
-        nombre: m.nombre,
-        slug: m.slug,
-        ventas: 0,
-        ganancia: 0
+        id:              m.id,
+        nombre:          m.nombre,
+        slug:            m.slug,
+        categoria:       m.categoria || 'miniapp',
+        ventas:          0,
+        ingresos_brutos: 0,
+        ganancia:        0
       };
     });
 
-    let ventasTotales = 0;
-    let gananciaTotal = 0;
+    let totalVentas    = 0;
+    let ingresosBrutos = 0;
+    let totalCreador   = 0;
 
     compras.forEach(function (c) {
       const m = (miniapps || []).find(function (x) { return x.id === c.miniapp_id; });
       if (!m || !mapMini[c.miniapp_id]) return;
 
-      const monto = Number(c.monto) || 0;
+      const monto       = Number(c.monto) || 0;
       const comisionPct = Number(m.comision_vendedor) || 0;
-      const partePlat   = Number(m.parte_plataforma) || CREADOR_PARTE_PLATAFORMA_DEFAULT;
-      const comisionV   = monto * comisionPct / 100;
-      const ganancia    = Math.max(0, monto - comisionV - partePlat);
+      const tuvoVend    = _compraTuvoVendedor(c);
+      const ganancia    = _calcParteCreadorVenta(monto, comisionPct, tuvoVend);
 
-      mapMini[c.miniapp_id].ventas   += 1;
-      mapMini[c.miniapp_id].ganancia += ganancia;
-      ventasTotales += 1;
-      gananciaTotal += ganancia;
+      mapMini[c.miniapp_id].ventas          += 1;
+      mapMini[c.miniapp_id].ingresos_brutos += monto;
+      mapMini[c.miniapp_id].ganancia        += ganancia;
+      totalVentas    += 1;
+      ingresosBrutos += monto;
+      totalCreador   += ganancia;
+    });
+
+    const productos = Object.values(mapMini).map(function (p) {
+      return {
+        id:              p.id,
+        nombre:          p.nombre,
+        slug:            p.slug,
+        categoria:       p.categoria,
+        ventas:          p.ventas,
+        ingresos_brutos: _roundMoney(p.ingresos_brutos),
+        ganancia:        _roundMoney(p.ganancia)
+      };
     });
 
     res.json({
       ok: true,
       resumen: {
-        ventas_totales: ventasTotales,
-        ganancia_total: Math.round(gananciaTotal * 100) / 100,
-        por_pagar:      Math.round(gananciaTotal * 100) / 100
+        total_ventas:    totalVentas,
+        ingresos_brutos: _roundMoney(ingresosBrutos),
+        total_creador:   _roundMoney(totalCreador),
+        ventas_totales:  totalVentas,
+        ganancia_total:  _roundMoney(totalCreador),
+        por_pagar:       _roundMoney(totalCreador)
       },
-      miniapps: Object.values(mapMini)
+      productos: productos,
+      miniapps:  productos
     });
   } catch (e) {
     console.error('[creador/cuentas]', e.message);
