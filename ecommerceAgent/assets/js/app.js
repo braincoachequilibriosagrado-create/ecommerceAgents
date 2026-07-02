@@ -5543,11 +5543,11 @@ function iniciarPollingMensajes() {
         return (
           '<div style="padding:10px;border-bottom:1px solid #DDD5C8;font-size:12px;">' +
           '<span style="color:#A89E94;font-size:10px;">' +
-          de +
+          _esc(de) +
           ' — ' +
-          horaStr +
-          '</span><br><span style="color:#1A1714;">' +
-          texto +
+          _esc(horaStr) +
+          '</span><br><span style="color:#1A1714;white-space:pre-wrap;">' +
+          _esc(texto) +
           '</span></div>'
         );
       }).join('');
@@ -5585,12 +5585,12 @@ function iniciarPollingMensajes() {
           return (
             '<div style="padding:10px;border-bottom:1px solid #DDD5C8;font-size:12px;">' +
             '<span style="color:#A89E94;font-size:10px;">' +
-            de +
+            _esc(de) +
             ' — ' +
-            horaStr +
+            _esc(horaStr) +
             '</span><br>' +
-            '<span style="color:#1A1714;">' +
-            texto +
+            '<span style="color:#1A1714;white-space:pre-wrap;">' +
+            _esc(texto) +
             '</span>' +
             '</div>'
           );
@@ -5624,7 +5624,7 @@ function renderWhatsAppQr(qrText) {
       height: 220
     })
   } catch(e) {
-    qrEl.innerHTML = '<p style="color:red;font-size:12px;">Error al renderizar QR: ' + e.message + '</p>'
+    qrEl.innerHTML = '<p style="color:red;font-size:12px;">Error al renderizar QR.</p>'
     console.error('QR error:', e)
   }
 }
@@ -5957,8 +5957,21 @@ function mostrarResultado(id, texto) {
   const div = document.getElementById(id);
   if (div) {
     div.style.display = 'block';
-    div.innerHTML = texto.replace(/\n/g, '<br>');
+    div.style.whiteSpace = 'pre-wrap';
+    div.textContent = texto || '';
   }
+}
+
+function _iaResultadoHtml(texto, botonCopiarId) {
+  var html = '<div class="ea-ia-output" style="white-space:pre-wrap">' + _esc(texto || '') + '</div>';
+  if (botonCopiarId) {
+    html += '<br><br><button type="button" onclick="navigator.clipboard' +
+      '.writeText(document.getElementById(\'' + botonCopiarId + '\').innerText)' +
+      '.then(function(){alert(\'Copiado!\')})" ' +
+      'style="padding:10px 20px;background:#FAF8F4;color:#1A1714;' +
+      'border:1px solid #DDD5C8;border-radius:4px;font-size:12px;cursor:pointer;">📋 Copiar</button>';
+  }
+  return html;
 }
 
 const HOOKS_POR_CATEGORIA = {
@@ -6184,7 +6197,7 @@ async function generarBrolls() {
     const resultado = await llamarGroqContenido(prompt);
     const partes = resultado.split('🎵 MÚSICA');
     const html =
-      partes[0].replace(/\n/g, '<br>') +
+      '<div style="white-space:pre-wrap">' + _esc(partes[0]) + '</div>' +
       '<br><a href="https://reve.art" ' +
       'target="_blank" ' +
       'style="display:inline-block;' +
@@ -6202,21 +6215,21 @@ async function generarBrolls() {
       'font-size:12px;font-weight:600;' +
       'margin-left:8px;">' +
       '✨ Animar imágenes con Grok</a><br><br>' +
-      '🎵 MÚSICA' +
-      (partes[1] || '').replace(/\n/g, '<br>') +
+      '<div style="white-space:pre-wrap">' + _esc('🎵 MÚSICA' + (partes[1] || '')) + '</div>' +
       '<br><br>' +
-      '<button onclick="navigator.clipboard' +
+      '<button type="button" onclick="navigator.clipboard' +
       '.writeText(document.getElementById(' +
       '\'resultado-brolls\').innerText)' +
-      '.then(()=>alert(\'Copiado!\'))" ' +
+      '.then(function(){alert(\'Copiado!\')})" ' +
       'style="padding:10px 20px;' +
       'background:#FAF8F4;color:#1A1714;' +
       'border:1px solid #DDD5C8;' +
       'border-radius:4px;font-size:12px;' +
       'cursor:pointer;">📋 Copiar todo</button>';
-    mostrarResultado('resultado-brolls', html);
+    const outEl = document.getElementById('resultado-brolls');
+    if (outEl) { outEl.style.display = 'block'; outEl.innerHTML = html; }
   } catch(err) {
-    if (div) div.innerHTML = 'Error: ' + err.message;
+    if (div) { div.style.display = 'block'; div.textContent = 'Error al generar contenido.'; }
   }
 }
 
@@ -6336,21 +6349,11 @@ async function generarEstrategiaGanadora() {
   try {
     const resultado = await llamarGroqContenido(prompt);
     if (div) {
-      div.innerHTML = resultado
-        .replace(/\n/g, '<br>') +
-        '<br><br>' +
-        '<button onclick="navigator.clipboard' +
-        '.writeText(document.getElementById(' +
-        '\'resultado-estrategia\').innerText)' +
-        '.then(()=>alert(\'Copiado!\'))" ' +
-        'style="padding:10px 20px;' +
-        'background:#FAF8F4;color:#1A1714;' +
-        'border:1px solid #DDD5C8;' +
-        'border-radius:4px;font-size:12px;' +
-        'cursor:pointer;">📋 Copiar</button>';
+      div.style.display = 'block';
+      div.innerHTML = _iaResultadoHtml(resultado, 'resultado-estrategia');
     }
   } catch(err) {
-    if (div) div.innerHTML = 'Error: ' + err.message;
+    if (div) { div.style.display = 'block'; div.textContent = 'Error al generar contenido.'; }
   }
 }
 
@@ -6421,17 +6424,20 @@ async function generarContenidoImagenes() {
 
   const resultado = await llamarGroqContenido(prompt);
 
-  const html = resultado.replace(/\n/g, '<br>') +
-    '<br><br>' +
-    '<a href="https://gemini.google.com" ' +
-    'target="_blank" ' +
-    'style="display:inline-block;padding:10px 20px;' +
-    'background:#1A1714;color:#FFFFFF;' +
-    'text-decoration:none;border-radius:4px;' +
-    'font-size:12px;font-weight:600;">' +
-    '✨ Ir a Gemini para generar la imagen</a>';
-
-  mostrarResultado('resultado-imagenes', html);
+  const imgDiv = document.getElementById('resultado-imagenes');
+  if (imgDiv) {
+    imgDiv.style.display = 'block';
+    imgDiv.innerHTML =
+      '<div style="white-space:pre-wrap">' + _esc(resultado) + '</div>' +
+      '<br><br>' +
+      '<a href="https://gemini.google.com" ' +
+      'target="_blank" ' +
+      'style="display:inline-block;padding:10px 20px;' +
+      'background:#1A1714;color:#FFFFFF;' +
+      'text-decoration:none;border-radius:4px;' +
+      'font-size:12px;font-weight:600;">' +
+      '✨ Ir a Gemini para generar la imagen</a>';
+  }
 }
 
 async function generarPlanSemanal() {
@@ -6500,17 +6506,20 @@ async function generarPlanSemanal() {
 
   const resultado = await llamarGroqContenido(prompt);
 
-  const html = resultado.replace(/\n/g, '<br>') +
-    '<br><br>' +
-    '<button onclick="descargarPlanPDF()" ' +
-    'style="padding:10px 20px;' +
-    'background:#C9A84C;color:#FFFFFF;' +
-    'border:none;border-radius:4px;' +
-    'font-size:12px;font-weight:600;' +
-    'cursor:pointer;">' +
-    '📥 Descargar Plan en PDF</button>';
-
-  mostrarResultado('resultado-plan', html);
+  const planDiv = document.getElementById('resultado-plan');
+  if (planDiv) {
+    planDiv.style.display = 'block';
+    planDiv.innerHTML =
+      '<div style="white-space:pre-wrap">' + _esc(resultado) + '</div>' +
+      '<br><br>' +
+      '<button type="button" onclick="descargarPlanPDF()" ' +
+      'style="padding:10px 20px;' +
+      'background:#C9A84C;color:#FFFFFF;' +
+      'border:none;border-radius:4px;' +
+      'font-size:12px;font-weight:600;' +
+      'cursor:pointer;">' +
+      '📥 Descargar Plan en PDF</button>';
+  }
 }
 
 async function descargarPlanPDF() {

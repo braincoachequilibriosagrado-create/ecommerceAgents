@@ -23,14 +23,58 @@ const supabase           = require('./supabase');
 const { subirArchivo, obtenerArchivo, obtenerArchivoBuffer } = require('./r2');
 const { generarPaginaVentaMiniapp } = require('./generar-pagina-miniapp');
 const miniappSeg = require('./miniapp-seguridad');
-const jwtAuth = require('./jwt-auth');
+const jwtAuth    = require('./jwt-auth');
+const rateLimit  = require('express-rate-limit');
 
 const app  = express();
 const PORT = process.env.PORT || 3002;
 
+app.set('trust proxy', 1);
+
+const RATE_LIMIT_MSG   = 'Demasiados intentos, espera unos minutos.';
+const CLIENT_ERROR_MSG = 'Ocurrio un error, intenta de nuevo.';
+
+const authRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, error: RATE_LIMIT_MSG }
+});
+
+const compraRateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, error: RATE_LIMIT_MSG }
+});
+
 // URL pública base donde el motor sirve las páginas de venta
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || 'https://motor.ecommerceagents.store';
 const COMPRA_PRUEBA_ACTIVA = process.env.COMPRA_PRUEBA_ACTIVA === 'true';
+
+function _miniappFotoUrl(slug, file) {
+  if (!slug) return null;
+  return PUBLIC_BASE_URL + '/api/miniapps/asset/' + encodeURIComponent(slug) + '/' + file;
+}
+
+function _miniappToClient(m) {
+  if (!m || typeof m !== 'object') return m;
+  const out = Object.assign({}, m);
+  const slug = out.slug;
+  if (slug) {
+    out.foto1_url = _miniappFotoUrl(slug, 'foto1');
+    if (out.foto2_key) out.foto2_url = _miniappFotoUrl(slug, 'foto2');
+  }
+  delete out.r2_key;
+  delete out.foto1_key;
+  delete out.foto2_key;
+  delete out.pdf_key;
+  delete out.pack_key;
+  delete out.video_key;
+  return out;
+}
 
 const ENTREGA_MINIAPP_TEMPLATE = path.join(__dirname, 'templates', 'template-entrega-miniapp.html');
 const DEFAULT_MINIAPP_COLORS = { color_1: '#2f86ff', color_2: '#7c3aed', color_3: '#ff5a3c' };
@@ -615,7 +659,7 @@ app.post('/api/monetizacion/modular', requireUsuario, function (req, res, next) 
   uploadModular(req, res, function (err) {
     if (err) {
       if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ error: 'El video es demasiado grande. Maximo 500 MB.' });
-      return res.status(400).json({ error: 'Error al subir el archivo: ' + err.message });
+      return res.status(400).json({ error: 'Error al subir el archivo.' });
     }
     next();
   });
@@ -791,7 +835,7 @@ app.post('/api/monetizacion/modular', requireUsuario, function (req, res, next) 
 
   } catch (err) {
     console.error('[modular] Error en pipeline:', err.message);
-    if (!res.headersSent) return res.status(502).json({ error: err.message || 'Error al procesar el video.' });
+    if (!res.headersSent) return res.status(502).json({ error: CLIENT_ERROR_MSG });
   } finally {
     // Borra el video subido + audio extraido + todos los frames posibles (existsSync interno)
     limpiarArchivos(tempFiles, 'modular');
@@ -803,7 +847,7 @@ app.post('/api/monetizacion/modular', requireUsuario, function (req, res, next) 
 // OBJETIVO 1: limpiarArchivos() en finally con lista pre-registrada.
 app.post('/api/editor/procesar-video', requireUsuario, function (req, res, next) {
   uploadEditorFields(req, res, function (err) {
-    if (err) return res.status(400).json({ ok: false, error: 'Error al subir archivo: ' + err.message });
+    if (err) return res.status(400).json({ ok: false, error: 'Error al subir archivo.' });
     next();
   });
 }, async (req, res) => {
@@ -993,7 +1037,7 @@ app.post('/api/editor/procesar-video', requireUsuario, function (req, res, next)
 
   } catch (err) {
     console.error('[editor/procesar-video] Error:', err.message);
-    if (!res.headersSent) return res.status(502).json({ ok: false, error: err.message || 'Error al procesar el video.' });
+    if (!res.headersSent) return res.status(502).json({ ok: false, error: CLIENT_ERROR_MSG });
   } finally {
     // Borra SIEMPRE los videos de entrada (subidos o descargados con yt-dlp)
     limpiarArchivos(tempFiles, 'editor/procesar-video');
@@ -1005,7 +1049,7 @@ app.post('/api/editor/procesar-video', requireUsuario, function (req, res, next)
 // OBJETIVO 1: limpiarArchivos() garantizado en finally.
 app.post('/api/editor/procesar-reaccion', requireUsuario, function (req, res, next) {
   uploadReaccionFields(req, res, function (err) {
-    if (err) return res.status(400).json({ ok: false, error: 'Error al subir archivo: ' + err.message });
+    if (err) return res.status(400).json({ ok: false, error: 'Error al subir archivo.' });
     next();
   });
 }, async (req, res) => {
@@ -1108,7 +1152,7 @@ app.post('/api/editor/procesar-reaccion', requireUsuario, function (req, res, ne
 
   } catch (err) {
     console.error('[reaccion] Error:', err.message);
-    if (!res.headersSent) return res.status(502).json({ ok: false, error: err.message || 'Error al crear el video reaccion.' });
+    if (!res.headersSent) return res.status(502).json({ ok: false, error: CLIENT_ERROR_MSG });
   } finally {
     // Borra video principal descargado + meme (subido o descargado)
     limpiarArchivos(tempFiles, 'editor/procesar-reaccion');
@@ -1242,7 +1286,7 @@ async function buscarProductoInternet(producto, anthropicKey) {
 // ── Endpoint: POST /api/contenido/organico ────────────────────────────────────
 app.post('/api/contenido/organico', requireUsuario, function (req, res, next) {
   uploadContenidoImg(req, res, function (err) {
-    if (err) return res.status(400).json({ ok: false, error: 'Error al subir imagen: ' + err.message });
+    if (err) return res.status(400).json({ ok: false, error: 'Error al subir imagen.' });
     next();
   });
 }, async (req, res) => {
@@ -1332,7 +1376,7 @@ app.post('/api/contenido/organico', requireUsuario, function (req, res, next) {
 
   } catch (err) {
     console.error('[contenido/organico] Error:', err.message);
-    if (!res.headersSent) return res.status(502).json({ ok: false, error: err.message || 'Error al generar contenido.' });
+    if (!res.headersSent) return res.status(502).json({ ok: false, error: CLIENT_ERROR_MSG });
   } finally {
     limpiarArchivos(tempFiles, 'contenido/organico');
   }
@@ -1341,7 +1385,7 @@ app.post('/api/contenido/organico', requireUsuario, function (req, res, next) {
 // ── Endpoint: POST /api/contenido/anuncio ─────────────────────────────────────
 app.post('/api/contenido/anuncio', requireUsuario, function (req, res, next) {
   uploadContenidoImg(req, res, function (err) {
-    if (err) return res.status(400).json({ ok: false, error: 'Error al subir imagen: ' + err.message });
+    if (err) return res.status(400).json({ ok: false, error: 'Error al subir imagen.' });
     next();
   });
 }, async (req, res) => {
@@ -1429,7 +1473,7 @@ app.post('/api/contenido/anuncio', requireUsuario, function (req, res, next) {
 
   } catch (err) {
     console.error('[contenido/anuncio] Error:', err.message);
-    if (!res.headersSent) return res.status(502).json({ ok: false, error: err.message || 'Error al generar anuncio.' });
+    if (!res.headersSent) return res.status(502).json({ ok: false, error: CLIENT_ERROR_MSG });
   } finally {
     limpiarArchivos(tempFiles, 'contenido/anuncio');
   }
@@ -1472,7 +1516,7 @@ async function analizarImagenAvatar(imagePath, anthropicKey) {
 // ── Endpoint: POST /api/contenido/avatar ──────────────────────────────────────
 app.post('/api/contenido/avatar', requireUsuario, function (req, res, next) {
   uploadAvatarFields(req, res, function (err) {
-    if (err) return res.status(400).json({ ok: false, error: 'Error al subir imagen: ' + err.message });
+    if (err) return res.status(400).json({ ok: false, error: 'Error al subir imagen.' });
     next();
   });
 }, async (req, res) => {
@@ -1558,7 +1602,7 @@ app.post('/api/contenido/avatar', requireUsuario, function (req, res, next) {
 
   } catch (err) {
     console.error('[avatar] Error:', err.message);
-    if (!res.headersSent) return res.status(502).json({ ok: false, error: err.message || 'Error al generar video avatar.' });
+    if (!res.headersSent) return res.status(502).json({ ok: false, error: CLIENT_ERROR_MSG });
   } finally {
     limpiarArchivos(tempFiles, 'contenido/avatar');
   }
@@ -1604,7 +1648,7 @@ app.post('/api/ventas/config', requireAdmin, (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     console.error('[ventas/config]', e.message);
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -1614,7 +1658,7 @@ app.get('/api/ventas/config', requireAdmin, (req, res) => {
     res.json(_ventasConfigParaCliente(cfg));
   } catch (e) {
     console.error('[ventas/config GET]', e.message);
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -1625,7 +1669,7 @@ app.post('/api/ventas/conectar-whatsapp', requireAdmin, async (req, res) => {
     res.json({ ok: true, ...estado });
   } catch (e) {
     console.error('[ventas/conectar]', e.message);
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -1640,7 +1684,7 @@ app.post('/api/ventas/desconectar-whatsapp', requireAdmin, async (req, res) => {
     res.json({ ok: true, ...result });
   } catch (e) {
     console.error('[ventas/desconectar]', e.message);
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -1653,7 +1697,7 @@ app.post('/api/ventas/probar-telegram', requireAdmin, async (req, res) => {
     else res.status(400).json({ error: 'No se pudo enviar. Verifica el token y el Chat ID.' });
   } catch (e) {
     console.error('[ventas/probar-telegram]', e.message);
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -1662,7 +1706,7 @@ app.post('/api/ventas/probar-telegram', requireAdmin, async (req, res) => {
 // POST /api/login
 // Valida codigo + codigoSeguridad contra Supabase tabla `usuarios`.
 // POST /api/admin/login — verifica la contraseña de admin y devuelve la API key
-app.post('/api/admin/login', (req, res) => {
+app.post('/api/admin/login', authRateLimiter, (req, res) => {
   const { password } = req.body || {};
   if (!password || !ADMIN_PASSWORD || password !== ADMIN_PASSWORD) {
     return res.status(401).json({ ok: false, error: 'Contraseña incorrecta' });
@@ -1678,7 +1722,7 @@ app.post('/api/admin/login', (req, res) => {
 });
 
 // Devuelve datos del usuario si todo es correcto. NUNCA devuelve codigo_seguridad.
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', authRateLimiter, async (req, res) => {
   const { codigo, codigoSeguridad } = req.body || {};
 
   if (!codigo || !codigoSeguridad) {
@@ -1696,11 +1740,11 @@ app.post('/api/login', async (req, res) => {
     if (error) throw error;
 
     if (!data) {
-      return res.json({ ok: false, error: 'Usuario no encontrado.' });
+      return res.json({ ok: false, error: 'Credenciales invalidas.' });
     }
     const codigoOk = await _verificarCodigoSeguridadVendedor(data.codigo_seguridad, codigoSeguridad);
     if (!codigoOk) {
-      return res.json({ ok: false, error: 'Codigo de seguridad incorrecto.' });
+      return res.json({ ok: false, error: 'Credenciales invalidas.' });
     }
     await _rehashCodigoSeguridadVendedorSiLegacy(data.id, data.codigo_seguridad, codigoSeguridad);
     if (!data.activo) {
@@ -1777,7 +1821,7 @@ async function _rehashCodigoSeguridadVendedorSiLegacy(usuarioId, stored, plain) 
 const CREADOR_SALT_ROUNDS = 10;
 
 // POST /api/creador/registro
-app.post('/api/creador/registro', async (req, res) => {
+app.post('/api/creador/registro', authRateLimiter, async (req, res) => {
   const { nombre, email, password } = req.body || {};
   const nombreTrim = String(nombre || '').trim();
   const emailNorm  = String(email || '').trim().toLowerCase();
@@ -1825,12 +1869,12 @@ app.post('/api/creador/registro', async (req, res) => {
     });
   } catch (e) {
     console.error('[creador/registro]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
 // POST /api/creador/login
-app.post('/api/creador/login', async (req, res) => {
+app.post('/api/creador/login', authRateLimiter, async (req, res) => {
   const { email, password } = req.body || {};
   const emailNorm = String(email || '').trim().toLowerCase();
   const pass      = String(password || '');
@@ -1869,7 +1913,7 @@ app.post('/api/creador/login', async (req, res) => {
     });
   } catch (e) {
     console.error('[creador/login]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -2233,7 +2277,7 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
     console.log('[creador/miniapps/subir] creador=' + req.creador_id + ' slug=' + slug + ' cat=' + categoria + ' tipo=' + tipo_producto + ' videos=' + videoRows.length);
     const resp = {
       ok: true,
-      miniapp: data,
+      miniapp: _miniappToClient(data),
       videos: videoRows.length,
       url: PUBLIC_BASE_URL + '/miniapps/' + slug
     };
@@ -2247,7 +2291,7 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
     res.json(resp);
   } catch (e) {
     console.error('[creador/miniapps/subir]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   } finally {
     _cleanupUploadFiles(req.files);
   }
@@ -2282,7 +2326,7 @@ app.get('/api/miniapps/asset/:slug/:file', async (req, res) => {
     res.send(buf);
   } catch (e) {
     console.error('[miniapps/asset]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -2291,14 +2335,14 @@ app.get('/api/creador/miniapps', requireCreador, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('miniapps')
-      .select('id, nombre, slug, precio, precio_promocion, tipo_producto, categoria, usa_ia, disponible_vendedores, comision_vendedor, estado, estado_aprobacion, motivo_rechazo, pagina_venta_slug, foto1_key, creado_en')
+      .select('id, nombre, slug, precio, precio_promocion, tipo_producto, categoria, usa_ia, disponible_vendedores, comision_vendedor, estado, estado_aprobacion, motivo_rechazo, pagina_venta_slug, foto1_key, foto2_key, creado_en')
       .eq('creador_id', req.creador_id)
       .order('creado_en', { ascending: false });
     if (error) throw error;
-    res.json({ ok: true, miniapps: data || [] });
+    res.json({ ok: true, miniapps: (data || []).map(_miniappToClient) });
   } catch (e) {
     console.error('[creador/miniapps]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -2327,7 +2371,7 @@ app.post('/api/creador/miniapps/toggle-vendedores', requireCreador, async (req, 
     res.json({ ok: true, miniapp: data });
   } catch (e) {
     console.error('[creador/miniapps/toggle-vendedores]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -2413,7 +2457,7 @@ app.get('/api/creador/cuentas', requireCreador, async (req, res) => {
     });
   } catch (e) {
     console.error('[creador/cuentas]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -2429,7 +2473,7 @@ app.get('/api/creador/info', requireCreador, async (req, res) => {
     res.json({ ok: true, creador: data });
   } catch (e) {
     console.error('[creador/info GET]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -2450,7 +2494,7 @@ app.post('/api/creador/info', requireCreador, async (req, res) => {
     res.json({ ok: true, creador: data });
   } catch (e) {
     console.error('[creador/info POST]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -2470,17 +2514,7 @@ app.get('/api/supabase/test', requireAdmin, async (req, res) => {
     res.json({ ok: true, total_usuarios: count });
   } catch (e) {
     console.error('[supabase/test]', e.message);
-    // Mensajes de error claros para los casos más comunes
-    const hint =
-      e.message.includes('relation "usuarios" does not exist')
-        ? 'La tabla "usuarios" no existe aún en tu proyecto de Supabase. Créala primero.'
-        : e.message.includes('Invalid API key') || e.message.includes('401')
-        ? 'La SUPABASE_SERVICE_ROLE_KEY en .env es incorrecta o venció.'
-        : e.message.includes('fetch') || e.message.includes('ENOTFOUND')
-        ? 'No se pudo conectar a Supabase. Verifica que SUPABASE_URL en .env sea correcto.'
-        : null;
-
-    res.status(500).json({ ok: false, error: e.message, ...(hint ? { hint } : {}) });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -2506,7 +2540,7 @@ app.post('/api/usuario/whatsapp', requireUsuario, async (req, res) => {
     res.json({ ok: true, whatsapp: num });
   } catch (e) {
     console.error('[usuario/whatsapp]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -2544,7 +2578,7 @@ app.get('/api/checkout/asesor', async (req, res) => {
     res.json({ ok: true, whatsapp: vendor.whatsapp, nombre_producto, nombre_vendedor: vendor.nombre || ref });
   } catch (e) {
     console.error('[checkout/asesor]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -2588,7 +2622,7 @@ app.post('/api/mis-productos/agregar', requireUsuario, async (req, res) => {
     res.json({ ok: true, link_venta });
   } catch (e) {
     console.error('[mis-productos/agregar]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -2606,7 +2640,7 @@ app.get('/api/mis-productos/:usuario_id', requireUsuario, async (req, res) => {
     res.json({ ok: true, productos: data });
   } catch (e) {
     console.error('[mis-productos GET]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -2628,7 +2662,7 @@ app.post('/api/mis-productos/quitar', requireUsuario, async (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     console.error('[mis-productos/quitar]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -2645,10 +2679,10 @@ app.get('/api/catalogo/miniapps', async (req, res) => {
       .not('pagina_venta_slug', 'is', null)
       .order('creado_en', { ascending: false });
     if (error) throw error;
-    res.json({ ok: true, miniapps: data || [] });
+    res.json({ ok: true, miniapps: (data || []).map(_miniappToClient) });
   } catch (e) {
     console.error('[catalogo/miniapps]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -2702,7 +2736,7 @@ app.post('/api/mis-miniapps/agregar', requireUsuario, async (req, res) => {
     res.json({ ok: true, link_venta });
   } catch (e) {
     console.error('[mis-miniapps/agregar]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -2720,10 +2754,17 @@ app.get('/api/mis-miniapps/:usuario_id', requireUsuario, async (req, res) => {
       .eq('usuario_id', usuario_id)
       .order('creado_en', { ascending: false });
     if (error) throw error;
-    res.json({ ok: true, miniapps: data || [] });
+    const rows = (data || []).map(function (row) {
+      const m = row.miniapps;
+      if (m && typeof m === 'object') {
+        return Object.assign({}, row, { miniapps: _miniappToClient(m) });
+      }
+      return row;
+    });
+    res.json({ ok: true, miniapps: rows });
   } catch (e) {
     console.error('[mis-miniapps GET]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -2745,7 +2786,7 @@ app.post('/api/mis-miniapps/quitar', requireUsuario, async (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     console.error('[mis-miniapps/quitar]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -2756,7 +2797,7 @@ app.get('/api/catalogo', async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('productos')
-      .select('id, nombre, categoria, precio, utilidad, stock, imagenes, slug')
+      .select('id, nombre, categoria, precio, stock, imagenes, slug')
       .eq('visible', true)
       .eq('pausado', false)
       .order('creado_en', { ascending: false });
@@ -2764,7 +2805,7 @@ app.get('/api/catalogo', async (req, res) => {
     res.json({ ok: true, productos: data });
   } catch (e) {
     console.error('[catalogo]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -2793,7 +2834,7 @@ app.get('/api/admin/productos', async (req, res) => {
     res.json({ ok: true, productos: data });
   } catch (e) {
     console.error('[admin/productos GET]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -2835,7 +2876,7 @@ app.post('/api/admin/productos', async (req, res) => {
     res.json({ ok: true, producto: data });
   } catch (e) {
     console.error('[admin/productos POST]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -2856,7 +2897,7 @@ app.post('/api/admin/productos/actualizar', async (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     console.error('[admin/productos/actualizar]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -2870,7 +2911,7 @@ app.post('/api/admin/productos/eliminar', async (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     console.error('[admin/productos/eliminar]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -2895,7 +2936,7 @@ app.post('/api/usuario/nombre', requireUsuario, async (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     console.error('[usuario/nombre]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -2914,7 +2955,7 @@ app.get('/api/admin/usuarios', async (req, res) => {
     res.json({ ok: true, usuarios: data });
   } catch (e) {
     console.error('[admin/usuarios]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -2933,7 +2974,7 @@ app.post('/api/admin/usuarios/activar', async (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     console.error('[admin/usuarios/activar]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -2952,7 +2993,7 @@ app.post('/api/admin/usuarios/desactivar', async (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     console.error('[admin/usuarios/desactivar]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -2970,7 +3011,7 @@ app.get('/api/admin/paginas', async (req, res) => {
     res.json({ ok: true, paginas });
   } catch (e) {
     console.error('[admin/paginas GET]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -3008,7 +3049,7 @@ app.post('/api/admin/paginas', async (req, res) => {
     res.json({ ok: true, pagina: { id: data.id, slug: data.slug } });
   } catch (e) {
     console.error('[admin/paginas POST] ERROR:', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -3026,7 +3067,7 @@ app.post('/api/admin/paginas/actualizar', async (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     console.error('[admin/paginas/actualizar]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -3040,7 +3081,7 @@ app.post('/api/admin/paginas/eliminar', async (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     console.error('[admin/paginas/eliminar]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -3054,7 +3095,7 @@ app.get('/api/admin/paginas/:id', async (req, res) => {
     res.json({ ok: true, pagina: data });
   } catch (e) {
     console.error('[admin/paginas/:id]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -3410,7 +3451,7 @@ app.get('/api/checkout/info', async (req, res) => {
     res.json({ ok: true, nombre_producto, precio, imagen, color_principal });
   } catch (e) {
     console.error('[checkout/info]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -4132,7 +4173,7 @@ function abrirAsesorWA() {
 });
 
 // ── Compra de prueba mini apps (sin Stripe) ───────────────────────────────────
-app.post('/api/miniapp/comprar-prueba', async (req, res) => {
+app.post('/api/miniapp/comprar-prueba', compraRateLimiter, async (req, res) => {
   if (!COMPRA_PRUEBA_ACTIVA) {
     return res.status(403).json({ ok: false, error: 'Funcion no disponible' });
   }
@@ -4199,7 +4240,7 @@ app.post('/api/miniapp/comprar-prueba', async (req, res) => {
     res.json({ ok: true, codigo, link_unico });
   } catch (e) {
     console.error('[miniapp/comprar-prueba]', e.message);
-    res.status(500).json({ ok: false, error: e.message || 'Error al registrar la compra.' });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -4489,7 +4530,7 @@ app.get('/descargar-video/:codigo/:video_id', _entregaCodigoGate, async (req, re
 });
 
 // ── Crear pedido ──────────────────────────────────────────────────────────────
-app.post('/api/pedidos/crear', async (req, res) => {
+app.post('/api/pedidos/crear', compraRateLimiter, async (req, res) => {
   // 'precio' del cliente se IGNORA completamente — el monto siempre se obtiene de Supabase
   const { slug, ref, nombre, email, telefono, direccion, ciudad, estado_region, zip, pais,
           metodo_pago, comprobante_pago } = req.body || {};
@@ -4563,7 +4604,7 @@ app.post('/api/pedidos/crear', async (req, res) => {
     res.json({ ok: true, pedido_id: pedidoData?.id });
   } catch (e) {
     console.error('[pedidos/crear] ERROR:', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -4580,7 +4621,7 @@ app.get('/api/admin/pedidos', async (req, res) => {
     res.json({ ok: true, pedidos: data || [] });
   } catch (e) {
     console.error('[admin/pedidos GET]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -4597,7 +4638,7 @@ app.post('/api/admin/pedidos/actualizar', async (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     console.error('[admin/pedidos/actualizar]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -4685,7 +4726,7 @@ app.post('/api/admin/pedidos/manual', async (req, res) => {
     res.json({ ok: true, pedido: pd });
   } catch (e) {
     console.error('[admin/pedidos/manual]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -4751,8 +4792,8 @@ app.get('/api/admin/miniapps', async (req, res) => {
         comision_vendedor:     m.comision_vendedor,
         estado_aprobacion:     m.estado_aprobacion || 'pendiente',
         motivo_rechazo:        m.motivo_rechazo,
-        foto1_key:             m.foto1_key,
-        foto2_key:             m.foto2_key,
+        foto1_url:             _miniappFotoUrl(m.slug, 'foto1'),
+        foto2_url:             m.foto2_key ? _miniappFotoUrl(m.slug, 'foto2') : null,
         pagina_venta_slug:     m.pagina_venta_slug || null,
         requiere_revision_seguridad: !!m.requiere_revision_seguridad,
         escaneo_seguridad:     Array.isArray(m.escaneo_seguridad) ? m.escaneo_seguridad : (m.escaneo_seguridad || []),
@@ -4765,7 +4806,7 @@ app.get('/api/admin/miniapps', async (req, res) => {
     res.json({ ok: true, miniapps });
   } catch (e) {
     console.error('[admin/miniapps GET]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -4837,7 +4878,7 @@ app.get('/api/admin/miniapps/cuentas', async (req, res) => {
     res.json({ ok: true, cuentas });
   } catch (e) {
     console.error('[admin/miniapps/cuentas]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -4898,7 +4939,7 @@ app.get('/api/admin/miniapps/comisiones-vendedores', async (req, res) => {
     });
   } catch (e) {
     console.error('[admin/miniapps/comisiones-vendedores]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -4923,7 +4964,7 @@ app.get('/api/admin/miniapps/:slug/html', async (req, res) => {
     res.send(html);
   } catch (e) {
     console.error('[admin/miniapps/html]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -4952,7 +4993,7 @@ app.post('/api/admin/miniapps/aprobar', async (req, res) => {
     res.json({ ok: true, miniapp: data });
   } catch (e) {
     console.error('[admin/miniapps/aprobar]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -5013,7 +5054,7 @@ app.post('/api/admin/miniapps/generar-pagina', async (req, res) => {
     res.json({ ok: true, pagina_slug: result.pagina_slug, link: link });
   } catch (e) {
     console.error('[admin/miniapps/generar-pagina]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -5046,7 +5087,7 @@ app.post('/api/admin/miniapps/rechazar', async (req, res) => {
     res.json({ ok: true, miniapp: data });
   } catch (e) {
     console.error('[admin/miniapps/rechazar]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -5105,7 +5146,7 @@ app.get('/api/ventas/usuario/:usuario_id', requireUsuario, async (req, res) => {
     res.json({ ok: true, ventas, resumen });
   } catch (e) {
     console.error('[ventas/usuario]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -5149,7 +5190,7 @@ app.get('/api/vendedor/miniapps-comisiones', requireUsuario, async (req, res) =>
     });
   } catch (e) {
     console.error('[vendedor/miniapps-comisiones]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -5209,7 +5250,7 @@ app.get('/api/admin/ventas-por-vendedor', async (req, res) => {
     res.json({ ok: true, vendedores, resumen_global });
   } catch (e) {
     console.error('[admin/ventas-por-vendedor]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -5235,7 +5276,7 @@ app.get('/api/creditos/:usuario_id', requireUsuario, async (req, res) => {
     res.json({ ok: true, creditos: data.creditos_ia ?? 0 });
   } catch (e) {
     console.error('[creditos/get]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -5278,7 +5319,7 @@ app.post('/api/creditos/descontar', requireUsuario, async (req, res) => {
     res.json({ ok: true, creditos_restantes: nuevos });
   } catch (e) {
     console.error('[creditos/descontar]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -5306,7 +5347,7 @@ app.get('/api/admin/metricas/mas-vendidos', async (req, res) => {
     res.json({ ok: true, productos });
   } catch (e) {
     console.error('[metricas/mas-vendidos]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -5338,7 +5379,7 @@ app.get('/api/admin/metricas/mas-vistos', async (req, res) => {
     res.json({ ok: true, paginas: paginasList });
   } catch (e) {
     console.error('[metricas/mas-vistos]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -5541,6 +5582,7 @@ app.get('/p/:slug', async (req, res) => {
 <script>
 // Recibe el mensaje del botón de compra dentro del iframe y navega la ventana real
 window.addEventListener('message', function(e) {
+  if (e.origin !== window.location.origin) return;
   var d = e.data;
   if (!d || typeof d.ea_checkout_url !== 'string') return;
   var url = d.ea_checkout_url;
@@ -5686,7 +5728,7 @@ app.post('/api/ia/groq', requireUsuario, async (req, res) => {
     res.json({ ok: true, texto: data.choices[0].message.content });
   } catch (e) {
     console.error('[ia/groq]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
@@ -5767,7 +5809,7 @@ app.post('/api/ia/gemini-vision', requireUsuario, async (req, res) => {
     res.json({ ok: true, texto });
   } catch (e) {
     console.error('[ia/gemini-vision]', e.message);
-    res.status(500).json({ ok: false, error: e.message });
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
 
