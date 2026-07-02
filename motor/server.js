@@ -90,6 +90,24 @@ function _miniappToClient(m) {
 const ENTREGA_MINIAPP_TEMPLATE = path.join(__dirname, 'templates', 'template-entrega-miniapp.html');
 const MOTOR_ASSETS_DIR           = path.join(__dirname, 'assets');
 const DEFAULT_MINIAPP_COLORS = { color_1: '#2f86ff', color_2: '#7c3aed', color_3: '#ff5a3c' };
+// Cambia en cada deploy/restart → cache-buster para JS/CSS/HTML del motor
+const ASSET_VERSION = String(Date.now());
+
+function _assetUrl(assetPath) {
+  const p = String(assetPath || '');
+  if (!p) return p;
+  return p + (p.indexOf('?') >= 0 ? '&' : '?') + 'v=' + ASSET_VERSION;
+}
+
+function _setNoCacheHtml(res) {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+}
+
+function _setNoCacheJs(res) {
+  res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+}
 
 // ── Autenticación JWT ─────────────────────────────────────────────────────────
 function _authUnauthorized(res) {
@@ -262,7 +280,11 @@ app.post('/api/checkout/webhook', express.raw({ type: 'application/json' }), _ha
 
 app.use(cors(_corsOpts));
 app.use(express.json({ limit: '50mb' })); // 50 MB para soportar imagenes base64
-app.use('/assets', express.static(MOTOR_ASSETS_DIR, { maxAge: '7d' }));
+app.use('/assets', express.static(MOTOR_ASSETS_DIR, {
+  setHeaders: function (res) {
+    res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+  }
+}));
 
 // ════════════════════════════════════════════════════════════════════════════
 // OBJETIVO 1 — Helper de limpieza de archivos
@@ -3380,7 +3402,7 @@ app.get('/api/admin/paginas/:id', async (req, res) => {
 // ── Script público de checkout ─────────────────────────────────────────────────
 // Solo pasa slug de la página y ref del vendedor — link CORTO, sin base64 ni textos largos
 app.get('/ea-checkout.js', (req, res) => {
-  res.setHeader('Content-Type', 'application/javascript');
+  _setNoCacheJs(res);
   res.send(`(function(){
   var params   = new URLSearchParams(window.location.search);
   var ref      = params.get('ref') || '';
@@ -3734,6 +3756,7 @@ function _denegarEntregaTexto(res, reason, status) {
 }
 
 function _denegarEntregaHtml(res, reason, status) {
+  _setNoCacheHtml(res);
   if (reason === 'rate') {
     return res.status(429).send(_htmlAccesoInvalido('Acceso no valido', ENTREGA_MSG_RATE));
   }
@@ -3898,8 +3921,7 @@ app.get('/api/checkout/info', async (req, res) => {
 
 // ── Checkout digital mini apps — JS externo (evita inline script en template literal) ─
 app.get('/checkout-miniapp.js', (req, res) => {
-  res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-  res.setHeader('Cache-Control', 'public, max-age=300');
+  _setNoCacheJs(res);
   res.send(
 '(function(){\n' +
 '"use strict";\n' +
@@ -4094,7 +4116,7 @@ function _serveCheckoutMiniapp(req, res) {
   const badgeText = STRIPE_SECRET_KEY
     ? 'Pago seguro · Stripe'
     : (COMPRA_PRUEBA_ACTIVA ? 'Modo prueba — sin cobro real' : 'Checkout');
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  _setNoCacheHtml(res);
   res.send(`<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -4150,7 +4172,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;ba
     </div>
   </div>
 </div>
-<script src="/checkout-miniapp.js"></script>
+<script src="${_assetUrl('/checkout-miniapp.js')}"></script>
 </body>
 </html>`);
 }
@@ -4161,7 +4183,7 @@ app.get('/checkout', (req, res) => {
   if (_isMiniappCheckoutSlug(slug)) {
     return _serveCheckoutMiniapp(req, res);
   }
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  _setNoCacheHtml(res);
   res.send(`<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -4948,7 +4970,7 @@ function _serveRecuperarCompra(req, res) {
   const c1 = DEFAULT_MINIAPP_COLORS.color_1;
   const c2 = DEFAULT_MINIAPP_COLORS.color_2;
   const c3 = DEFAULT_MINIAPP_COLORS.color_3;
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  _setNoCacheHtml(res);
   res.send(`<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -4979,7 +5001,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;ba
 <body>
 <div class="card">
   <div class="top">
-    <img src="/assets/logo-activos.jpg" alt="Activos Digitales" class="brand-logo" />
+    <img src="${_assetUrl('/assets/logo-activos.jpg')}" alt="Activos Digitales" class="brand-logo" />
     <h1>Recupera tu compra</h1>
     <p>Ingresa el codigo de acceso que recibiste al comprar para volver a tu producto.</p>
   </div>
@@ -5025,7 +5047,6 @@ app.get('/mi-compra/:codigo', _entregaCodigoGate, async (req, res) => {
   try {
     const validacion = await _entregaValidarCompra(codigo);
     if (!validacion.ok) {
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
       return _denegarEntregaHtml(res, validacion.reason);
     }
     const compra = validacion.compra;
@@ -5036,7 +5057,6 @@ app.get('/mi-compra/:codigo', _entregaCodigoGate, async (req, res) => {
       .eq('id', compra.miniapp_id)
       .maybeSingle();
     if (mErr || !miniapp) {
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
       return _denegarEntregaHtml(res, 'invalid', 403);
     }
 
@@ -5115,15 +5135,16 @@ app.get('/mi-compra/:codigo', _entregaCodigoGate, async (req, res) => {
       COLOR_1:           colores.color_1,
       COLOR_2:           colores.color_2,
       COLOR_3:           colores.color_3,
-      RECUPERAR_URL:     PUBLIC_BASE_URL + '/recuperar-compra'
+      RECUPERAR_URL:     PUBLIC_BASE_URL + '/recuperar-compra',
+      LOGO_URL:          _assetUrl('/assets/logo-activos.jpg')
     });
 
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    _setNoCacheHtml(res);
     res.send(html);
   } catch (e) {
     console.error('[mi-compra]', e.message);
-    res.status(500).setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.send(_htmlAccesoInvalido('Acceso no valido', ENTREGA_MSG_INVALIDO));
+    _setNoCacheHtml(res);
+    res.status(500).send(_htmlAccesoInvalido('Acceso no valido', ENTREGA_MSG_INVALIDO));
   }
 });
 
@@ -6322,6 +6343,7 @@ app.get('/p/:slug', async (req, res) => {
     const { data, error } = await supabase
       .from('paginas_venta').select('id, html, activa, vistas').eq('slug', slug).single();
     if (error || !data || !data.activa) {
+      _setNoCacheHtml(res);
       return res.status(404).send('<!DOCTYPE html><html><body style="font-family:sans-serif;padding:40px;text-align:center"><h2>Pagina no encontrada</h2><p>Este link no esta disponible.</p></body></html>');
     }
     // Incrementar vistas (fire-and-forget)
@@ -6332,9 +6354,10 @@ app.get('/p/:slug', async (req, res) => {
     const pageTitle  = titleMatch ? titleMatch[1].trim() : slug;
 
     // URL del contenido real (sin iframe) — incluye ref si viene en el link
-    const innerSrc = '/p-inner/' + encodeURIComponent(slug) + (ref ? '?ref=' + encodeURIComponent(ref) : '');
+    let innerSrc = _assetUrl('/p-inner/' + encodeURIComponent(slug));
+    if (ref) innerSrc += '&ref=' + encodeURIComponent(ref);
 
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    _setNoCacheHtml(res);
     res.send(`<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -6402,7 +6425,7 @@ app.get('/p-inner/:slug', async (req, res) => {
 
     const htmlOut = _injectCheckoutScript(data.html, slug, ref);
 
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    _setNoCacheHtml(res);
     // Permitir que solo nuestro propio servidor cargue este endpoint en un iframe
     res.setHeader('X-Frame-Options', 'SAMEORIGIN');
     res.send(htmlOut);
@@ -6602,6 +6625,7 @@ app.listen(PORT, () => {
   } else {
     console.log('[motor] Autenticacion JWT activa');
   }
+  console.log('[motor] ASSET_VERSION=' + ASSET_VERSION + ' (cache-buster JS/CSS/HTML)');
   console.log(`[motor] Servidor corriendo en http://localhost:${PORT}`);
   console.log('[motor] Endpoints:');
   console.log(`[motor]   POST http://localhost:${PORT}/api/monetizacion/tendencias`);
