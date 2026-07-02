@@ -766,16 +766,92 @@ function _crPrecioHtml(m) {
   return '<span class="cr-product-price-promo">' + _fmtUsd(m.precio) + '</span>';
 }
 
-function copiarLinkCatalogo(url) {
-  if (!url) return;
-  function ok() { alert('Enlace copiado.'); }
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(url).then(ok).catch(function () {
-      window.prompt('Copia este enlace:', url);
-    });
-  } else {
-    window.prompt('Copia este enlace:', url);
+function _crCopiarTexto(url, btn) {
+  if (!url) return Promise.reject(new Error('Sin enlace'));
+
+  function feedbackOk() {
+    if (btn) {
+      var prev = btn.textContent;
+      btn.textContent = 'Copiado ✓';
+      btn.classList.add('cr-btn-copy--ok');
+      btn.disabled = true;
+      setTimeout(function () {
+        btn.textContent = prev;
+        btn.classList.remove('cr-btn-copy--ok');
+        btn.disabled = false;
+      }, 2000);
+    } else {
+      _crToast('Enlace copiado');
+    }
   }
+
+  function fallbackCopy() {
+    try {
+      var ta = document.createElement('textarea');
+      ta.value = url;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      ta.style.top = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      var ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      if (ok) {
+        feedbackOk();
+        return Promise.resolve();
+      }
+      return Promise.reject(new Error('No se pudo copiar'));
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  }
+
+  if (navigator.clipboard && window.isSecureContext) {
+    return navigator.clipboard.writeText(url).then(feedbackOk).catch(function () {
+      return fallbackCopy();
+    });
+  }
+  return fallbackCopy();
+}
+
+function _crToast(msg) {
+  var t = document.getElementById('cr-toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'cr-toast';
+    t.className = 'cr-toast';
+    t.setAttribute('role', 'status');
+    t.setAttribute('aria-live', 'polite');
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.classList.add('cr-toast--show');
+  clearTimeout(t._hideTimer);
+  t._hideTimer = setTimeout(function () {
+    t.classList.remove('cr-toast--show');
+  }, 2000);
+}
+
+function copiarLinkCatalogo(url, btn) {
+  _crCopiarTexto(url, btn).catch(function () {
+    window.prompt('Copia este enlace:', url);
+  });
+}
+
+function _initCatalogoCopyDelegation() {
+  var wrap = document.getElementById('cr-catalogo-lista');
+  if (!wrap || wrap._copyDelegation) return;
+  wrap._copyDelegation = true;
+  wrap.addEventListener('click', function (e) {
+    var btn = e.target.closest('.cr-btn-copy');
+    if (!btn || !wrap.contains(btn)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    var url = btn.getAttribute('data-copy-url');
+    if (url) copiarLinkCatalogo(url, btn);
+  });
 }
 
 async function cargarCatalogoCreador() {
@@ -806,7 +882,7 @@ async function cargarCatalogoCreador() {
             '<span class="cr-catalogo-pagina-lbl">Pagina de venta</span>' +
             '<div class="cr-catalogo-pagina-row">' +
               '<a class="cr-catalogo-link" href="' + _esc(pagLink) + '" target="_blank" rel="noopener noreferrer">' + _esc(pagLink) + '</a>' +
-              '<button type="button" class="cr-btn-copy" onclick="copiarLinkCatalogo(' + JSON.stringify(pagLink) + ')">Copiar</button>' +
+              '<button type="button" class="cr-btn-copy" data-copy-url="' + _esc(pagLink) + '">Copiar</button>' +
             '</div>' +
           '</div>';
       }
@@ -967,6 +1043,7 @@ async function cargarCuentasCreador() {
 /* ── Init ───────────────────────────────────────────────── */
 
 document.addEventListener('DOMContentLoaded', function () {
+  _initCatalogoCopyDelegation();
   switchHtmlMode('pegar');
   toggleComisionField();
   _updateCategoriaUI();

@@ -1725,6 +1725,35 @@ body {
   color: var(--c-indigo);
 }
 
+.cr-btn-copy--ok {
+  border-color: #059669 !important;
+  color: #059669 !important;
+  background: rgba(5, 150, 105, 0.08) !important;
+}
+
+.cr-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(12px);
+  background: var(--ink);
+  color: #fff;
+  padding: 12px 20px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s, transform 0.25s;
+  z-index: 9999;
+  box-shadow: 0 12px 32px rgba(15, 18, 34, 0.2);
+}
+
+.cr-toast--show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
 .cr-contact-card {
   max-width: 560px;
   margin: 0 auto;
