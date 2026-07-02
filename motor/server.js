@@ -3715,6 +3715,138 @@ app.get('/api/checkout/info', async (req, res) => {
   }
 });
 
+// ── Checkout digital mini apps — JS externo (evita inline script en template literal) ─
+app.get('/checkout-miniapp.js', (req, res) => {
+  res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+  res.setHeader('Cache-Control', 'public, max-age=300');
+  res.send(
+'(function(){\n' +
+'"use strict";\n' +
+'var _slug="", _ref="", _precio=0;\n' +
+'\n' +
+'function _coEmailOk(v){\n' +
+'  var s=String(v||"").trim();\n' +
+'  var at=s.indexOf("@");\n' +
+'  return at>0 && s.indexOf(".", at)>at+1 && s.indexOf(" ")===-1;\n' +
+'}\n' +
+'\n' +
+'function _coFmtPrecio(){\n' +
+'  return _precio>0 ? "$"+Number(_precio).toLocaleString("en-US") : "Gratis";\n' +
+'}\n' +
+'\n' +
+'function _coMostrarErr(msg){\n' +
+'  var err=document.getElementById("co-pay-err");\n' +
+'  if(!err) return;\n' +
+'  err.textContent=msg||"";\n' +
+'  err.style.display=msg?"block":"none";\n' +
+'}\n' +
+'\n' +
+'function _coResetBtn(){\n' +
+'  var btn=document.getElementById("co-btn-pagar");\n' +
+'  if(!btn) return;\n' +
+'  btn.disabled=false;\n' +
+'  btn.textContent="Pagar "+_coFmtPrecio()+" (prueba)";\n' +
+'}\n' +
+'\n' +
+'function eaCoPagar(ev){\n' +
+'  if(ev&&ev.preventDefault) ev.preventDefault();\n' +
+'  if(ev&&ev.stopPropagation) ev.stopPropagation();\n' +
+'  var btn=document.getElementById("co-btn-pagar");\n' +
+'  var emailEl=document.getElementById("co-email");\n' +
+'  var email=emailEl?String(emailEl.value||"").trim():"";\n' +
+'  _coMostrarErr("");\n' +
+'  if(!_coEmailOk(email)){\n' +
+'    _coMostrarErr("Email requerido.");\n' +
+'    if(emailEl) emailEl.focus();\n' +
+'    return false;\n' +
+'  }\n' +
+'  if(!btn||btn.disabled) return false;\n' +
+'  btn.disabled=true;\n' +
+'  btn.textContent="Procesando...";\n' +
+'  fetch("/api/miniapp/comprar-prueba",{\n' +
+'    method:"POST",\n' +
+'    headers:{"Content-Type":"application/json"},\n' +
+'    body:JSON.stringify({slug_pagina:_slug,ref:_ref||undefined,email:email})\n' +
+'  })\n' +
+'    .then(function(r){return r.json();})\n' +
+'    .then(function(d){\n' +
+'      if(!d.ok) throw new Error(d.error||"No se pudo completar la compra.");\n' +
+'      if(d.link_unico){window.location.href=d.link_unico;return;}\n' +
+'      throw new Error("Respuesta invalida del servidor.");\n' +
+'    })\n' +
+'    .catch(function(e){\n' +
+'      _coMostrarErr((e&&e.message)||"Error al procesar la compra.");\n' +
+'      _coResetBtn();\n' +
+'    });\n' +
+'  return false;\n' +
+'}\n' +
+'window.eaCoPagar=eaCoPagar;\n' +
+'\n' +
+'function _coBindPagar(){\n' +
+'  var btn=document.getElementById("co-btn-pagar");\n' +
+'  if(!btn||btn.getAttribute("data-co-bound")==="1") return;\n' +
+'  btn.setAttribute("data-co-bound","1");\n' +
+'  btn.addEventListener("click", eaCoPagar);\n' +
+'}\n' +
+'\n' +
+'function _coInit(){\n' +
+'  _coBindPagar();\n' +
+'  var p=new URLSearchParams(window.location.search);\n' +
+'  _slug=p.get("slug")||"";\n' +
+'  _ref=p.get("ref")||"";\n' +
+'  if(!_slug){\n' +
+'    var load=document.getElementById("load");\n' +
+'    if(load) load.innerHTML=\'<p style="color:#c0392b">Enlace invalido.</p>\';\n' +
+'    return;\n' +
+'  }\n' +
+'  fetch("/api/checkout/info?slug="+encodeURIComponent(_slug))\n' +
+'    .then(function(r){return r.json();})\n' +
+'    .then(function(d){\n' +
+'      var load=document.getElementById("load");\n' +
+'      if(load) load.style.display="none";\n' +
+'      if(!d.ok){\n' +
+'        if(load){\n' +
+'          load.style.display="block";\n' +
+'          load.innerHTML=\'<p style="color:#c0392b">\'+(d.error||"Producto no disponible.")+"</p>";\n' +
+'        }\n' +
+'        return;\n' +
+'      }\n' +
+'      _precio=d.precio||0;\n' +
+'      var accent=(d.color_principal&&/^#[0-9a-fA-F]{6}$/.test(d.color_principal))?d.color_principal:"#2f86ff";\n' +
+'      document.documentElement.style.setProperty("--c1",accent);\n' +
+'      var nombreEl=document.getElementById("nombre");\n' +
+'      if(nombreEl) nombreEl.textContent=d.nombre_producto||"Mini app";\n' +
+'      var fmt=_coFmtPrecio();\n' +
+'      var precioEl=document.getElementById("precio");\n' +
+'      if(precioEl) precioEl.textContent=fmt;\n' +
+'      var btn=document.getElementById("co-btn-pagar");\n' +
+'      if(btn) btn.textContent="Pagar "+fmt+" (prueba)";\n' +
+'      var iw=document.getElementById("img-wrap");\n' +
+'      if(iw&&d.imagen){\n' +
+'        var img=document.createElement("img");\n' +
+'        img.src=d.imagen;\n' +
+'        img.alt=d.nombre_producto||"";\n' +
+'        iw.appendChild(img);\n' +
+'      }\n' +
+'      var card=document.getElementById("card");\n' +
+'      if(card) card.style.display="block";\n' +
+'      _coBindPagar();\n' +
+'    })\n' +
+'    .catch(function(){\n' +
+'      var load=document.getElementById("load");\n' +
+'      if(load) load.innerHTML=\'<p style="color:#c0392b">Error al cargar.</p>\';\n' +
+'    });\n' +
+'}\n' +
+'\n' +
+'if(document.readyState==="loading"){\n' +
+'  document.addEventListener("DOMContentLoaded", _coInit);\n' +
+'}else{\n' +
+'  _coInit();\n' +
+'}\n' +
+'})();\n'
+  );
+});
+
 // ── Checkout digital mini apps (GET /checkout?slug=app-...) ───────────────────
 function _serveCheckoutMiniapp(req, res) {
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -3754,8 +3886,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;ba
 <body>
 <div class="wrap">
   <div class="badge">Modo prueba — sin cobro real</div>
-  <div id="load" class="load"><div class="spin"></div>Cargando...</div>
-  <div id="card" class="card" style="display:none">
+  <div id="load" class="load"><div class="spin"></div>Cargando producto...</div>
+  <div id="card" class="card">
     <div class="hero">
       <div id="img-wrap"></div>
       <h1 id="nombre">Mini app</h1>
@@ -3773,107 +3905,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;ba
     </div>
   </div>
 </div>
-<script>
-var _slug='', _ref='', _precio=0;
-
-function _coEmailOk(v) {
-  var s = String(v || '').trim();
-  var at = s.indexOf('@');
-  return at > 0 && s.indexOf('.', at) > at + 1 && s.indexOf(' ') === -1;
-}
-
-function _coFmtPrecio() {
-  return _precio > 0 ? '$' + Number(_precio).toLocaleString('en-US') : 'Gratis';
-}
-
-function _coMostrarErr(msg) {
-  var err = document.getElementById('co-pay-err');
-  if (!err) return;
-  err.textContent = msg || '';
-  err.style.display = msg ? 'block' : 'none';
-}
-
-function _coPagarClick() {
-  var btn = document.getElementById('co-btn-pagar');
-  var emailEl = document.getElementById('co-email');
-  var email = emailEl ? String(emailEl.value || '').trim() : '';
-  _coMostrarErr('');
-  if (!_coEmailOk(email)) {
-    _coMostrarErr('Email requerido.');
-    if (emailEl) emailEl.focus();
-    return;
-  }
-  if (!btn || btn.disabled) return;
-  btn.disabled = true;
-  btn.textContent = 'Procesando...';
-  fetch('/api/miniapp/comprar-prueba', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ slug_pagina: _slug, ref: _ref || undefined, email: email })
-  })
-    .then(function (r) { return r.json(); })
-    .then(function (d) {
-      if (!d.ok) throw new Error(d.error || 'No se pudo completar la compra.');
-      if (d.link_unico) location.href = d.link_unico;
-      else throw new Error('Respuesta invalida del servidor.');
-    })
-    .catch(function (e) {
-      _coMostrarErr(e.message || 'Error al procesar la compra.');
-      if (btn) {
-        btn.disabled = false;
-        btn.textContent = 'Pagar ' + _coFmtPrecio() + ' (prueba)';
-      }
-    });
-}
-
-function _coBindPagar() {
-  var btn = document.getElementById('co-btn-pagar');
-  if (!btn || btn.dataset.coBound === '1') return;
-  btn.dataset.coBound = '1';
-  btn.addEventListener('click', _coPagarClick);
-}
-
-(function () {
-  var p = new URLSearchParams(location.search);
-  _slug = p.get('slug') || '';
-  _ref = p.get('ref') || '';
-  _coBindPagar();
-  if (!_slug) {
-    document.getElementById('load').innerHTML = '<p style="color:#c0392b">Enlace invalido.</p>';
-    return;
-  }
-  fetch('/api/checkout/info?slug=' + encodeURIComponent(_slug))
-    .then(function (r) { return r.json(); })
-    .then(function (d) {
-      document.getElementById('load').style.display = 'none';
-      if (!d.ok) {
-        document.getElementById('load').style.display = 'block';
-        document.getElementById('load').innerHTML = '<p style="color:#c0392b">' + (d.error || 'Producto no disponible.') + '</p>';
-        return;
-      }
-      _precio = d.precio || 0;
-      var accent = (d.color_principal && /^#[0-9a-fA-F]{6}$/.test(d.color_principal)) ? d.color_principal : '#2f86ff';
-      document.documentElement.style.setProperty('--c1', accent);
-      document.getElementById('nombre').textContent = d.nombre_producto || 'Mini app';
-      var fmt = _coFmtPrecio();
-      document.getElementById('precio').textContent = fmt;
-      var btn = document.getElementById('co-btn-pagar');
-      if (btn) btn.textContent = 'Pagar ' + fmt + ' (prueba)';
-      var iw = document.getElementById('img-wrap');
-      if (d.imagen) {
-        var img = document.createElement('img');
-        img.src = d.imagen;
-        img.alt = d.nombre_producto || '';
-        iw.appendChild(img);
-      }
-      document.getElementById('card').style.display = 'block';
-      _coBindPagar();
-    })
-    .catch(function () {
-      document.getElementById('load').innerHTML = '<p style="color:#c0392b">Error al cargar.</p>';
-    });
-})();
-</script>
+<script src="/checkout-miniapp.js"></script>
 </body>
 </html>`);
 }
@@ -6170,6 +6202,7 @@ app.listen(PORT, () => {
   console.log(`[motor]   GET  http://localhost:${PORT}/api/admin/metricas/mas-vistos`);
   console.log(`[motor]   GET  http://localhost:${PORT}/api/creditos/:usuario_id`);
   console.log(`[motor]   POST http://localhost:${PORT}/api/creditos/descontar`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/checkout-miniapp.js`);
   console.log(`[motor]   GET  http://localhost:${PORT}/ea-checkout.js`);
   console.log(`[motor]   GET  http://localhost:${PORT}/api/admin/productos`);
   console.log(`[motor]   POST http://localhost:${PORT}/api/admin/productos`);
