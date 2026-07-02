@@ -21,6 +21,7 @@ const agenteVentas       = require('./agente-ventas');
 const supabase           = require('./supabase');
 const { subirArchivo, obtenerArchivo, obtenerArchivoBuffer } = require('./r2');
 const { generarPaginaVentaMiniapp } = require('./generar-pagina-miniapp');
+const miniappSeg = require('./miniapp-seguridad');
 const jwtAuth = require('./jwt-auth');
 
 const app  = express();
@@ -1980,7 +1981,7 @@ function _buildVideosEntregaHtml(videos, codigo) {
 app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, async (req, res) => {
   const body            = req.body || {};
   const categoria       = String(body.categoria || 'miniapp').trim().toLowerCase();
-  const htmlContent     = String(body.html || '').trim();
+  let htmlContent       = String(body.html || '').trim();
   const nombreTrim      = String(body.nombre || '').trim();
   const descripcion     = String(body.descripcion || '').trim();
   const precioNum       = Number(body.precio);
@@ -2027,6 +2028,7 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
   let pdfKey = null;
   let packKey = null;
   let tipo_producto = 'html';
+  let escaneoHtml = null;
   const usaIaFinal = categoria === 'miniapp' ? usa_ia : false;
 
   if (categoria === 'miniapp') {
@@ -2036,6 +2038,15 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
     if (Buffer.byteLength(htmlContent, 'utf8') > 5 * 1024 * 1024) {
       return res.status(400).json({ ok: false, error: 'El HTML supera el limite de 5 MB.' });
     }
+    escaneoHtml = miniappSeg.analizarHtmlMiniapp(htmlContent);
+    if (escaneoHtml.rechazar) {
+      return res.status(400).json({
+        ok: false,
+        error: miniappSeg.mensajeRechazoCreador(escaneoHtml),
+        amenazas: escaneoHtml.amenazas
+      });
+    }
+    htmlContent = miniappSeg.sanitizeMiniappHtml(htmlContent);
     if (pdfFile) {
       if (pdfFile.mimetype !== 'application/pdf' && !String(pdfFile.originalname || '').toLowerCase().endsWith('.pdf')) {
         return res.status(400).json({ ok: false, error: 'El archivo PDF debe ser .pdf valido.' });
@@ -2116,9 +2127,7 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
       }
     }
 
-    const { data, error } = await supabase
-      .from('miniapps')
-      .insert({
+    const insertRow = {
         creador_id:            req.creador_id,
         nombre:                nombreTrim,
         slug,
@@ -2139,9 +2148,28 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
         estado:                'activo',
         estado_aprobacion:     'pendiente',
         creado_en:             new Date().toISOString()
-      })
-      .select('id, nombre, slug, categoria, precio, precio_promocion, tipo_producto, usa_ia, disponible_vendedores, comision_vendedor, estado, creado_en, r2_key, foto1_key, pack_key')
+      };
+
+    if (categoria === 'miniapp' && escaneoHtml) {
+      insertRow.requiere_revision_seguridad = !!escaneoHtml.requiere_revision_seguridad;
+      insertRow.escaneo_seguridad = escaneoHtml.amenazas;
+    }
+
+    let { data, error } = await supabase
+      .from('miniapps')
+      .insert(insertRow)
+      .select('id, nombre, slug, categoria, precio, precio_promocion, tipo_producto, usa_ia, disponible_vendedores, comision_vendedor, estado, creado_en, r2_key, foto1_key, pack_key, requiere_revision_seguridad, escaneo_seguridad')
       .single();
+
+    if (error && /requiere_revision_seguridad|escaneo_seguridad|column|schema cache/.test(String(error.message || ''))) {
+      delete insertRow.requiere_revision_seguridad;
+      delete insertRow.escaneo_seguridad;
+      ({ data, error } = await supabase
+        .from('miniapps')
+        .insert(insertRow)
+        .select('id, nombre, slug, categoria, precio, precio_promocion, tipo_producto, usa_ia, disponible_vendedores, comision_vendedor, estado, creado_en, r2_key, foto1_key, pack_key')
+        .single());
+    }
 
     if (error) throw error;
 
@@ -2160,12 +2188,20 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
     }
 
     console.log('[creador/miniapps/subir] creador=' + req.creador_id + ' slug=' + slug + ' cat=' + categoria + ' tipo=' + tipo_producto + ' videos=' + videoRows.length);
-    res.json({
+    const resp = {
       ok: true,
       miniapp: data,
       videos: videoRows.length,
       url: PUBLIC_BASE_URL + '/miniapps/' + slug
-    });
+    };
+    if (escaneoHtml && escaneoHtml.requiere_revision_seguridad) {
+      resp.seguridad = {
+        requiere_revision: true,
+        amenazas: escaneoHtml.amenazas
+      };
+      resp.aviso = 'Tu mini app fue registrada pero requiere revision de seguridad adicional antes de aprobacion.';
+    }
+    res.json(resp);
   } catch (e) {
     console.error('[creador/miniapps/subir]', e.message);
     res.status(500).json({ ok: false, error: e.message });
@@ -4243,33 +4279,64 @@ app.get('/mi-compra/:codigo', _entregaCodigoGate, async (req, res) => {
 });
 
 // ── Servir mini app al comprador (protegido por codigo + cuota) ───────────────
+
+async function _validarAccesoMiniappCompra(codigo) {
+  const validacion = await _entregaValidarCompra(codigo);
+  if (!validacion.ok) return { ok: false, reason: validacion.reason };
+  const compra = validacion.compra;
+
+  const { data: miniapp, error: mErr } = await supabase
+    .from('miniapps')
+    .select('r2_key, nombre, categoria')
+    .eq('id', compra.miniapp_id)
+    .maybeSingle();
+  if (mErr || !miniapp || !miniapp.r2_key) {
+    return { ok: false, reason: 'invalid', status: 403 };
+  }
+  if (String(miniapp.categoria || 'miniapp').toLowerCase() !== 'miniapp') {
+    return { ok: false, reason: 'invalid', status: 403 };
+  }
+  return { ok: true, compra, miniapp };
+}
+
+// Contenido HTML dentro de sandbox (consume cuota)
+app.get('/usar-miniapp/:codigo/app', _entregaCodigoGate, async (req, res) => {
+  const codigo = String(req.params.codigo || '').trim();
+
+  try {
+    const acc = await _validarAccesoMiniappCompra(codigo);
+    if (!acc.ok) return _denegarEntregaTexto(res, acc.reason, acc.status);
+
+    const cuota = await _consumirCuotaDescarga(acc.compra, 'miniapp', req);
+    if (!cuota.ok) return _denegarEntregaTexto(res, cuota.reason);
+
+    let contenido = await obtenerArchivo(acc.miniapp.r2_key);
+    contenido = miniappSeg.sanitizeMiniappHtml(contenido);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('Content-Security-Policy', miniappSeg.MINIAPP_CSP);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.send(contenido);
+  } catch (e) {
+    console.error('[usar-miniapp/app]', e.message);
+    res.status(500).send(ENTREGA_MSG_INVALIDO);
+  }
+});
+
+// Pagina contenedora con iframe sandbox (no consume cuota; la cuota se consume en /app)
 app.get('/usar-miniapp/:codigo', _entregaCodigoGate, async (req, res) => {
   const codigo = String(req.params.codigo || '').trim();
 
   try {
-    const validacion = await _entregaValidarCompra(codigo);
-    if (!validacion.ok) return _denegarEntregaTexto(res, validacion.reason);
-    const compra = validacion.compra;
+    const acc = await _validarAccesoMiniappCompra(codigo);
+    if (!acc.ok) return _denegarEntregaTexto(res, acc.reason, acc.status);
 
-    const { data: miniapp, error: mErr } = await supabase
-      .from('miniapps')
-      .select('r2_key, nombre, categoria')
-      .eq('id', compra.miniapp_id)
-      .maybeSingle();
-    if (mErr || !miniapp || !miniapp.r2_key) {
-      return _denegarEntregaTexto(res, 'invalid', 403);
-    }
-    if (String(miniapp.categoria || 'miniapp').toLowerCase() !== 'miniapp') {
-      return _denegarEntregaTexto(res, 'invalid', 403);
-    }
-
-    const cuota = await _consumirCuotaDescarga(compra, 'miniapp', req);
-    if (!cuota.ok) return _denegarEntregaTexto(res, cuota.reason);
-
-    const contenido = await obtenerArchivo(miniapp.r2_key);
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Cache-Control', 'private, no-store');
-    res.send(contenido);
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.send(miniappSeg.htmlContenedorSandbox(codigo, acc.miniapp.nombre || 'Mini app'));
   } catch (e) {
     console.error('[usar-miniapp]', e.message);
     res.status(500).send(ENTREGA_MSG_INVALIDO);
@@ -4603,6 +4670,7 @@ app.get('/api/admin/miniapps', async (req, res) => {
         id, nombre, slug, descripcion, precio, precio_promocion, tipo_producto, categoria,
         usa_ia, disponible_vendedores, comision_vendedor,
         estado_aprobacion, motivo_rechazo, foto1_key, foto2_key, pagina_venta_slug, creado_en,
+        requiere_revision_seguridad, escaneo_seguridad,
         creadores ( nombre, email )
       `)
       .order('creado_en', { ascending: false });
@@ -4618,6 +4686,20 @@ app.get('/api/admin/miniapps', async (req, res) => {
     }
 
     const { data, error } = await query;
+    if (error && /requiere_revision_seguridad|escaneo_seguridad|column|schema cache/.test(String(error.message || ''))) {
+      let q2 = supabase
+        .from('miniapps')
+        .select(`
+          id, nombre, slug, descripcion, precio, precio_promocion, tipo_producto, categoria,
+          usa_ia, disponible_vendedores, comision_vendedor,
+          estado_aprobacion, motivo_rechazo, foto1_key, foto2_key, pagina_venta_slug, creado_en,
+          creadores ( nombre, email )
+        `)
+        .order('creado_en', { ascending: false });
+      if (estado && MINIAPP_APROB_ESTADOS.includes(estado)) q2 = q2.eq('estado_aprobacion', estado);
+      if (categoria && MINIAPP_CATEGORIAS.includes(categoria)) q2 = q2.eq('categoria', categoria);
+      ({ data, error } = await q2);
+    }
     if (error) throw error;
 
     const miniapps = (data || []).map(function (m) {
@@ -4639,6 +4721,8 @@ app.get('/api/admin/miniapps', async (req, res) => {
         foto1_key:             m.foto1_key,
         foto2_key:             m.foto2_key,
         pagina_venta_slug:     m.pagina_venta_slug || null,
+        requiere_revision_seguridad: !!m.requiere_revision_seguridad,
+        escaneo_seguridad:     Array.isArray(m.escaneo_seguridad) ? m.escaneo_seguridad : (m.escaneo_seguridad || []),
         creador_nombre:        cr.nombre || '',
         creador_email:         cr.email  || '',
         creado_en:             m.creado_en

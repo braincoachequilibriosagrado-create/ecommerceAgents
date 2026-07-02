@@ -594,7 +594,9 @@ async function publicarMiniapp() {
     if (!d.ok) throw new Error(d.error || 'Error al publicar.');
 
     var tipoLabel = _categoriaActiva === 'miniapp' ? 'Mini app' : (_categoriaActiva === 'infoproducto' ? 'Infoproducto' : 'Contenido digital');
-    _showMsg('cr-subir-msg', tipoLabel + ' publicado correctamente. Slug: ' + d.miniapp.slug, true);
+    var msgOk = tipoLabel + ' publicado correctamente. Slug: ' + d.miniapp.slug;
+    if (d.aviso) msgOk += ' ' + d.aviso;
+    _showMsg('cr-subir-msg', msgOk, true);
 
     _resetSubirForm();
     cargarMiniappsLista();

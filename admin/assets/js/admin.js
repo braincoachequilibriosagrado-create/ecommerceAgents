@@ -1876,6 +1876,25 @@ function _maPrecioHtml(m) {
   return '<strong class="ma-price-promo">' + _fmt(m.precio) + '</strong>';
 }
 
+function _maSeguridadHtml(m) {
+  var amenazas = Array.isArray(m.escaneo_seguridad) ? m.escaneo_seguridad : [];
+  if (!m.requiere_revision_seguridad && !amenazas.length) return '';
+  var badge = m.requiere_revision_seguridad
+    ? '<span class="adm-badge adm-badge--seg-alerta ma-card-badge ma-card-badge--seg">Revision seguridad</span>'
+    : '';
+  var items = amenazas.length
+    ? '<ul class="ma-seg-list">' + amenazas.map(function (a) {
+        var sev = (a && a.severidad) === 'alta' ? 'alta' : 'media';
+        return '<li class="ma-seg-item ma-seg-item--' + sev + '">' + _esc((a && a.mensaje) || '') + '</li>';
+      }).join('') + '</ul>'
+    : '<p class="ma-seg-empty">Sin detalle de escaneo.</p>';
+  return badge +
+    '<div class="ma-seg-box">' +
+      '<p class="ma-seg-title">Escaneo de seguridad</p>' +
+      items +
+    '</div>';
+}
+
 function _maCardHtml(m, modo) {
   var imgUrl = MOTOR_URL + '/api/miniapps/asset/' + encodeURIComponent(m.slug) + '/foto1';
   var tipo = m.tipo_producto === 'html_pdf' ? 'HTML + PDF' : 'HTML';
@@ -1922,6 +1941,7 @@ function _maCardHtml(m, modo) {
   return (
     '<article class="' + cardClass + '">' +
       badge +
+      _maSeguridadHtml(m) +
       '<div class="ma-card-thumb"><img src="' + imgUrl + '" alt="" loading="lazy" onerror="this.parentElement.classList.add(\'ma-card-thumb--err\')" /></div>' +
       '<div class="ma-card-body">' +
         '<h4 class="ma-card-title">' + _esc(m.nombre) + '</h4>' +
@@ -2103,7 +2123,11 @@ function maVerFotos(slug, tieneFoto2) {
 function maAprobar(id) {
   var m = _maById(id);
   var nombre = m ? m.nombre : 'esta mini app';
-  if (!confirm('Aprobar la mini app "' + nombre + '"? Podra venderse una vez aprobada.')) return;
+  var extra = '';
+  if (m && m.requiere_revision_seguridad) {
+    extra = '\n\nATENCION: esta mini app tiene alertas de seguridad. Revisa el escaneo antes de aprobar.';
+  }
+  if (!confirm('Aprobar la mini app "' + nombre + '"? Podra venderse una vez aprobada.' + extra)) return;
   _adminFetch(MOTOR_URL + '/api/admin/miniapps/aprobar', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
