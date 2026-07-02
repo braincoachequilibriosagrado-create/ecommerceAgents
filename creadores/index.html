@@ -3,17 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Activos Digitales — Panel Creador</title>
+  <title>Activos Digitales — Vende productos digitales</title>
   <link rel="icon" type="image/jpeg" href="assets/img/logo.jpg?v=3" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/css/creadores.css?v=24" />
+  <link rel="stylesheet" href="assets/css/creadores.css?v=25" />
 </head>
-<body>
+<body class="cr-body--landing">
 
-  <!-- Navbar -->
-  <header class="cr-navbar">
+  <!-- Navbar panel (solo dashboard) -->
+  <header class="cr-navbar" id="cr-navbar-panel" hidden>
     <div class="cr-navbar-inner">
       <a href="#" class="cr-nav-brand" onclick="return false;">
         <span class="cr-nav-logo-wrap">
@@ -32,9 +32,173 @@
     </div>
   </header>
 
+  <!-- Landing -->
+  <div id="cr-landing" class="lp">
+    <nav class="lp-nav">
+      <div class="lp-nav-inner">
+        <a href="#" class="lp-brand" onclick="mostrarLanding(); return false;">
+          <img src="assets/img/logo.jpg?v=3" alt="Activos Digitales" class="lp-brand-logo" />
+          <span class="lp-brand-text">
+            <span class="lp-brand-name">Activos Digitales</span>
+            <span class="lp-brand-sub">Ecommerce Agents</span>
+          </span>
+        </a>
+        <div class="lp-nav-links">
+          <a href="#como" onclick="scrollLandingSection('como'); return false;">Como funciona</a>
+          <a href="#vender" onclick="scrollLandingSection('vender'); return false;">Que puedes vender</a>
+          <a href="#beneficios" onclick="scrollLandingSection('beneficios'); return false;">Beneficios</a>
+        </div>
+        <div class="lp-nav-actions">
+          <button type="button" class="lp-btn-ghost" onclick="irAuth('login')">Iniciar sesion</button>
+          <button type="button" class="lp-btn-primary lp-btn-sm" onclick="irAuth('registro')">Empezar gratis</button>
+        </div>
+      </div>
+    </nav>
+
+    <section class="lp-hero">
+      <div class="lp-container lp-hero-inner">
+        <h1 class="lp-hero-title">Convierte tu conocimiento en un <span class="lp-grad-text">activo que vende solo</span></h1>
+        <p class="lp-hero-sub">Sube tu producto digital una vez. Nosotros creamos tu pagina de venta con IA y una red de vendedores lo promociona. Tu solo cobras.</p>
+        <div class="lp-hero-actions">
+          <button type="button" class="lp-btn-primary" onclick="irAuth('registro')">Crear mi cuenta gratis</button>
+          <button type="button" class="lp-btn-outline" onclick="scrollLandingSection('como')">Ver como funciona</button>
+        </div>
+        <p class="lp-hero-note">Sin costos de inicio · Sin mensualidades · Solo ganas cuando vendes</p>
+      </div>
+    </section>
+
+    <section class="lp-stats">
+      <div class="lp-container lp-stats-grid">
+        <div class="lp-stat"><span class="lp-stat-val">3</span><span class="lp-stat-lbl">Tipos de productos</span></div>
+        <div class="lp-stat"><span class="lp-stat-val">0%</span><span class="lp-stat-lbl">Costo para empezar</span></div>
+        <div class="lp-stat"><span class="lp-stat-val">24/7</span><span class="lp-stat-lbl">Ventas automaticas</span></div>
+        <div class="lp-stat"><span class="lp-stat-val">IA</span><span class="lp-stat-lbl">Crea tu pagina de venta</span></div>
+      </div>
+    </section>
+
+    <section class="lp-section">
+      <div class="lp-container">
+        <div class="lp-compare">
+          <div class="lp-compare-card lp-compare-card--bad">
+            <h3>Hacerlo por tu cuenta</h3>
+            <ul>
+              <li><span class="lp-x">✕</span> Disenar la pagina toma dias</li>
+              <li><span class="lp-x">✕</span> Configurar pagos, entrega y seguridad es un dolor</li>
+              <li><span class="lp-x">✕</span> Conseguir trafico tu solo</li>
+              <li><span class="lp-x">✕</span> Herramientas caras mes a mes</li>
+            </ul>
+          </div>
+          <div class="lp-compare-card lp-compare-card--good">
+            <h3>Con Activos Digitales</h3>
+            <ul>
+              <li><span class="lp-check">✓</span> Subes y la IA crea tu pagina de venta</li>
+              <li><span class="lp-check">✓</span> Pagos, entrega y seguridad listos</li>
+              <li><span class="lp-check">✓</span> Red de vendedores promociona por ti</li>
+              <li><span class="lp-check">✓</span> Empiezas gratis, ganas cuando vendes</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lp-section lp-section--alt" id="como">
+      <div class="lp-container">
+        <div class="lp-section-head">
+          <p class="lp-eyebrow">Proceso simple</p>
+          <h2 class="lp-section-title">Como funciona</h2>
+        </div>
+        <div class="lp-steps">
+          <div class="lp-step">
+            <span class="lp-step-num">1</span>
+            <h3>Sube tu producto</h3>
+            <p>PDF, videos o mini app. Sube el archivo y las fotos de venta desde tu panel.</p>
+          </div>
+          <div class="lp-step">
+            <span class="lp-step-num">2</span>
+            <h3>La IA crea tu pagina de venta</h3>
+            <p>Generamos una pagina profesional lista para convertir visitas en compras.</p>
+          </div>
+          <div class="lp-step">
+            <span class="lp-step-num">3</span>
+            <h3>Los vendedores promocionan</h3>
+            <p>Tu producto entra al catalogo. Vendedores lo comparten y traen clientes.</p>
+          </div>
+          <div class="lp-step">
+            <span class="lp-step-num">4</span>
+            <h3>Cobras en automatico</h3>
+            <p>Cada venta se registra. Tu parte queda lista para retiro via Stripe.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lp-section" id="vender">
+      <div class="lp-container">
+        <div class="lp-section-head">
+          <p class="lp-eyebrow">Catalogo digital</p>
+          <h2 class="lp-section-title">Que puedes vender</h2>
+        </div>
+        <div class="lp-cats">
+          <article class="lp-cat-card">
+            <span class="lp-cat-icon lp-cat-icon--pdf"></span>
+            <h3>Infoproductos</h3>
+            <p>PDFs, guias, ebooks y recursos descargables.</p>
+            <span class="lp-cat-example">Ej: Guia de inversion para principiantes</span>
+          </article>
+          <article class="lp-cat-card">
+            <span class="lp-cat-icon lp-cat-icon--video"></span>
+            <h3>Contenido Digital</h3>
+            <p>Packs de videos, reels y material multimedia.</p>
+            <span class="lp-cat-example">Ej: Pack 30 reels virales para TikTok</span>
+          </article>
+          <article class="lp-cat-card">
+            <span class="lp-cat-icon lp-cat-icon--app"></span>
+            <h3>Mini Apps</h3>
+            <p>Herramientas web interactivas en HTML.</p>
+            <span class="lp-cat-example">Ej: Calculadora de macros con IA</span>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="lp-section lp-section--alt" id="beneficios">
+      <div class="lp-container">
+        <div class="lp-section-head">
+          <p class="lp-eyebrow">Ventajas</p>
+          <h2 class="lp-section-title">Beneficios</h2>
+        </div>
+        <div class="lp-benefits">
+          <div class="lp-benefit"><h3>Ventas automaticas 24/7</h3><p>Tu producto se vende mientras duermes, sin intervencion manual.</p></div>
+          <div class="lp-benefit"><h3>Red de vendedores</h3><p>Otros promocionan tu activo y tu ganas en cada venta.</p></div>
+          <div class="lp-benefit"><h3>Entrega segura</h3><p>Acceso unico protegido por codigo. El comprador recibe su producto al instante.</p></div>
+          <div class="lp-benefit"><h3>Pagina de venta con IA</h3><p>Diseno profesional generado a partir de tus fotos y descripcion.</p></div>
+          <div class="lp-benefit"><h3>Cobras sin friccion</h3><p>El comprador no necesita registrarse. Menos pasos, mas conversion.</p></div>
+          <div class="lp-benefit"><h3>Todo en un panel</h3><p>Sube productos, revisa ventas y gestiona tu catalogo en un solo lugar.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="lp-cta">
+      <div class="lp-container lp-cta-inner">
+        <h2>Empieza a vender hoy</h2>
+        <p>Publica tu primer activo digital en minutos. Sin tarjeta, sin mensualidad.</p>
+        <button type="button" class="lp-btn-primary lp-btn-lg" onclick="irAuth('registro')">Crear mi cuenta gratis</button>
+        <button type="button" class="lp-cta-link" onclick="irAuth('login')">Ya tienes cuenta? Inicia sesion</button>
+      </div>
+    </section>
+
+    <footer class="lp-footer">
+      <div class="lp-container lp-footer-inner">
+        <img src="assets/img/logo.jpg?v=3" alt="Activos Digitales" class="lp-footer-logo" />
+        <p>Parte de <strong>Ecommerce Agents</strong> — Vende, gana y escala sin preocupaciones.</p>
+      </div>
+    </footer>
+  </div>
+
   <!-- Auth screen -->
-  <div id="cr-auth-screen" class="cr-auth-wrap">
+  <div id="cr-auth-screen" class="cr-auth-wrap" hidden>
     <div class="cr-auth-card">
+      <button type="button" class="cr-auth-back" onclick="mostrarLanding()">← Volver al inicio</button>
       <div class="cr-auth-tabs">
         <button type="button" class="cr-auth-tab active" id="cr-tab-login" onclick="switchAuthTab('login')">Iniciar sesion</button>
         <button type="button" class="cr-auth-tab" id="cr-tab-registro" onclick="switchAuthTab('registro')">Registrarse</button>
@@ -449,6 +613,6 @@
     </main>
   </div>
 
-  <script src="assets/js/creadores.js?v=17"></script>
+  <script src="assets/js/creadores.js?v=18"></script>
 </body>
 </html>

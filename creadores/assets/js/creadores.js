@@ -191,27 +191,64 @@ function _esc(s) {
 
 /* ── Auth UI ─────────────────────────────────────────────── */
 
-function _setView(showAuth) {
-  var auth = document.getElementById('cr-auth-screen');
-  var dash = document.getElementById('cr-dashboard');
-  if (auth) auth.hidden = !showAuth;
-  if (dash) dash.hidden = showAuth;
+var CR_VIEW = { LANDING: 'landing', AUTH: 'auth', DASH: 'dashboard' };
+
+function _setView(view) {
+  var landing = document.getElementById('cr-landing');
+  var auth    = document.getElementById('cr-auth-screen');
+  var dash    = document.getElementById('cr-dashboard');
+  var navbar  = document.getElementById('cr-navbar-panel');
+  if (landing) landing.hidden = view !== CR_VIEW.LANDING;
+  if (auth)    auth.hidden    = view !== CR_VIEW.AUTH;
+  if (dash)    dash.hidden    = view !== CR_VIEW.DASH;
+  if (navbar)  navbar.hidden  = view !== CR_VIEW.DASH;
+  document.body.classList.toggle('cr-body--landing', view === CR_VIEW.LANDING);
+  document.body.classList.toggle('cr-body--auth', view === CR_VIEW.AUTH);
+  document.body.classList.toggle('cr-body--dash', view === CR_VIEW.DASH);
 }
 
-function mostrarAuth() {
-  _setView(true);
+function mostrarLanding() {
+  _setView(CR_VIEW.LANDING);
   document.getElementById('cr-nav-logout').hidden = true;
   document.getElementById('cr-nav-badge').hidden  = true;
   document.getElementById('cr-nav-hola').hidden   = true;
+  window.scrollTo(0, 0);
+}
+
+function mostrarAuth() {
+  _setView(CR_VIEW.AUTH);
+  document.getElementById('cr-nav-logout').hidden = true;
+  document.getElementById('cr-nav-badge').hidden  = true;
+  document.getElementById('cr-nav-hola').hidden   = true;
+  window.scrollTo(0, 0);
+}
+
+function irAuth(tab) {
+  mostrarAuth();
+  switchAuthTab(tab === 'registro' ? 'registro' : 'login');
+}
+
+function scrollLandingSection(id) {
+  if (document.getElementById('cr-landing') && !document.getElementById('cr-landing').hidden) {
+    var el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
+  mostrarLanding();
+  setTimeout(function () {
+    var target = document.getElementById(id);
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 50);
 }
 
 function mostrarDashboard() {
-  _setView(false);
+  _setView(CR_VIEW.DASH);
   document.getElementById('cr-nav-logout').hidden = false;
   document.getElementById('cr-nav-badge').hidden  = false;
   document.getElementById('cr-nav-hola').hidden   = false;
   _actualizarNavNombre();
   switchCrTab('cuentas');
+  window.scrollTo(0, 0);
 }
 
 function switchAuthTab(tab) {
@@ -294,8 +331,7 @@ async function creadorRegistro() {
 
 function creadorLogout() {
   _limpiarSesion();
-  mostrarAuth();
-  switchAuthTab('login');
+  mostrarLanding();
 }
 
 /* ── Dashboard tabs ──────────────────────────────────────── */
@@ -951,6 +987,5 @@ document.addEventListener('DOMContentLoaded', function () {
       return;
     }
   } catch (e) {}
-  mostrarAuth();
-  switchAuthTab('login');
+  mostrarLanding();
 });
