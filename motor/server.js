@@ -3393,6 +3393,12 @@ function _isUsableColor(hex) {
 }
 function _extractColor(html) {
   if (!html) return null;
+  if (html.includes('activos-venta-landing')) {
+    const avBrand = html.match(/--av-brand-bright:\s*(#[0-9a-fA-F]{6})/i);
+    if (avBrand && _isUsableColor(avBrand[1])) return avBrand[1].toLowerCase();
+    const avAccent = html.match(/--av-accent:\s*(#[0-9a-fA-F]{6})/i);
+    if (avAccent && _isUsableColor(avAccent[1])) return avAccent[1].toLowerCase();
+  }
   // 1. Color del botón .btn-comprar-ea (más confiable)
   const btnBlock = html.match(/\.btn-comprar-ea\s*\{([^}]+)\}/s);
   if (btnBlock) {
@@ -3433,6 +3439,16 @@ function _replaceTemplateMarkers(html, map) {
 
 function _extractMiniappColors(html) {
   if (!html) return { ...DEFAULT_MINIAPP_COLORS };
+  if (html.includes('activos-venta-template-v1') || html.includes('activos-venta-landing')) {
+    const brand  = html.match(/--av-brand:\s*(#[0-9a-fA-F]{6})/i);
+    const bright = html.match(/--av-brand-bright:\s*(#[0-9a-fA-F]{6})/i);
+    const accent = html.match(/--av-accent:\s*(#[0-9a-fA-F]{6})/i);
+    return {
+      color_1: (brand  && brand[1].toLowerCase())  || DEFAULT_MINIAPP_COLORS.color_1,
+      color_2: (bright && bright[1].toLowerCase()) || DEFAULT_MINIAPP_COLORS.color_2,
+      color_3: (accent && accent[1].toLowerCase()) || DEFAULT_MINIAPP_COLORS.color_3
+    };
+  }
   const grad = html.match(/--grad:\s*linear-gradient\([^,]+,\s*(#[0-9a-fA-F]{6})\s+0%[^#]*(#[0-9a-fA-F]{6})[^#]*(#[0-9a-fA-F]{6})/);
   if (grad) {
     return { color_1: grad[1].toLowerCase(), color_2: grad[2].toLowerCase(), color_3: grad[3].toLowerCase() };
@@ -5433,7 +5449,7 @@ app.post('/api/admin/miniapps/generar-pagina', async (req, res) => {
     const { data: miniapp, error: mErr } = await supabase
       .from('miniapps')
       .select(`
-        id, nombre, slug, descripcion, precio, precio_promocion, tipo_producto,
+        id, nombre, slug, descripcion, precio, precio_promocion, tipo_producto, categoria,
         usa_ia, foto1_key, foto2_key, estado_aprobacion, pagina_venta_slug,
         creadores ( nombre )
       `)
@@ -5460,6 +5476,7 @@ app.post('/api/admin/miniapps/generar-pagina', async (req, res) => {
         precio:             miniapp.precio,
         precio_promocion:   miniapp.precio_promocion,
         tipo_producto:      miniapp.tipo_producto,
+        categoria:          miniapp.categoria,
         usa_ia:             miniapp.usa_ia,
         foto1_key:          miniapp.foto1_key,
         foto2_key:          miniapp.foto2_key,

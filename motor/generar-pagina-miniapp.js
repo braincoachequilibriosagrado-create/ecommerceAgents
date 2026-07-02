@@ -4,15 +4,35 @@ const fs   = require('fs');
 const path = require('path');
 const { obtenerArchivoBuffer } = require('./r2');
 
-const TEMPLATE_PATH = path.join(__dirname, 'templates', 'template-venta-miniapp.html');
+const TEMPLATE_PATH = path.join(__dirname, 'templates', 'template-venta-pro.html');
 const CLAUDE_MODEL  = 'claude-sonnet-4-6';
 const GROQ_MODEL    = 'openai/gpt-oss-120b';
 
-const DEFAULT_COLORS = {
-  color_1: '#2f86ff',
-  color_2: '#7c3aed',
-  color_3: '#ff5a3c'
+const DEFAULT_PALETTE = {
+  bg:           '#0d0b1f',
+  bg2:          '#161232',
+  ink:          '#f4f2ff',
+  ink_dim:      '#a29dc4',
+  brand:        '#6d3ce0',
+  brand_bright: '#9a6bff',
+  accent:       '#ff6a3d'
 };
+
+const TEXT_KEYS = [
+  'eyebrow', 'titulo_hero', 'titulo_hero_accent', 'hero_lead',
+  'pain_titulo', 'pain_1_titulo', 'pain_1_texto', 'pain_2_titulo', 'pain_2_texto', 'pain_3_titulo', 'pain_3_texto',
+  'transform_titulo', 'transform_desc',
+  'transform_1_titulo', 'transform_1_texto', 'transform_2_titulo', 'transform_2_texto',
+  'transform_3_titulo', 'transform_3_texto', 'transform_4_titulo', 'transform_4_texto',
+  'incluye_titulo',
+  'incluye_1_titulo', 'incluye_1_texto', 'incluye_2_titulo', 'incluye_2_texto',
+  'incluye_3_titulo', 'incluye_3_texto', 'incluye_4_titulo', 'incluye_4_texto',
+  'formato_titulo', 'formato_desc',
+  'pilar_1_titulo', 'pilar_1_texto', 'pilar_2_titulo', 'pilar_2_texto', 'pilar_3_titulo', 'pilar_3_texto',
+  'para_quien_titulo', 'para_quien_1', 'para_quien_2', 'para_quien_3', 'para_quien_4',
+  'pullquote', 'pullquote_cite',
+  'cta_titulo', 'cta_subtitulo'
+];
 
 function limpiarJSON(texto) {
   let t = String(texto || '').replace(/```(?:json)?/gi, '').trim();
@@ -34,24 +54,14 @@ function mediaTypeFromKey(key) {
   return map[ext] || 'image/jpeg';
 }
 
-function hexToRgba(hex, alpha) {
-  const h = String(hex || '').replace('#', '');
-  if (h.length !== 6) return `rgba(47,134,255,${alpha})`;
-  const r = parseInt(h.slice(0, 2), 16);
-  const g = parseInt(h.slice(2, 4), 16);
-  const b = parseInt(h.slice(4, 6), 16);
-  return `rgba(${r},${g},${b},${alpha})`;
-}
-
 function fmtPrecio(n) {
   const v = Number(n);
   if (!Number.isFinite(v)) return '0';
   return (Math.round(v * 100) / 100).toFixed(v % 1 === 0 ? 0 : 2);
 }
 
-function processConditionalBlock(html, blockName, include) {
-  const re = new RegExp('\\{\\{#IF_' + blockName + '\\}\\}([\\s\\S]*?)\\{\\{/IF_' + blockName + '\\}\\}', 'g');
-  return html.replace(re, include ? '$1' : '');
+function fmtPrecioUsd(n) {
+  return '$' + fmtPrecio(n);
 }
 
 function replaceAll(html, map) {
@@ -60,6 +70,20 @@ function replaceAll(html, map) {
     out = out.split('{{' + key + '}}').join(String(map[key] != null ? map[key] : ''));
   });
   return out;
+}
+
+function categoriaLabel(categoria) {
+  const cat = String(categoria || 'miniapp').toLowerCase();
+  if (cat === 'infoproducto') return 'Infoproducto';
+  if (cat === 'contenido_digital') return 'Contenido Digital';
+  return 'Mini App';
+}
+
+function categoriaTipo(categoria) {
+  const cat = String(categoria || 'miniapp').toLowerCase();
+  if (cat === 'infoproducto') return 'infoproducto';
+  if (cat === 'contenido_digital') return 'contenido digital';
+  return 'mini app';
 }
 
 async function leerImagenBase64(key) {
@@ -71,20 +95,48 @@ async function leerImagenBase64(key) {
   };
 }
 
+function normalizarPaleta(parsed) {
+  const p = parsed || {};
+  return {
+    bg:           p.bg           || DEFAULT_PALETTE.bg,
+    bg2:          p.bg2          || DEFAULT_PALETTE.bg2,
+    ink:          p.ink          || DEFAULT_PALETTE.ink,
+    ink_dim:      p.ink_dim      || DEFAULT_PALETTE.ink_dim,
+    brand:        p.brand        || DEFAULT_PALETTE.brand,
+    brand_bright: p.brand_bright || DEFAULT_PALETTE.brand_bright,
+    accent:       p.accent       || DEFAULT_PALETTE.accent
+  };
+}
+
+function paletaToMarkers(paleta) {
+  const p = normalizarPaleta(paleta);
+  return {
+    COLOR_BG:           p.bg,
+    COLOR_BG2:          p.bg2,
+    COLOR_INK:          p.ink,
+    COLOR_INK_DIM:      p.ink_dim,
+    COLOR_BRAND:        p.brand,
+    COLOR_BRAND_BRIGHT: p.brand_bright,
+    COLOR_ACCENT:       p.accent
+  };
+}
+
 async function obtenerPaletaColores(nombre, imagenes, anthropicKey) {
   if (!anthropicKey || !imagenes.length) {
-    console.warn('[generar-pagina] Sin API key o sin imagenes — colores por defecto');
-    return { ...DEFAULT_COLORS };
+    console.warn('[generar-pagina] Sin API key o sin imagenes — paleta por defecto');
+    return { ...DEFAULT_PALETTE };
   }
 
   const content = [
     {
       type: 'text',
       text:
-        'Analiza las fotos del producto "' + nombre + '" y devuelve SOLO un JSON con una paleta de 3 colores hex armonicos que combinen con las imagenes para una landing page moderna: ' +
-        '{ "color_1": "#...", "color_2": "#...", "color_3": "#..." }. ' +
-        'color_1 el principal/mas vibrante, color_2 secundario, color_3 acento. ' +
-        'Que sean colores que se vean bien en botones y degradados sobre fondo claro. Sin markdown ni texto extra.'
+        'Analiza las fotos del producto digital "' + nombre + '" y devuelve SOLO un JSON con una paleta OSCURA cinematografica coherente con el producto: ' +
+        '{ "bg": "#...", "bg2": "#...", "ink": "#...", "ink_dim": "#...", "brand": "#...", "brand_bright": "#...", "accent": "#..." }. ' +
+        'Reglas: bg = fondo muy oscuro (casi negro con tinte del color dominante); bg2 = fondo secundario un poco mas claro; ' +
+        'ink = texto claro (casi blanco con leve tinte); ink_dim = texto tenue/gris; brand = color principal del producto; ' +
+        'brand_bright = version brillante del brand; accent = color de acento que contraste. ' +
+        'Pensado para landing premium sobre fondo oscuro. Sin markdown ni texto extra.'
     }
   ];
 
@@ -105,7 +157,7 @@ async function obtenerPaletaColores(nombre, imagenes, anthropicKey) {
       },
       body: JSON.stringify({
         model: CLAUDE_MODEL,
-        max_tokens: 300,
+        max_tokens: 400,
         messages: [{ role: 'user', content: content }]
       })
     });
@@ -113,39 +165,117 @@ async function obtenerPaletaColores(nombre, imagenes, anthropicKey) {
     if (!res.ok) {
       const errText = await res.text().catch(function () { return ''; });
       console.warn('[generar-pagina] Claude vision HTTP ' + res.status + ':', errText.slice(0, 200));
-      return { ...DEFAULT_COLORS };
+      return { ...DEFAULT_PALETTE };
     }
 
     const data = await res.json();
     const raw  = (data.content || []).filter(function (b) { return b.type === 'text'; }).map(function (b) { return b.text; }).join('');
-    const parsed = JSON.parse(limpiarJSON(raw));
-
-    return {
-      color_1: parsed.color_1 || DEFAULT_COLORS.color_1,
-      color_2: parsed.color_2 || DEFAULT_COLORS.color_2,
-      color_3: parsed.color_3 || DEFAULT_COLORS.color_3
-    };
+    return normalizarPaleta(JSON.parse(limpiarJSON(raw)));
   } catch (e) {
     console.warn('[generar-pagina] Claude vision fallo:', e.message);
-    return { ...DEFAULT_COLORS };
+    return { ...DEFAULT_PALETTE };
   }
 }
 
-async function generarTextosGroq(nombre, descripcion, groqKey) {
-  const fallback = {
-    descripcion_corta: String(descripcion || nombre).slice(0, 160),
-    descripcion_larga: String(descripcion || nombre)
+function buildFallbackTextos(nombre, descripcion, categoria) {
+  const nom = String(nombre || 'Tu producto').trim();
+  const desc = String(descripcion || nom).trim();
+  const tipo = categoriaTipo(categoria);
+  const catLbl = categoriaLabel(categoria);
+
+  return {
+    eyebrow: catLbl.toUpperCase() + ' · ACCESO DIGITAL',
+    titulo_hero: nom,
+    titulo_hero_accent: 'listo para usar',
+    hero_lead: desc.slice(0, 220) || ('Accede a ' + nom + ' al instante. Compra segura, entrega automatica y acceso inmediato desde cualquier dispositivo.'),
+    pain_titulo: 'Vender ' + tipo + ' por tu cuenta es mas dificil de lo que parece',
+    pain_1_titulo: 'Demasiado tiempo en lo tecnico',
+    pain_1_texto: 'Crear la pagina, configurar pagos y proteger el acceso puede llevar dias o semanas.',
+    pain_2_titulo: 'Sin trafico, sin ventas',
+    pain_2_texto: 'Aunque el producto sea bueno, llegar solo a compradores es lento y agotador.',
+    pain_3_titulo: 'Herramientas que no escalan',
+    pain_3_texto: 'Plataformas genericas cobran mensualidades y no estan pensadas para activos digitales.',
+    transform_titulo: 'Lo que logras con ' + nom,
+    transform_desc: 'Un activo digital listo para vender, con pagina profesional, entrega segura y acceso inmediato para tu comprador.',
+    transform_1_titulo: 'Acceso inmediato',
+    transform_1_texto: 'Tu comprador recibe su producto al instante, sin friccion ni registros innecesarios.',
+    transform_2_titulo: 'Pagina de venta profesional',
+    transform_2_texto: 'Una experiencia premium que transmite valor y convierte visitas en compras.',
+    transform_3_titulo: 'Entrega protegida',
+    transform_3_texto: 'Cada compra genera un acceso unico y seguro para proteger tu contenido.',
+    transform_4_titulo: 'Listo para escalar',
+    transform_4_texto: 'Tu producto puede promocionarse en red y venderse las 24 horas del dia.',
+    incluye_titulo: 'Que incluye tu compra',
+    incluye_1_titulo: 'Acceso completo a ' + nom,
+    incluye_1_texto: 'Todo el contenido del ' + tipo + ' disponible de inmediato tras la compra.',
+    incluye_2_titulo: 'Pagina de entrega personal',
+    incluye_2_texto: 'Un enlace unico con tu codigo de acceso para volver cuando quieras.',
+    incluye_3_titulo: 'Entrega digital segura',
+    incluye_3_texto: 'Descarga o uso online protegido, sin compartir archivos por email.',
+    incluye_4_titulo: 'Soporte de la plataforma',
+    incluye_4_texto: 'Infraestructura de Ecommerce Agents para una experiencia fluida.',
+    formato_titulo: 'Como recibes el producto',
+    formato_desc: 'Compra, accede y usa. Todo el flujo esta automatizado para que empieces en minutos.',
+    pilar_1_titulo: 'Compra instantanea',
+    pilar_1_texto: 'Pago rapido sin crear cuenta. Acceso en segundos.',
+    pilar_2_titulo: 'Acceso protegido',
+    pilar_2_texto: 'Tu compra queda vinculada a un codigo unico de acceso.',
+    pilar_3_titulo: 'Disponible 24/7',
+    pilar_3_texto: 'Entra cuando quieras desde cualquier dispositivo.',
+    para_quien_titulo: 'Para quien es ' + nom,
+    para_quien_1: 'Personas que buscan resultados concretos sin perder tiempo.',
+    para_quien_2: 'Compradores que valoran acceso inmediato y entrega digital segura.',
+    para_quien_3: 'Quienes prefieren una solucion lista en lugar de armar todo desde cero.',
+    para_quien_4: 'Usuarios que quieren un ' + tipo + ' practico, claro y accionable.',
+    pullquote: 'Tu conocimiento merece convertirse en un activo que trabaje por ti.',
+    pullquote_cite: 'Activos Digitales',
+    cta_titulo: 'Obtén acceso a ' + nom,
+    cta_subtitulo: 'Compra segura, entrega automatica y acceso inmediato a tu ' + tipo + '.'
   };
+}
+
+function textosToMarkers(textos) {
+  const map = {};
+  TEXT_KEYS.forEach(function (key) {
+    map[key.toUpperCase()] = String(textos[key] != null ? textos[key] : '');
+  });
+  return map;
+}
+
+function mergeTextos(parsed, fallback) {
+  const out = { ...fallback };
+  TEXT_KEYS.forEach(function (key) {
+    if (parsed && parsed[key] != null && String(parsed[key]).trim()) {
+      out[key] = String(parsed[key]).trim();
+    }
+  });
+  return out;
+}
+
+async function generarTextosGroq(nombre, descripcion, categoria, groqKey) {
+  const fallback = buildFallbackTextos(nombre, descripcion, categoria);
 
   if (!groqKey) {
-    console.warn('[generar-pagina] Sin GROQ_API_KEY — descripcion original');
+    console.warn('[generar-pagina] Sin GROQ_API_KEY — textos fallback');
     return fallback;
   }
 
+  const catLbl = categoriaLabel(categoria);
+  const keysJson = TEXT_KEYS.map(function (k) { return '"' + k + '"'; }).join(', ');
+
   const prompt =
-    'Genera textos persuasivos de alta conversion en espanol para la pagina de venta del producto "' + nombre + '" con descripcion: "' + descripcion + '". ' +
-    'Devuelve SOLO un JSON con: { "descripcion_corta": "...", "descripcion_larga": "..." }. ' +
-    'descripcion_corta = 1-2 frases gancho; descripcion_larga = parrafo persuasivo de que incluye y beneficios. Sin markdown.';
+    'Genera textos persuasivos de alta conversion en espanol para la pagina de venta del producto digital "' + nombre + '".\n' +
+    'Categoria: ' + catLbl + '.\n' +
+    'Descripcion del creador: "' + (descripcion || nombre) + '".\n\n' +
+    'Devuelve SOLO un JSON con exactamente estas claves: ' + keysJson + '.\n\n' +
+    'Reglas:\n' +
+    '- Tono startup tech, premium, energetico, adaptado a la categoria.\n' +
+    '- NO inventes estadisticas, cifras de ventas ni testimonios de personas reales.\n' +
+    '- pullquote: frase inspiradora sobre el TEMA del producto (no cita de persona inventada).\n' +
+    '- pullquote_cite: solo "Activos Digitales" o el nombre del producto, nunca un nombre de persona falso.\n' +
+    '- titulo_hero_accent: frase corta (2-4 palabras) para degradado junto al titulo.\n' +
+    '- Textos concisos: titulos cortos, parrafos de 1-2 frases.\n' +
+    'Sin markdown.';
 
   try {
     const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -157,8 +287,8 @@ async function generarTextosGroq(nombre, descripcion, groqKey) {
       body: JSON.stringify({
         model: GROQ_MODEL,
         messages: [{ role: 'user', content: prompt }],
-        max_tokens: 800,
-        temperature: 0.75
+        max_tokens: 4500,
+        temperature: 0.72
       })
     });
 
@@ -169,20 +299,41 @@ async function generarTextosGroq(nombre, descripcion, groqKey) {
     }
 
     const parsed = JSON.parse(limpiarJSON(data.choices[0].message.content || ''));
-    return {
-      descripcion_corta: parsed.descripcion_corta || fallback.descripcion_corta,
-      descripcion_larga: parsed.descripcion_larga || fallback.descripcion_larga
-    };
+    return mergeTextos(parsed, fallback);
   } catch (e) {
     console.warn('[generar-pagina] Groq fallo:', e.message);
     return fallback;
   }
 }
 
-function tipoProductoLabel(tipo) {
-  const t = String(tipo || '').toLowerCase();
-  if (t.includes('pdf')) return 'Mini App + PDF';
-  return 'Mini App';
+/**
+ * Valida HTML de pagina de venta Activos Digitales (template pro v1).
+ * @returns {{ ok: boolean, tipo: string, errors: string[] }}
+ */
+function parsePaginaVentaDb(html) {
+  const src = String(html || '');
+  const errors = [];
+
+  const esActivosV1 = src.includes('<!--activos-venta-template-v1-->') && src.includes('activos-venta-landing');
+  const esLegacy    = src.includes('TEMPLATE DE PAGINA DE VENTA') || (src.includes('{{COLOR_1}}') === false && src.includes('--blue:'));
+
+  if (esActivosV1) {
+    if (!src.includes('btn-comprar-ea')) errors.push('Falta boton btn-comprar-ea');
+    if (!src.includes('data-comprar')) errors.push('Falta atributo data-comprar');
+    const leftover = src.match(/\{\{[A-Z0-9_]+\}\}/g);
+    if (leftover && leftover.length) {
+      errors.push('Marcadores sin rellenar: ' + [...new Set(leftover)].join(', '));
+    }
+    return { ok: errors.length === 0, tipo: 'activos-v1', errors };
+  }
+
+  if (esLegacy) {
+    if (!src.includes('btn-comprar-ea')) errors.push('Falta boton btn-comprar-ea');
+    return { ok: errors.length === 0, tipo: 'legacy-miniapp', errors };
+  }
+
+  if (!src.includes('btn-comprar-ea')) errors.push('Falta boton btn-comprar-ea');
+  return { ok: errors.length === 0, tipo: 'unknown', errors };
 }
 
 /**
@@ -198,10 +349,10 @@ async function generarPaginaVentaMiniapp(miniapp, opts) {
 
   const baseUrl = publicBaseUrl || 'https://motor.ecommerceagents.store';
   const paginaSlug = miniapp.pagina_venta_slug || ('app-' + miniapp.slug);
+  const categoria = miniapp.categoria || 'miniapp';
 
-  console.log('[generar-pagina] Iniciando miniapp=' + miniapp.slug + ' pagina=' + paginaSlug);
+  console.log('[generar-pagina] Iniciando slug=' + miniapp.slug + ' pagina=' + paginaSlug + ' cat=' + categoria);
 
-  // 1. Fotos desde R2
   const imagenes = [];
   if (miniapp.foto1_key) {
     const img1 = await leerImagenBase64(miniapp.foto1_key);
@@ -212,17 +363,14 @@ async function generarPaginaVentaMiniapp(miniapp, opts) {
     if (img2) imagenes.push(img2);
   }
 
-  // 2. Paleta Claude Vision
-  const colores = await obtenerPaletaColores(miniapp.nombre, imagenes, anthropicKey);
-
-  // 3. Textos Groq
+  const paleta = await obtenerPaletaColores(miniapp.nombre, imagenes, anthropicKey);
   const textos = await generarTextosGroq(
     miniapp.nombre,
     miniapp.descripcion || '',
+    categoria,
     groqKey
   );
 
-  // 4. Template
   if (!fs.existsSync(TEMPLATE_PATH)) {
     throw new Error('No se encontro el template en ' + TEMPLATE_PATH);
   }
@@ -231,45 +379,35 @@ async function generarPaginaVentaMiniapp(miniapp, opts) {
   const precioNormal = Number(miniapp.precio) || 0;
   const promoRaw     = Number(miniapp.precio_promocion);
   const hasPromo     = Number.isFinite(promoRaw) && promoRaw > 0 && promoRaw < precioNormal;
-  const precioPromo  = hasPromo ? promoRaw : precioNormal;
-  const descuentoPct = hasPromo && precioNormal > 0
-    ? Math.round((precioNormal - precioPromo) / precioNormal * 100)
-    : 0;
+  const precioVenta  = hasPromo ? promoRaw : precioNormal;
 
   const foto1Url = baseUrl + '/api/miniapps/asset/' + encodeURIComponent(miniapp.slug) + '/foto1';
   const foto2Url = miniapp.foto2_key
     ? baseUrl + '/api/miniapps/asset/' + encodeURIComponent(miniapp.slug) + '/foto2'
-    : '';
+    : foto1Url;
 
-  const c1 = colores.color_1;
-  const c2 = colores.color_2;
-  const c3 = colores.color_3;
+  const markers = Object.assign(
+    {},
+    paletaToMarkers(paleta),
+    textosToMarkers(textos),
+    {
+      NOMBRE:           miniapp.nombre,
+      PRECIO:           fmtPrecioUsd(precioVenta),
+      PRECIO_ANTES:     hasPromo ? fmtPrecioUsd(precioNormal) : '',
+      FOTO1_URL:        foto1Url,
+      FOTO2_URL:        foto2Url,
+      CHECKOUT_URL:     '/checkout?slug=' + encodeURIComponent(paginaSlug),
+      CATEGORIA_LABEL:  categoriaLabel(categoria)
+    }
+  );
 
-  html = replaceAll(html, {
-    NOMBRE:            miniapp.nombre,
-    DESCRIPCION:       textos.descripcion_larga,
-    DESCRIPCION_CORTA: textos.descripcion_corta,
-    PRECIO_NORMAL:     fmtPrecio(precioNormal),
-    PRECIO_PROMO:      fmtPrecio(precioPromo),
-    DESCUENTO_PCT:     String(descuentoPct),
-    FOTO1_URL:         foto1Url,
-    FOTO2_URL:         foto2Url,
-    CREADOR:           miniapp.creador_nombre || 'Creador',
-    TIPO:              tipoProductoLabel(miniapp.tipo_producto),
-    CHECKOUT_URL:      '/checkout?slug=' + encodeURIComponent(paginaSlug),
-    SLUG:              miniapp.slug,
-    COLOR_1:           c1,
-    COLOR_2:           c2,
-    COLOR_3:           c3,
-    GRAD_SOFT_1:       hexToRgba(c1, 0.12),
-    GRAD_SOFT_2:       hexToRgba(c2, 0.12),
-    GRAD_SOFT_3:       hexToRgba(c3, 0.12)
-  });
+  html = replaceAll(html, markers);
 
-  html = processConditionalBlock(html, 'FOTO2', !!miniapp.foto2_key);
-  html = processConditionalBlock(html, 'IA', !!miniapp.usa_ia);
+  const validacion = parsePaginaVentaDb(html);
+  if (!validacion.ok) {
+    console.warn('[generar-pagina] Validacion pagina:', validacion.errors.join('; '));
+  }
 
-  // 5. Guardar en paginas_venta
   const { data: existing, error: findErr } = await supabase
     .from('paginas_venta')
     .select('id')
@@ -300,17 +438,16 @@ async function generarPaginaVentaMiniapp(miniapp, opts) {
     console.log('[generar-pagina] Pagina creada slug=' + paginaSlug);
   }
 
-  // 6. Vincular slug en miniapps (columna pagina_venta_slug)
   const { error: linkErr } = await supabase
     .from('miniapps')
     .update({ pagina_venta_slug: paginaSlug })
     .eq('id', miniapp.id);
 
   if (linkErr) {
-    console.warn('[generar-pagina] No se pudo guardar pagina_venta_slug (¿falta columna en Supabase?):', linkErr.message);
+    console.warn('[generar-pagina] No se pudo guardar pagina_venta_slug:', linkErr.message);
   }
 
   return { ok: true, pagina_slug: paginaSlug };
 }
 
-module.exports = { generarPaginaVentaMiniapp };
+module.exports = { generarPaginaVentaMiniapp, parsePaginaVentaDb };
