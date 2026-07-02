@@ -3736,16 +3736,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;ba
 .hero h1{font-size:24px;font-weight:800;line-height:1.25;margin-bottom:8px}
 .hero p{font-size:14px;color:var(--slate);line-height:1.5}
 .price{font-size:32px;font-weight:800;background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin-top:14px}
-.body{padding:24px}
-.field{margin-bottom:16px;text-align:left}
-.field label{display:block;font-size:13px;font-weight:600;color:var(--ink);margin-bottom:6px}
-.field input{width:100%;border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:15px;font-family:inherit;color:var(--ink);background:#fff}
-.field input:focus{outline:none;border-color:var(--c2);box-shadow:0 0 0 3px rgba(124,58,237,.12)}
-.btn{width:100%;border:none;border-radius:14px;padding:16px 20px;font-size:17px;font-weight:800;color:#fff;background:var(--grad);cursor:pointer;box-shadow:0 12px 32px rgba(124,58,237,.28);transition:transform .15s,filter .15s}
-.btn:hover{transform:translateY(-2px);filter:brightness(1.04)}
-.btn:disabled{opacity:.65;cursor:not-allowed;transform:none}
-.note{margin-top:14px;font-size:12.5px;color:var(--slate);text-align:center;line-height:1.55}
-.err{color:var(--err);font-size:13px;margin-top:12px;padding:10px 12px;background:#fef5f5;border:1px solid #f5c6c6;border-radius:10px;display:none}
+.co-card-body{padding:24px}
+.co-field{margin-bottom:16px;text-align:left}
+.co-field label{display:block;font-size:13px;font-weight:600;color:var(--ink);margin-bottom:6px}
+.co-field input{width:100%;border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:15px;font-family:inherit;color:var(--ink);background:#fff}
+.co-field input:focus{outline:none;border-color:var(--c2);box-shadow:0 0 0 3px rgba(124,58,237,.12)}
+#co-pay-err{display:none;color:var(--err);font-size:13px;margin-bottom:12px;padding:10px 12px;background:#fef5f5;border:1px solid #f5c6c6;border-radius:10px;text-align:left}
+#co-btn-pagar{width:100%;border:none;border-radius:14px;padding:16px 20px;font-size:17px;font-weight:800;color:#fff;background:var(--grad);cursor:pointer;box-shadow:0 12px 32px rgba(124,58,237,.28);transition:transform .15s,filter .15s}
+#co-btn-pagar:hover{transform:translateY(-2px);filter:brightness(1.04)}
+#co-btn-pagar:disabled{opacity:.65;cursor:not-allowed;transform:none}
+.co-note{margin-top:14px;font-size:12.5px;color:var(--slate);text-align:center;line-height:1.55}
 .load{text-align:center;padding:48px 16px;color:var(--slate)}
 .spin{width:28px;height:28px;border:2.5px solid var(--line);border-top-color:var(--c2);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 12px}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -3762,73 +3762,117 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;ba
       <p>Acceso digital instantaneo. Sin envio.</p>
       <div class="price" id="precio">—</div>
     </div>
-    <div class="body">
-      <div class="field">
+    <div class="co-card-body">
+      <div class="co-field">
         <label for="co-email">Tu email (para enviarte tu acceso)</label>
         <input type="email" id="co-email" name="email" autocomplete="email" placeholder="tu@email.com" required />
       </div>
-      <button type="button" id="btn-pagar" class="btn">Pagar —</button>
-      <p class="note">Al pagar recibes tu enlace personal y acceso inmediato a tu producto digital.</p>
-      <p id="err" class="err"></p>
+      <p id="co-pay-err" role="alert"></p>
+      <button type="button" id="co-btn-pagar">Pagar —</button>
+      <p class="co-note">Al pagar recibes tu enlace personal y acceso inmediato a tu producto digital.</p>
     </div>
   </div>
 </div>
 <script>
 var _slug='', _ref='', _precio=0;
-(function(){
-  var p=new URLSearchParams(location.search);
-  _slug=p.get('slug')||'';
-  _ref=p.get('ref')||'';
-  if(!_slug){document.getElementById('load').innerHTML='<p style="color:#c0392b">Enlace invalido.</p>';return;}
-  fetch('/api/checkout/info?slug='+encodeURIComponent(_slug))
-    .then(function(r){return r.json();})
-    .then(function(d){
-      document.getElementById('load').style.display='none';
-      if(!d.ok){document.getElementById('load').style.display='block';document.getElementById('load').innerHTML='<p style="color:#c0392b">'+(d.error||'Producto no disponible.')+'</p>';return;}
-      _precio=d.precio||0;
-      var accent=(d.color_principal&&/^#[0-9a-fA-F]{6}$/.test(d.color_principal))?d.color_principal:'#2f86ff';
-      document.documentElement.style.setProperty('--c1',accent);
-      document.getElementById('nombre').textContent=d.nombre_producto||'Mini app';
-      var fmt=_precio>0?'$'+Number(_precio).toLocaleString('en-US'):'Gratis';
-      document.getElementById('precio').textContent=fmt;
-      document.getElementById('btn-pagar').textContent='Pagar '+fmt+' (prueba)';
-      var iw=document.getElementById('img-wrap');
-      if(d.imagen){var img=document.createElement('img');img.src=d.imagen;img.alt=d.nombre_producto||'';iw.appendChild(img);}
-      document.getElementById('card').style.display='block';
-    })
-    .catch(function(){document.getElementById('load').innerHTML='<p style="color:#c0392b">Error al cargar.</p>';});
-})();
-document.getElementById('btn-pagar').addEventListener('click',function(){
-  var btn=this, err=document.getElementById('err');
-  var emailEl=document.getElementById('co-email');
-  var email=emailEl?String(emailEl.value||'').trim():'';
-  err.style.display='none';
-  if(!email||!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)){
-    err.textContent='Email requerido.';
-    err.style.display='block';
-    if(emailEl)emailEl.focus();
+
+function _coEmailOk(v) {
+  var s = String(v || '').trim();
+  var at = s.indexOf('@');
+  return at > 0 && s.indexOf('.', at) > at + 1 && s.indexOf(' ') === -1;
+}
+
+function _coFmtPrecio() {
+  return _precio > 0 ? '$' + Number(_precio).toLocaleString('en-US') : 'Gratis';
+}
+
+function _coMostrarErr(msg) {
+  var err = document.getElementById('co-pay-err');
+  if (!err) return;
+  err.textContent = msg || '';
+  err.style.display = msg ? 'block' : 'none';
+}
+
+function _coPagarClick() {
+  var btn = document.getElementById('co-btn-pagar');
+  var emailEl = document.getElementById('co-email');
+  var email = emailEl ? String(emailEl.value || '').trim() : '';
+  _coMostrarErr('');
+  if (!_coEmailOk(email)) {
+    _coMostrarErr('Email requerido.');
+    if (emailEl) emailEl.focus();
     return;
   }
-  btn.disabled=true;
-  btn.textContent='Procesando...';
-  fetch('/api/miniapp/comprar-prueba',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({slug_pagina:_slug,ref:_ref||undefined,email:email})
+  if (!btn || btn.disabled) return;
+  btn.disabled = true;
+  btn.textContent = 'Procesando...';
+  fetch('/api/miniapp/comprar-prueba', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ slug_pagina: _slug, ref: _ref || undefined, email: email })
   })
-    .then(function(r){return r.json();})
-    .then(function(d){
-      if(!d.ok)throw new Error(d.error||'No se pudo completar la compra.');
-      if(d.link_unico)location.href=d.link_unico;
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d.ok) throw new Error(d.error || 'No se pudo completar la compra.');
+      if (d.link_unico) location.href = d.link_unico;
       else throw new Error('Respuesta invalida del servidor.');
     })
-    .catch(function(e){
-      err.textContent=e.message;
-      err.style.display='block';
-      btn.disabled=false;
-      btn.textContent='Pagar '+(_precio>0?'$'+Number(_precio).toLocaleString('en-US'):'Gratis')+' (prueba)';
+    .catch(function (e) {
+      _coMostrarErr(e.message || 'Error al procesar la compra.');
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'Pagar ' + _coFmtPrecio() + ' (prueba)';
+      }
     });
-});
+}
+
+function _coBindPagar() {
+  var btn = document.getElementById('co-btn-pagar');
+  if (!btn || btn.dataset.coBound === '1') return;
+  btn.dataset.coBound = '1';
+  btn.addEventListener('click', _coPagarClick);
+}
+
+(function () {
+  var p = new URLSearchParams(location.search);
+  _slug = p.get('slug') || '';
+  _ref = p.get('ref') || '';
+  _coBindPagar();
+  if (!_slug) {
+    document.getElementById('load').innerHTML = '<p style="color:#c0392b">Enlace invalido.</p>';
+    return;
+  }
+  fetch('/api/checkout/info?slug=' + encodeURIComponent(_slug))
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      document.getElementById('load').style.display = 'none';
+      if (!d.ok) {
+        document.getElementById('load').style.display = 'block';
+        document.getElementById('load').innerHTML = '<p style="color:#c0392b">' + (d.error || 'Producto no disponible.') + '</p>';
+        return;
+      }
+      _precio = d.precio || 0;
+      var accent = (d.color_principal && /^#[0-9a-fA-F]{6}$/.test(d.color_principal)) ? d.color_principal : '#2f86ff';
+      document.documentElement.style.setProperty('--c1', accent);
+      document.getElementById('nombre').textContent = d.nombre_producto || 'Mini app';
+      var fmt = _coFmtPrecio();
+      document.getElementById('precio').textContent = fmt;
+      var btn = document.getElementById('co-btn-pagar');
+      if (btn) btn.textContent = 'Pagar ' + fmt + ' (prueba)';
+      var iw = document.getElementById('img-wrap');
+      if (d.imagen) {
+        var img = document.createElement('img');
+        img.src = d.imagen;
+        img.alt = d.nombre_producto || '';
+        iw.appendChild(img);
+      }
+      document.getElementById('card').style.display = 'block';
+      _coBindPagar();
+    })
+    .catch(function () {
+      document.getElementById('load').innerHTML = '<p style="color:#c0392b">Error al cargar.</p>';
+    });
+})();
 </script>
 </body>
 </html>`);
