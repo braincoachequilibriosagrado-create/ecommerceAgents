@@ -8,7 +8,7 @@ const CR_EMAIL_KEY = 'ea_creador_last_email';
 const CR_REMEMBER_PREF_KEY = 'ea_creador_remember';
 const CR_TABS = ['cuentas', 'catalogo', 'subir', 'info', 'contactar'];
 const CR_SOPORTE_WHATSAPP = '393246864824';
-const CR_SOPORTE_EMAIL = 'soporte@ecommerceagents.store';
+const CR_SOPORTE_EMAIL = 'ecommerceagentadmi@gmail.com';
 const CR_SOPORTE_WA_MSG = 'Hola, soy creador en MiniApps y necesito ayuda con...';
 
 var currentCreador = { id: null, nombre: '', email: '' };
@@ -876,14 +876,16 @@ async function cargarCatalogoCreador() {
       var estado = (m.estado_aprobacion || 'pendiente').toLowerCase();
       var paginaHtml = '';
       if (estado === 'aprobada' && m.pagina_venta_slug) {
-        var pagLink = MOTOR_URL + '/p/' + m.pagina_venta_slug;
+        var ownerLink = MOTOR_URL + '/p/' + m.pagina_venta_slug;
         paginaHtml =
-          '<div class="cr-catalogo-pagina">' +
-            '<span class="cr-catalogo-pagina-lbl">Pagina de venta</span>' +
+          '<div class="cr-catalogo-link-dueno">' +
+            '<span class="cr-catalogo-link-dueno-lbl">Tu link directo (sin comision a vendedores)</span>' +
+            '<p class="cr-catalogo-link-dueno-hint">Comparte este enlace para vender directo. Recibes el 90%, sin comision a vendedores.</p>' +
             '<div class="cr-catalogo-pagina-row">' +
-              '<a class="cr-catalogo-link" href="' + _esc(pagLink) + '" target="_blank" rel="noopener noreferrer">' + _esc(pagLink) + '</a>' +
-              '<button type="button" class="cr-btn-copy" data-copy-url="' + _esc(pagLink) + '">Copiar</button>' +
+              '<a class="cr-catalogo-link" href="' + _esc(ownerLink) + '" target="_blank" rel="noopener noreferrer">' + _esc(ownerLink) + '</a>' +
+              '<button type="button" class="cr-btn-copy" data-copy-url="' + _esc(ownerLink) + '">Copiar</button>' +
             '</div>' +
+            '<p class="cr-catalogo-vendedores-note">Los vendedores usan su propio link con <code>?ref=</code> para ganar comision.</p>' +
           '</div>';
       }
 

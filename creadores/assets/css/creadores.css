@@ -1671,6 +1671,45 @@ body {
   align-items: flex-start;
 }
 
+.cr-catalogo-link-dueno {
+  margin-top: 12px;
+  padding: 12px;
+  background: rgba(79, 70, 229, 0.06);
+  border: 1px solid rgba(79, 70, 229, 0.16);
+  border-radius: 10px;
+}
+
+.cr-catalogo-link-dueno-lbl {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--c-indigo);
+  margin-bottom: 6px;
+}
+
+.cr-catalogo-link-dueno-hint {
+  font-size: 12px;
+  color: var(--cr-muted);
+  line-height: 1.45;
+  margin: 0 0 10px;
+}
+
+.cr-catalogo-vendedores-note {
+  margin: 10px 0 0;
+  font-size: 11px;
+  color: var(--cr-muted);
+  line-height: 1.4;
+}
+
+.cr-catalogo-vendedores-note code {
+  font-size: 10px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.05);
+}
+
 .cr-catalogo-pagina {
   margin-top: 12px;
   padding-top: 12px;

@@ -1957,6 +1957,8 @@ app.post('/api/creador/login', authRateLimiter, async (req, res) => {
 
 const CREADOR_PARTE_PLATAFORMA_DEFAULT = 10;
 const MINIAPP_PLATAFORMA_PCT = 10;
+/** ref=directo (venta del dueño / creador): sin vendedor, reparto 90% creador / 10% plataforma */
+const REF_VENTA_DIRECTA = 'DIRECTO';
 
 function _roundMoney(n) {
   return Math.round(Number(n) * 100) / 100;
@@ -2028,6 +2030,9 @@ async function _resolverRefVendedorCompra(ref) {
   const refRaw = String(ref || '').trim();
   if (!refRaw) return { vendedor_id: null, ref_vendedor: null };
   const refUpper = refRaw.toUpperCase();
+  if (refUpper === REF_VENTA_DIRECTA) {
+    return { vendedor_id: null, ref_vendedor: null };
+  }
   const { data: vend, error } = await supabase
     .from('usuarios')
     .select('id, codigo')
