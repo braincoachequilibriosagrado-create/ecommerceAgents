@@ -1030,6 +1030,32 @@ var PUBLIC_BASE_URL = MOTOR_URL; // misma base; cambiar junto con MOTOR_URL cuan
 
 // Cache en memoria para no recargar en cada re-render dentro de la misma sesión
 var _usrCache = null;
+var _crdCache = null;
+var _usrSubTab = 'vendedores';
+
+function usrSwitchSubTab(tab) {
+  _usrSubTab = tab === 'creadores' ? 'creadores' : 'vendedores';
+  ['vendedores', 'creadores'].forEach(function (t) {
+    var btn = document.getElementById('usr-subtab-btn-' + t);
+    var panel = document.getElementById('usr-subpanel-' + t);
+    var active = t === _usrSubTab;
+    if (btn) btn.classList.toggle('active', active);
+    if (panel) panel.hidden = !active;
+  });
+  if (_usrSubTab === 'creadores') {
+    if (_crdCache) _crdRenderTabla(_crdCache);
+    else _crdLoadTabla();
+  }
+}
+
+function _usrRenderSummary(vendedores, creadores) {
+  var vCount = vendedores ? vendedores.length : 0;
+  var cCount = creadores ? creadores.length : 0;
+  _setHtml('usr-summary-row',
+    _statCard(vCount, 'Total vendedores') +
+    _statCard(cCount, 'Total creadores')
+  );
+}
 
 function usrCopiar(texto) {
   if (navigator.clipboard) {
@@ -1042,15 +1068,6 @@ function usrCopiar(texto) {
 }
 
 function _usrRenderTabla(arr) {
-  var activos      = arr.filter(function (u) { return u.activo; }).length;
-  var desactivados = arr.length - activos;
-
-  _setHtml('usr-summary-row',
-    _statCard(arr.length, 'Total usuarios') +
-    _statCard('<span style="color:#2E7D50">' + activos + '</span>', 'Activos') +
-    _statCard(desactivados, 'Desactivados')
-  );
-
   var rows = arr.map(function (u, idx) {
     var estadoCls = u.activo ? 'adm-badge--ok'   : 'adm-badge--inactivo';
     var estadoTxt = u.activo ? 'Activo'           : 'Desactivado';
@@ -1078,6 +1095,109 @@ function _usrRenderTabla(arr) {
     '</tr></thead>' +
     '<tbody>' + rows + '</tbody></table>'
   );
+}
+
+function _crdRenderTabla(arr) {
+  if (!arr || !arr.length) {
+    _setHtml('crd-table-wrap',
+      '<table class="adm-table"><thead><tr>' +
+      '<th class="adm-th-n">N</th><th>Nombre</th><th>Email</th><th>Productos</th><th>Estado</th><th>Accion</th>' +
+      '</tr></thead><tbody><tr><td colspan="6" class="adm-td-muted" style="padding:24px;text-align:center;">No hay creadores registrados.</td></tr></tbody></table>'
+    );
+    return;
+  }
+  var rows = arr.map(function (c, idx) {
+    var activo = String(c.estado || '').toLowerCase() === 'activo';
+    var estadoCls = activo ? 'adm-badge--ok' : 'adm-badge--inactivo';
+    var estadoTxt = activo ? 'Activo' : 'Inactivo';
+    var toggleTxt = activo ? 'Desactivar' : 'Activar';
+    var toggleCls = activo ? 'adm-btn--danger' : 'adm-btn--success';
+    return '<tr id="crd-row-' + _esc(c.id) + '">' +
+      '<td class="adm-td-muted adm-td-n">' + (idx + 1) + '</td>' +
+      '<td><span class="adm-usr-name">' + _esc(c.nombre || '—') + '</span></td>' +
+      '<td>' + _esc(c.email || '') + '</td>' +
+      '<td class="adm-td-muted">' + (Number(c.num_productos) || 0) + '</td>' +
+      '<td><span class="adm-badge ' + estadoCls + '" id="crd-badge-' + _esc(c.id) + '">' + estadoTxt + '</span></td>' +
+      '<td><button type="button" class="adm-btn adm-btn--sm ' + toggleCls + '" id="crd-btn-' + _esc(c.id) + '" onclick="crdToggle(\'' + _esc(c.id) + '\',' + (activo ? 'true' : 'false') + ')">' + toggleTxt + '</button></td>' +
+    '</tr>';
+  }).join('');
+
+  _setHtml('crd-table-wrap',
+    '<table class="adm-table">' +
+    '<thead><tr>' +
+      '<th class="adm-th-n">N</th>' +
+      '<th>Nombre</th>' +
+      '<th>Email</th>' +
+      '<th>Productos</th>' +
+      '<th>Estado</th>' +
+      '<th>Accion</th>' +
+    '</tr></thead>' +
+    '<tbody>' + rows + '</tbody></table>'
+  );
+}
+
+function _crdLoadTabla() {
+  _setHtml('crd-table-wrap', '<p style="padding:24px;color:#999;font-style:italic;">Cargando creadores...</p>');
+  return _adminFetch(MOTOR_URL + '/api/admin/creadores')
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (!data.ok) throw new Error(data.error || 'Error del servidor.');
+      _crdCache = data.creadores || [];
+      _crdRenderTabla(_crdCache);
+      _usrRenderSummary(_usrCache, _crdCache);
+      return _crdCache;
+    })
+    .catch(function (e) {
+      console.error('[crdLoadTabla]', e);
+      _setHtml('crd-table-wrap',
+        '<div style="padding:32px 24px;text-align:center;">' +
+        '<p style="color:#c0392b;font-weight:600;margin-bottom:8px;">No se pudieron cargar los creadores.</p>' +
+        '<button class="adm-btn adm-btn--sm" style="margin-top:16px" onclick="_crdLoadTabla()">Reintentar</button>' +
+        '</div>'
+      );
+      throw e;
+    });
+}
+
+function crdToggle(cid, estaActivo) {
+  var endpoint = estaActivo ? '/api/admin/creadores/desactivar' : '/api/admin/creadores/activar';
+  var btn   = document.getElementById('crd-btn-'   + cid);
+  var badge = document.getElementById('crd-badge-' + cid);
+  if (btn) btn.disabled = true;
+
+  _adminFetch(MOTOR_URL + endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ creador_id: cid })
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (!data.ok) throw new Error(data.error || 'Error del servidor.');
+      var nuevoActivo = !estaActivo;
+      if (_crdCache) {
+        for (var i = 0; i < _crdCache.length; i++) {
+          if (_crdCache[i].id === cid) {
+            _crdCache[i].estado = nuevoActivo ? 'activo' : 'inactivo';
+            break;
+          }
+        }
+      }
+      if (badge) {
+        badge.className = 'adm-badge ' + (nuevoActivo ? 'adm-badge--ok' : 'adm-badge--inactivo');
+        badge.textContent = nuevoActivo ? 'Activo' : 'Inactivo';
+      }
+      if (btn) {
+        btn.disabled = false;
+        btn.className = 'adm-btn adm-btn--sm ' + (nuevoActivo ? 'adm-btn--danger' : 'adm-btn--success');
+        btn.textContent = nuevoActivo ? 'Desactivar' : 'Activar';
+        btn.setAttribute('onclick', 'crdToggle(\'' + cid + '\',' + (nuevoActivo ? 'true' : 'false') + ')');
+      }
+    })
+    .catch(function (e) {
+      console.error('[crdToggle]', e);
+      if (btn) btn.disabled = false;
+      alert('Error al cambiar estado: ' + e.message);
+    });
 }
 
 function usrToggle(uid, estaActivo) {
@@ -1113,7 +1233,7 @@ function usrToggle(uid, estaActivo) {
         btn.setAttribute('onclick', 'usrToggle(\'' + uid + '\',' + (nuevoActivo ? 'true' : 'false') + ')');
       }
       // Recalcular cards de resumen
-      if (_usrCache) _usrRenderSummary(_usrCache);
+      if (_usrCache) _usrRenderSummary(_usrCache, _crdCache);
     })
     .catch(function (e) {
       console.error('[usrToggle]', e);
@@ -1122,25 +1242,26 @@ function usrToggle(uid, estaActivo) {
     });
 }
 
-function _usrRenderSummary(arr) {
-  var activos      = arr.filter(function (u) { return u.activo; }).length;
-  var desactivados = arr.length - activos;
-  _setHtml('usr-summary-row',
-    _statCard(arr.length, 'Total usuarios') +
-    _statCard('<span style="color:#2E7D50">' + activos + '</span>', 'Activos') +
-    _statCard(desactivados, 'Desactivados')
-  );
-}
-
 function renderUsuarios() {
-  _setHtml('usr-table-wrap', '<p style="padding:24px;color:#999;font-style:italic;">Cargando usuarios de Supabase...</p>');
+  _usrSubTab = 'vendedores';
+  usrSwitchSubTab('vendedores');
+  _setHtml('usr-table-wrap', '<p style="padding:24px;color:#999;font-style:italic;">Cargando vendedores...</p>');
+  _setHtml('crd-table-wrap', '<p style="padding:24px;color:#999;font-style:italic;">Cargando creadores...</p>');
 
-  _adminFetch(MOTOR_URL + '/api/admin/usuarios')
-    .then(function (r) { return r.json(); })
-    .then(function (data) {
-      if (!data.ok) throw new Error(data.error || 'Error desconocido del servidor.');
-      _usrCache = data.usuarios;
+  Promise.all([
+    _adminFetch(MOTOR_URL + '/api/admin/usuarios').then(function (r) { return r.json(); }),
+    _adminFetch(MOTOR_URL + '/api/admin/creadores').then(function (r) { return r.json(); })
+  ])
+    .then(function (results) {
+      var vendData = results[0];
+      var crdData  = results[1];
+      if (!vendData.ok) throw new Error(vendData.error || 'Error al cargar vendedores.');
+      if (!crdData.ok) throw new Error(crdData.error || 'Error al cargar creadores.');
+      _usrCache = vendData.usuarios || [];
+      _crdCache = crdData.creadores || [];
+      _usrRenderSummary(_usrCache, _crdCache);
       _usrRenderTabla(_usrCache);
+      if (_usrSubTab === 'creadores') _crdRenderTabla(_crdCache);
     })
     .catch(function (e) {
       console.error('[renderUsuarios]', e);
@@ -1148,7 +1269,7 @@ function renderUsuarios() {
       _setHtml('usr-table-wrap',
         '<div style="padding:32px 24px;text-align:center;">' +
         '<p style="color:#c0392b;font-weight:600;margin-bottom:8px;">No se pudo conectar al servidor.</p>' +
-        '<p style="color:#888;font-size:13px;">Verifica que el motor este encendido en el puerto 3002 e intenta de nuevo.</p>' +
+        '<p style="color:#888;font-size:13px;">Verifica que el motor este encendido e intenta de nuevo.</p>' +
         '<button class="adm-btn adm-btn--sm" style="margin-top:16px" onclick="renderUsuarios()">Reintentar</button>' +
         '</div>'
       );

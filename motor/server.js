@@ -2997,6 +2997,83 @@ app.post('/api/admin/usuarios/desactivar', async (req, res) => {
   }
 });
 
+// ── Admin: Creadores ──────────────────────────────────────────────────────────
+
+// GET /api/admin/creadores
+app.get('/api/admin/creadores', async (req, res) => {
+  try {
+    const { data: creadores, error } = await supabase
+      .from('creadores')
+      .select('id, nombre, email, estado, creado_en')
+      .order('creado_en', { ascending: false });
+    if (error) throw error;
+
+    const ids = (creadores || []).map(function (c) { return c.id; });
+    const countMap = {};
+    if (ids.length) {
+      const { data: miniapps, error: mErr } = await supabase
+        .from('miniapps')
+        .select('creador_id')
+        .in('creador_id', ids);
+      if (mErr) throw mErr;
+      (miniapps || []).forEach(function (m) {
+        if (!m.creador_id) return;
+        countMap[m.creador_id] = (countMap[m.creador_id] || 0) + 1;
+      });
+    }
+
+    const rows = (creadores || []).map(function (c) {
+      return {
+        id:            c.id,
+        nombre:        c.nombre,
+        email:         c.email,
+        estado:        c.estado || 'inactivo',
+        creado_en:     c.creado_en,
+        num_productos: countMap[c.id] || 0
+      };
+    });
+
+    res.json({ ok: true, creadores: rows });
+  } catch (e) {
+    console.error('[admin/creadores]', e.message);
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
+  }
+});
+
+// POST /api/admin/creadores/activar
+app.post('/api/admin/creadores/activar', async (req, res) => {
+  const { creador_id } = req.body || {};
+  if (!creador_id) return res.status(400).json({ ok: false, error: 'Se requiere creador_id.' });
+  try {
+    const { error } = await supabase
+      .from('creadores')
+      .update({ estado: 'activo' })
+      .eq('id', creador_id);
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[admin/creadores/activar]', e.message);
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
+  }
+});
+
+// POST /api/admin/creadores/desactivar
+app.post('/api/admin/creadores/desactivar', async (req, res) => {
+  const { creador_id } = req.body || {};
+  if (!creador_id) return res.status(400).json({ ok: false, error: 'Se requiere creador_id.' });
+  try {
+    const { error } = await supabase
+      .from('creadores')
+      .update({ estado: 'inactivo' })
+      .eq('id', creador_id);
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[admin/creadores/desactivar]', e.message);
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
+  }
+});
+
 // ── Admin: Páginas de Venta ───────────────────────────────────────────────────
 
 // GET /api/admin/paginas  — lista sin html (liviano)
@@ -5877,6 +5954,9 @@ app.listen(PORT, () => {
   console.log(`[motor]   GET  http://localhost:${PORT}/api/admin/usuarios`);
   console.log(`[motor]   POST http://localhost:${PORT}/api/admin/usuarios/activar`);
   console.log(`[motor]   POST http://localhost:${PORT}/api/admin/usuarios/desactivar`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/api/admin/creadores`);
+  console.log(`[motor]   POST http://localhost:${PORT}/api/admin/creadores/activar`);
+  console.log(`[motor]   POST http://localhost:${PORT}/api/admin/creadores/desactivar`);
 
   // ══ OBJETIVO 3: Limpieza de seguridad cada 30 minutos ═════════════════════
   // Borra archivos de temp/ y outputs/ con mas de 1 hora de antiguedad.
