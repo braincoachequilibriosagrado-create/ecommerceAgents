@@ -5844,10 +5844,13 @@ function _injectCheckoutScript(html, slug, ref) {
 '    window.location.href = url;\n' +
 '  }\n' +
 '  function _enlazar() {\n' +
+'    var url = "/checkout?slug=" + encodeURIComponent(_slug);\n' +
+'    if (_ref) url += "&ref=" + encodeURIComponent(_ref);\n' +
 '    document.querySelectorAll(".btn-comprar-ea, [data-comprar]").forEach(function(btn) {\n' +
 '      if (btn.dataset.eaInyectado) return;\n' +
 '      btn.dataset.eaInyectado = "1";\n' +
 '      btn.removeAttribute("onclick");\n' +
+'      if (btn.href !== undefined) btn.href = url;\n' +
 '      btn.addEventListener("click", _irAlCheckout);\n' +
 '    });\n' +
 '  }\n' +
@@ -5914,16 +5917,19 @@ app.get('/p/:slug', async (req, res) => {
   scrolling="yes"
 ></iframe>
 <script>
-// Recibe el mensaje del botón de compra dentro del iframe y navega la ventana real
+// Recibe el mensaje del botón de compra dentro del iframe sandbox y navega la ventana real.
+// El iframe usa sandbox sin allow-same-origin → postMessage llega con origin "null"/""; validar por e.source.
 window.addEventListener('message', function(e) {
-  if (e.origin !== window.location.origin) return;
+  var pf = document.getElementById('pf');
+  var fromIframe = pf && pf.contentWindow && e.source === pf.contentWindow;
+  if (!fromIframe && e.origin !== window.location.origin) return;
   var d = e.data;
   if (!d || typeof d.ea_checkout_url !== 'string') return;
   var url = d.ea_checkout_url;
   var ok = url.indexOf('/checkout') === 0;
   if (!ok) {
     try {
-      var u = new URL(url);
+      var u = new URL(url, window.location.origin);
       ok = u.pathname === '/checkout' && (u.origin === window.location.origin || u.hostname === 'motor.ecommerceagents.store');
     } catch (_) { ok = false; }
   }

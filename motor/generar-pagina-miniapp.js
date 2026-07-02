@@ -256,7 +256,7 @@ async function generarPaginaVentaMiniapp(miniapp, opts) {
     FOTO2_URL:         foto2Url,
     CREADOR:           miniapp.creador_nombre || 'Creador',
     TIPO:              tipoProductoLabel(miniapp.tipo_producto),
-    CHECKOUT_URL:      '#comprar',
+    CHECKOUT_URL:      '/checkout?slug=' + encodeURIComponent(paginaSlug),
     SLUG:              miniapp.slug,
     COLOR_1:           c1,
     COLOR_2:           c2,
