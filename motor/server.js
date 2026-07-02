@@ -25,6 +25,7 @@ const { generarPaginaVentaMiniapp } = require('./generar-pagina-miniapp');
 const miniappSeg = require('./miniapp-seguridad');
 const jwtAuth    = require('./jwt-auth');
 const rateLimit  = require('express-rate-limit');
+const Stripe     = require('stripe');
 
 const app  = express();
 const PORT = process.env.PORT || 3002;
@@ -53,6 +54,16 @@ const compraRateLimiter = rateLimit({
 // URL pública base donde el motor sirve las páginas de venta
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || 'https://motor.ecommerceagents.store';
 const COMPRA_PRUEBA_ACTIVA = process.env.COMPRA_PRUEBA_ACTIVA === 'true';
+const STRIPE_SECRET_KEY       = process.env.STRIPE_SECRET_KEY || '';
+const STRIPE_WEBHOOK_SECRET   = process.env.STRIPE_WEBHOOK_SECRET || '';
+const STRIPE_PUBLISHABLE_KEY  = process.env.STRIPE_PUBLISHABLE_KEY || '';
+
+let _stripeClient = null;
+function _getStripe() {
+  if (!STRIPE_SECRET_KEY) return null;
+  if (!_stripeClient) _stripeClient = new Stripe(STRIPE_SECRET_KEY);
+  return _stripeClient;
+}
 
 function _miniappFotoUrl(slug, file) {
   if (!slug) return null;
@@ -246,6 +257,9 @@ const _corsOpts = {
 };
 
 // ── Middleware ────────────────────────────────────────────────────────────────
+// Stripe webhook: raw body ANTES de express.json (verificacion de firma)
+app.post('/api/checkout/webhook', express.raw({ type: 'application/json' }), _handleStripeWebhook);
+
 app.use(cors(_corsOpts));
 app.use(express.json({ limit: '50mb' })); // 50 MB para soportar imagenes base64
 app.use('/assets', express.static(MOTOR_ASSETS_DIR, { maxAge: '7d' }));
@@ -3506,6 +3520,147 @@ async function _buscarMiniappPorPaginaSlug(slugPagina) {
   return data || null;
 }
 
+async function _buscarCompraPorStripeSessionId(sessionId) {
+  const sid = String(sessionId || '').trim();
+  if (!sid) return null;
+  const cols = 'id, miniapp_id, codigo_acceso, monto, estado_pago, stripe_session_id, stripe_payment_intent_id';
+
+  let { data, error } = await supabase
+    .from('miniapp_compras')
+    .select(cols)
+    .eq('stripe_session_id', sid)
+    .maybeSingle();
+
+  if (error && /stripe_session_id|stripe_payment_intent_id|column|schema cache/.test(String(error.message || ''))) {
+    console.error('[stripe] columnas stripe_* ausentes — webhook fail-closed');
+    return null;
+  }
+  if (error) throw error;
+  return data || null;
+}
+
+async function _marcarCompraPagadaStripe(compra, session) {
+  if (!compra || !compra.id) return { ok: false, reason: 'not_found' };
+  if (compra.estado_pago === 'pagado') {
+    return { ok: true, idempotent: true };
+  }
+
+  const amountPaid = session.amount_total != null ? Number(session.amount_total) / 100 : null;
+  const expected   = Number(compra.monto);
+  if (amountPaid != null && Number.isFinite(expected) && Math.abs(amountPaid - expected) > 0.02) {
+    console.error('[stripe/webhook] Monto no coincide codigo=' + compra.codigo_acceso +
+      ' pagado=' + amountPaid + ' esperado=' + expected);
+    return { ok: false, reason: 'amount_mismatch' };
+  }
+
+  const meta = session.metadata || {};
+  if (meta.miniapp_id && String(meta.miniapp_id) !== String(compra.miniapp_id)) {
+    console.error('[stripe/webhook] miniapp_id metadata no coincide codigo=' + compra.codigo_acceso);
+    return { ok: false, reason: 'metadata_mismatch' };
+  }
+
+  const paymentIntentId = session.payment_intent
+    ? (typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent.id)
+    : null;
+
+  const updatePayload = {
+    estado_pago: 'pagado',
+    pagado_en:   new Date().toISOString()
+  };
+  if (paymentIntentId) {
+    updatePayload.stripe_payment_intent_id = String(paymentIntentId).slice(0, 255);
+  }
+  if (session.id && !compra.stripe_session_id) {
+    updatePayload.stripe_session_id = String(session.id).slice(0, 255);
+  }
+
+  const { data, error } = await supabase
+    .from('miniapp_compras')
+    .update(updatePayload)
+    .eq('id', compra.id)
+    .eq('estado_pago', 'pendiente')
+    .select('id, codigo_acceso, estado_pago')
+    .maybeSingle();
+
+  if (error) {
+    if (/stripe_|pagado_en|column|schema cache/.test(String(error.message || ''))) {
+      console.error('[stripe/webhook] columnas requeridas ausentes:', error.message);
+      return { ok: false, reason: 'schema' };
+    }
+    throw error;
+  }
+
+  if (!data) {
+    const { data: again } = await supabase
+      .from('miniapp_compras')
+      .select('id, codigo_acceso, estado_pago')
+      .eq('id', compra.id)
+      .maybeSingle();
+    if (again && again.estado_pago === 'pagado') {
+      return { ok: true, idempotent: true };
+    }
+    console.error('[stripe/webhook] No se pudo marcar pagada id=' + compra.id);
+    return { ok: false, reason: 'update_failed' };
+  }
+
+  console.log('[stripe/webhook] Compra pagada codigo=' + data.codigo_acceso);
+  return { ok: true, idempotent: false, compra: data };
+}
+
+async function _handleStripeWebhook(req, res) {
+  const stripe = _getStripe();
+  if (!stripe || !STRIPE_WEBHOOK_SECRET) {
+    console.error('[stripe/webhook] Stripe no configurado (falta STRIPE_SECRET_KEY o STRIPE_WEBHOOK_SECRET)');
+    return res.status(503).send('Stripe no configurado');
+  }
+
+  const sig = req.headers['stripe-signature'];
+  if (!sig) {
+    console.error('[stripe/webhook] Falta header stripe-signature');
+    return res.status(400).send('Missing stripe-signature');
+  }
+
+  let event;
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, STRIPE_WEBHOOK_SECRET);
+  } catch (e) {
+    console.error('[stripe/webhook] Firma invalida:', e.message);
+    return res.status(400).send('Webhook signature verification failed');
+  }
+
+  try {
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data.object;
+      const codigoMeta = session.metadata && session.metadata.codigo
+        ? String(session.metadata.codigo).trim().toUpperCase()
+        : '';
+
+      let compra = null;
+      if (codigoMeta) {
+        compra = await _buscarCompraPorCodigo(codigoMeta);
+      }
+      if (!compra && session.id) {
+        compra = await _buscarCompraPorStripeSessionId(session.id);
+      }
+
+      if (!compra) {
+        console.error('[stripe/webhook] Compra no encontrada session=' + session.id + ' codigo=' + codigoMeta);
+        return res.json({ received: true });
+      }
+
+      const result = await _marcarCompraPagadaStripe(compra, session);
+      if (!result.ok && result.reason === 'amount_mismatch') {
+        console.error('[stripe/webhook] Pago rechazado por monto — NO se marca pagada');
+      }
+    }
+  } catch (e) {
+    console.error('[stripe/webhook] Error procesando evento:', e.message);
+    return res.status(500).send('Webhook handler error');
+  }
+
+  return res.json({ received: true });
+}
+
 async function _buscarCompraPorCodigo(codigo) {
   const cod = String(codigo || '').trim().toUpperCase();
   if (!cod) return null;
@@ -3705,7 +3860,9 @@ app.get('/api/checkout/info', async (req, res) => {
         precio,
         imagen,
         color_principal: colores.color_1,
-        miniapp_slug: miniapp.slug
+        miniapp_slug: miniapp.slug,
+        stripe_activo: !!STRIPE_SECRET_KEY,
+        compra_prueba_activa: COMPRA_PRUEBA_ACTIVA
       });
     }
 
@@ -3746,7 +3903,7 @@ app.get('/checkout-miniapp.js', (req, res) => {
   res.send(
 '(function(){\n' +
 '"use strict";\n' +
-'var _slug="", _ref="", _precio=0;\n' +
+'var _slug="", _ref="", _precio=0, _stripeActivo=false, _modoPrueba=false;\n' +
 '\n' +
 'function _coEmailOk(v){\n' +
 '  var s=String(v||"").trim();\n' +
@@ -3756,6 +3913,13 @@ app.get('/checkout-miniapp.js', (req, res) => {
 '\n' +
 'function _coFmtPrecio(){\n' +
 '  return _precio>0 ? "$"+Number(_precio).toLocaleString("en-US") : "Gratis";\n' +
+'}\n' +
+'\n' +
+'function _coBtnLabel(){\n' +
+'  var fmt=_coFmtPrecio();\n' +
+'  if(_stripeActivo) return "Pagar "+fmt;\n' +
+'  if(_modoPrueba) return "Pagar "+fmt+" (prueba)";\n' +
+'  return "Pagar "+fmt;\n' +
 '}\n' +
 '\n' +
 'function _coMostrarErr(msg){\n' +
@@ -3769,26 +3933,27 @@ app.get('/checkout-miniapp.js', (req, res) => {
 '  var btn=document.getElementById("co-btn-pagar");\n' +
 '  if(!btn) return;\n' +
 '  btn.disabled=false;\n' +
-'  btn.textContent="Pagar "+_coFmtPrecio()+" (prueba)";\n' +
+'  btn.textContent=_coBtnLabel();\n' +
 '}\n' +
 '\n' +
-'function eaCoPagar(ev){\n' +
-'  if(ev&&ev.preventDefault) ev.preventDefault();\n' +
-'  if(ev&&ev.stopPropagation) ev.stopPropagation();\n' +
-'  var btn=document.getElementById("co-btn-pagar");\n' +
+'function _coPayload(){\n' +
 '  var emailEl=document.getElementById("co-email");\n' +
 '  var email=emailEl?String(emailEl.value||"").trim():"";\n' +
-'  _coMostrarErr("");\n' +
+'  var payload={slug_pagina:_slug,ref:_ref||undefined};\n' +
+'  if(email) payload.email=email;\n' +
+'  return { payload:payload, email:email, emailEl:emailEl };\n' +
+'}\n' +
+'\n' +
+'function _coValidarEmail(email, emailEl){\n' +
 '  if(email&&!_coEmailOk(email)){\n' +
 '    _coMostrarErr("Email invalido.");\n' +
 '    if(emailEl) emailEl.focus();\n' +
 '    return false;\n' +
 '  }\n' +
-'  if(!btn||btn.disabled) return false;\n' +
-'  btn.disabled=true;\n' +
-'  btn.textContent="Procesando...";\n' +
-'  var payload={slug_pagina:_slug,ref:_ref||undefined};\n' +
-'  if(email) payload.email=email;\n' +
+'  return true;\n' +
+'}\n' +
+'\n' +
+'function _coPagarPrueba(btn, payload){\n' +
 '  fetch("/api/miniapp/comprar-prueba",{\n' +
 '    method:"POST",\n' +
 '    headers:{"Content-Type":"application/json"},\n' +
@@ -3804,6 +3969,49 @@ app.get('/checkout-miniapp.js', (req, res) => {
 '      _coMostrarErr((e&&e.message)||"Error al procesar la compra.");\n' +
 '      _coResetBtn();\n' +
 '    });\n' +
+'}\n' +
+'\n' +
+'function _coPagarStripe(btn, payload){\n' +
+'  fetch("/api/checkout/crear-sesion",{\n' +
+'    method:"POST",\n' +
+'    headers:{"Content-Type":"application/json"},\n' +
+'    body:JSON.stringify(payload)\n' +
+'  })\n' +
+'    .then(function(r){return r.json().then(function(d){return{status:r.status,data:d};});})\n' +
+'    .then(function(res){\n' +
+'      var d=res.data;\n' +
+'      if(d.ok&&d.url){window.location.href=d.url;return;}\n' +
+'      if(res.status===503&&_modoPrueba){\n' +
+'        _coPagarPrueba(btn,payload);\n' +
+'        return;\n' +
+'      }\n' +
+'      throw new Error((d&&d.error)||"No se pudo iniciar el pago.");\n' +
+'    })\n' +
+'    .catch(function(e){\n' +
+'      _coMostrarErr((e&&e.message)||"Error al procesar el pago.");\n' +
+'      _coResetBtn();\n' +
+'    });\n' +
+'}\n' +
+'\n' +
+'function eaCoPagar(ev){\n' +
+'  if(ev&&ev.preventDefault) ev.preventDefault();\n' +
+'  if(ev&&ev.stopPropagation) ev.stopPropagation();\n' +
+'  var btn=document.getElementById("co-btn-pagar");\n' +
+'  var pack=_coPayload();\n' +
+'  _coMostrarErr("");\n' +
+'  if(!_coValidarEmail(pack.email,pack.emailEl)) return false;\n' +
+'  if(!btn||btn.disabled) return false;\n' +
+'  if(!_stripeActivo&&!_modoPrueba){\n' +
+'    _coMostrarErr("Pagos no disponibles en este momento.");\n' +
+'    return false;\n' +
+'  }\n' +
+'  btn.disabled=true;\n' +
+'  btn.textContent="Procesando...";\n' +
+'  if(_stripeActivo){\n' +
+'    _coPagarStripe(btn,pack.payload);\n' +
+'  }else{\n' +
+'    _coPagarPrueba(btn,pack.payload);\n' +
+'  }\n' +
 '  return false;\n' +
 '}\n' +
 'window.eaCoPagar=eaCoPagar;\n' +
@@ -3838,6 +4046,14 @@ app.get('/checkout-miniapp.js', (req, res) => {
 '        return;\n' +
 '      }\n' +
 '      _precio=d.precio||0;\n' +
+'      _stripeActivo=!!d.stripe_activo;\n' +
+'      _modoPrueba=!!d.compra_prueba_activa;\n' +
+'      var badge=document.getElementById("co-badge");\n' +
+'      if(badge){\n' +
+'        if(_stripeActivo) badge.textContent="Pago seguro · Stripe";\n' +
+'        else if(_modoPrueba) badge.textContent="Modo prueba — sin cobro real";\n' +
+'        else badge.style.display="none";\n' +
+'      }\n' +
 '      var accent=(d.color_principal&&/^#[0-9a-fA-F]{6}$/.test(d.color_principal))?d.color_principal:"#2f86ff";\n' +
 '      document.documentElement.style.setProperty("--c1",accent);\n' +
 '      var nombreEl=document.getElementById("nombre");\n' +
@@ -3846,7 +4062,7 @@ app.get('/checkout-miniapp.js', (req, res) => {
 '      var precioEl=document.getElementById("precio");\n' +
 '      if(precioEl) precioEl.textContent=fmt;\n' +
 '      var btn=document.getElementById("co-btn-pagar");\n' +
-'      if(btn) btn.textContent="Pagar "+fmt+" (prueba)";\n' +
+'      if(btn) btn.textContent=_coBtnLabel();\n' +
 '      var iw=document.getElementById("img-wrap");\n' +
 '      if(iw&&d.imagen){\n' +
 '        var img=document.createElement("img");\n' +
@@ -3875,6 +4091,9 @@ app.get('/checkout-miniapp.js', (req, res) => {
 
 // ── Checkout digital mini apps (GET /checkout?slug=app-...) ───────────────────
 function _serveCheckoutMiniapp(req, res) {
+  const badgeText = STRIPE_SECRET_KEY
+    ? 'Pago seguro · Stripe'
+    : (COMPRA_PRUEBA_ACTIVA ? 'Modo prueba — sin cobro real' : 'Checkout');
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(`<!DOCTYPE html>
 <html lang="es">
@@ -3911,7 +4130,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;ba
 </head>
 <body>
 <div class="wrap">
-  <div class="badge">Modo prueba — sin cobro real</div>
+  <div class="badge" id="co-badge">${badgeText}</div>
   <div id="load" class="load"><div class="spin"></div>Cargando producto...</div>
   <div id="card" class="card">
     <div class="hero">
@@ -4548,6 +4767,121 @@ function abrirAsesorWA() {
 </script>
 </body>
 </html>`);
+});
+
+// ── Stripe Checkout — crear sesion de pago ────────────────────────────────────
+app.post('/api/checkout/crear-sesion', compraRateLimiter, async (req, res) => {
+  const stripe = _getStripe();
+  if (!stripe) {
+    console.error('[checkout/crear-sesion] STRIPE_SECRET_KEY no configurada');
+    return res.status(503).json({ ok: false, error: 'Pagos no disponibles en este momento.' });
+  }
+
+  const { slug_pagina, ref, email } = req.body || {};
+  const slug = String(slug_pagina || '').trim();
+  if (!slug) {
+    return res.status(400).json({ ok: false, error: 'Se requiere slug_pagina.' });
+  }
+  if (!_isMiniappCheckoutSlug(slug)) {
+    return res.status(400).json({ ok: false, error: 'Este checkout es solo para activos digitales (slug app-*).' });
+  }
+
+  try {
+    const miniapp = await _buscarMiniappPorPaginaSlug(slug);
+    if (!miniapp) {
+      return res.status(404).json({ ok: false, error: 'Producto no encontrado.' });
+    }
+    if (miniapp.estado_aprobacion !== 'aprobada') {
+      return res.status(400).json({ ok: false, error: 'Producto no disponible.' });
+    }
+    const disp = await _validarMiniappDisponibleCompra(miniapp);
+    if (!disp.ok) {
+      return res.status(400).json({ ok: false, error: disp.error });
+    }
+
+    let emailOpcional = null;
+    try {
+      emailOpcional = _emailCompradorOpcional(email);
+    } catch (e) {
+      if (e.statusCode === 400) {
+        return res.status(400).json({ ok: false, error: e.message });
+      }
+      throw e;
+    }
+
+    const monto = _miniappPrecioVenta(miniapp);
+    const amountCents = Math.round(monto * 100);
+    if (!Number.isFinite(amountCents) || amountCents < 50) {
+      return res.status(400).json({ ok: false, error: 'Precio del producto no valido para pago con tarjeta.' });
+    }
+
+    const result = await _registrarCompraDigital({
+      miniapp,
+      ref,
+      email: emailOpcional,
+      estado_pago: 'pendiente'
+    });
+
+    const codigo = result.codigo;
+    const refQ   = ref ? '?ref=' + encodeURIComponent(String(ref).trim()) : '';
+    const cancelUrl = PUBLIC_BASE_URL + '/p/' + encodeURIComponent(slug) + refQ;
+    const successUrl = PUBLIC_BASE_URL + '/mi-compra/' + encodeURIComponent(codigo);
+
+    const sessionParams = {
+      mode: 'payment',
+      line_items: [{
+        quantity: 1,
+        price_data: {
+          currency: 'usd',
+          unit_amount: amountCents,
+          product_data: {
+            name: String(miniapp.nombre || 'Producto digital').slice(0, 120)
+          }
+        }
+      }],
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      metadata: {
+        codigo:        codigo,
+        miniapp_id:    String(miniapp.id),
+        slug_pagina:   slug,
+        ref:           String(ref || '').trim().slice(0, 120)
+      }
+    };
+    if (emailOpcional) {
+      sessionParams.customer_email = emailOpcional;
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionParams);
+
+    const { error: upErr } = await supabase
+      .from('miniapp_compras')
+      .update({ stripe_session_id: String(session.id).slice(0, 255) })
+      .eq('codigo_acceso', codigo)
+      .eq('estado_pago', 'pendiente');
+
+    if (upErr) {
+      console.error('[checkout/crear-sesion] No se pudo guardar stripe_session_id codigo=' + codigo + ':', upErr.message);
+      return res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
+    }
+
+    if (!session.url) {
+      console.error('[checkout/crear-sesion] Stripe no devolvio session.url codigo=' + codigo);
+      return res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
+    }
+
+    console.log('[checkout/crear-sesion] slug=' + slug + ' codigo=' + codigo + ' session=' + session.id + ' monto=' + monto);
+    res.json({ ok: true, url: session.url });
+  } catch (e) {
+    if (e.statusCode === 403) {
+      return res.status(403).json({ ok: false, error: e.message });
+    }
+    if (e.statusCode === 400 || e.statusCode === 404) {
+      return res.status(e.statusCode).json({ ok: false, error: e.message });
+    }
+    console.error('[checkout/crear-sesion]', e.message);
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
+  }
 });
 
 // ── Compra de prueba mini apps (sin Stripe) ───────────────────────────────────
@@ -6300,6 +6634,14 @@ app.listen(PORT, () => {
   console.log(`[motor]   GET  http://localhost:${PORT}/p-inner/:slug  (contenido iframe interno)`);
   console.log(`[motor]   GET  http://localhost:${PORT}/checkout  (formulario de envio / digital mini apps)`);
   console.log(`[motor]   GET  http://localhost:${PORT}/api/checkout/info?slug=`);
+  console.log(`[motor]   POST http://localhost:${PORT}/api/checkout/crear-sesion`);
+  console.log(`[motor]   POST http://localhost:${PORT}/api/checkout/webhook`);
+  console.log(`[motor]   POST http://localhost:${PORT}/api/miniapp/comprar-prueba`);
+  if (STRIPE_SECRET_KEY) {
+    console.log('[motor] Stripe Checkout activo');
+  } else {
+    console.warn('[motor] STRIPE_SECRET_KEY no configurada — pagos reales desactivados');
+  }
   console.log(`[motor]   GET  http://localhost:${PORT}/api/vendedor/miniapps-comisiones?usuario_id=`);
   console.log(`[motor]   GET  http://localhost:${PORT}/api/admin/miniapps/comisiones-vendedores`);
   console.log(`[motor]   GET  http://localhost:${PORT}/mi-compra/:codigo`);
