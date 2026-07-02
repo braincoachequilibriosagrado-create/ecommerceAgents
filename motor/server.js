@@ -5,11 +5,12 @@ const path          = require('path');
 const fs            = require('fs');
 const crypto        = require('crypto');
 const bcrypt        = require('bcrypt');
-const { exec }      = require('child_process');
-const { promisify } = require('util');
+const { exec, execFile } = require('child_process');
+const { promisify }      = require('util');
 const multer        = require('multer');
 
-const execAsync = promisify(exec);
+const execAsync     = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 const SYSTEM_TENDENCIAS  = require('./system-tendencias');
 const SYSTEM_DESARROLLO  = require('./system-desarrollo');
@@ -283,13 +284,55 @@ async function getVideoDimensions(filePath) {
   return { width: vs?.width || 1080, height: vs?.height || 1920 };
 }
 
-async function downloadVideo(url, outputBase) {
-  const cmd = `yt-dlp -f "best[ext=mp4][height<=1080]/best[ext=mp4]/best" --max-filesize 200M -o "${outputBase}.%(ext)s" "${url}"`;
+function _isPrivateIpv4(ip) {
+  const parts = String(ip || '').split('.').map(Number);
+  if (parts.length !== 4 || parts.some(n => !Number.isFinite(n) || n < 0 || n > 255)) return false;
+  if (parts[0] === 127) return true;
+  if (parts[0] === 10) return true;
+  if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+  if (parts[0] === 192 && parts[1] === 168) return true;
+  if (parts[0] === 169 && parts[1] === 254) return true;
+  return false;
+}
+
+function _hostnameBloqueadoParaDescarga(hostname) {
+  const host = String(hostname || '').toLowerCase().replace(/^\[|\]$/g, '');
+  if (!host || host === 'localhost' || host.endsWith('.localhost')) return true;
+  if (host === '::1' || host === '0:0:0:0:0:0:0:1') return true;
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(host)) return _isPrivateIpv4(host);
+  return false;
+}
+
+function validateDownloadVideoUrl(urlStr) {
+  let parsed;
   try {
-    await execAsync(cmd, { timeout: 300000 });
+    parsed = new URL(String(urlStr || '').trim());
+  } catch {
+    throw new Error('URL invalida.');
+  }
+  if (parsed.protocol !== 'https:') {
+    throw new Error('Solo se permiten URLs HTTPS.');
+  }
+  if (_hostnameBloqueadoParaDescarga(parsed.hostname)) {
+    throw new Error('URL no permitida (red privada o localhost).');
+  }
+  return parsed.href;
+}
+
+async function downloadVideo(url, outputBase) {
+  const safeUrl = validateDownloadVideoUrl(url);
+  const outputTemplate = `${outputBase}.%(ext)s`;
+  try {
+    await execFileAsync('yt-dlp', [
+      '-f', 'best[ext=mp4][height<=1080]/best[ext=mp4]/best',
+      '--max-filesize', '200M',
+      '-o', outputTemplate,
+      safeUrl
+    ], { timeout: 300000, maxBuffer: 10 * 1024 * 1024 });
   } catch (err) {
     const msg = err.message || '';
     if (msg.includes('max-filesize')) throw new Error('El video supera el tamano maximo permitido (200 MB).');
+    if (msg.includes('URL invalida') || msg.includes('Solo se permiten') || msg.includes('URL no permitida')) throw err;
     throw new Error('Error al descargar el video. Verifica el link y que sea publico. (' + msg.slice(0, 100) + ')');
   }
   const dir      = path.dirname(outputBase);
@@ -1655,9 +1698,11 @@ app.post('/api/login', async (req, res) => {
     if (!data) {
       return res.json({ ok: false, error: 'Usuario no encontrado.' });
     }
-    if (data.codigo_seguridad !== String(codigoSeguridad).trim()) {
+    const codigoOk = await _verificarCodigoSeguridadVendedor(data.codigo_seguridad, codigoSeguridad);
+    if (!codigoOk) {
       return res.json({ ok: false, error: 'Codigo de seguridad incorrecto.' });
     }
+    await _rehashCodigoSeguridadVendedorSiLegacy(data.id, data.codigo_seguridad, codigoSeguridad);
     if (!data.activo) {
       return res.json({ ok: false, error: 'Tu cuenta aun no esta activa. Contacta al administrador.' });
     }
@@ -1687,47 +1732,45 @@ app.post('/api/login', async (req, res) => {
   } catch (e) {
     console.error('[login]', e.message);
     res.status(500).json({ ok: false, error: 'Error interno. Intenta de nuevo.' });
-    // ── NOTA: codigo_seguridad se usa aquí en texto plano.
-    // Ver bloque "TODO ACTIVAR HASH" más abajo para la migración a bcrypt.
   }
 });
 
-// ════════════════════════════════════════════════════════════════════════════
-// TODO ACTIVAR HASH — Migración de contraseñas a bcrypt
-// bcrypt YA ESTÁ INSTALADO (npm install bcrypt). NO activar hasta migrar los
-// usuarios existentes que tienen codigo_seguridad en texto plano.
-//
-// PASO A: en server.js, descomentar el import al principio del archivo:
-//   const bcrypt = require('bcrypt');
-//   const SALT_ROUNDS = 12;
-//
-// PASO B: cuando se CREA un usuario nuevo, hashear antes de guardar en Supabase:
-//   const hash = await bcrypt.hash(codigoSeguridad, SALT_ROUNDS);
-//   // guardar hash en la columna codigo_seguridad
-//
-// PASO C: en POST /api/login, reemplazar la comparación de texto plano:
-//   // Antes (texto plano — ACTUAL):
-//   if (data.codigo_seguridad !== String(codigoSeguridad).trim()) { ... }
-//   // Después (bcrypt — ACTIVAR TRAS MIGRACIÓN):
-//   const match = await bcrypt.compare(String(codigoSeguridad).trim(), data.codigo_seguridad);
-//   if (!match) { return res.json({ ok: false, error: 'Codigo de seguridad incorrecto.' }); }
-//
-// SCRIPT DE MIGRACIÓN de los usuarios existentes (ejecutar UNA sola vez):
-//   const bcrypt = require('bcrypt');
-//   const { createClient } = require('@supabase/supabase-js');
-//   const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
-//   async function migrarHashes() {
-//     const { data } = await supabase.from('usuarios').select('id, codigo_seguridad');
-//     for (const u of data) {
-//       if (!u.codigo_seguridad || u.codigo_seguridad.startsWith('$2b$')) continue; // ya hasheado
-//       const hash = await bcrypt.hash(u.codigo_seguridad, 12);
-//       await supabase.from('usuarios').update({ codigo_seguridad: hash }).eq('id', u.id);
-//       console.log('Migrado:', u.id);
-//     }
-//     console.log('Migración completa');
-//   }
-//   migrarHashes();
-// ════════════════════════════════════════════════════════════════════════════
+const VENDEDOR_SALT_ROUNDS = 12;
+
+function _esHashBcrypt(str) {
+  return /^\$2[aby]\$\d{2}\$/.test(String(str || ''));
+}
+
+async function hashCodigoSeguridadVendedor(plain) {
+  return bcrypt.hash(String(plain || '').trim(), VENDEDOR_SALT_ROUNDS);
+}
+
+async function _verificarCodigoSeguridadVendedor(stored, plain) {
+  const pass = String(plain || '').trim();
+  const hash = String(stored || '');
+  if (!hash || !pass) return false;
+  if (_esHashBcrypt(hash)) {
+    return bcrypt.compare(pass, hash);
+  }
+  return hash === pass;
+}
+
+async function _rehashCodigoSeguridadVendedorSiLegacy(usuarioId, stored, plain) {
+  if (_esHashBcrypt(stored)) return;
+  const pass = String(plain || '').trim();
+  if (String(stored || '') !== pass) return;
+  try {
+    const newHash = await hashCodigoSeguridadVendedor(pass);
+    const { error } = await supabase
+      .from('usuarios')
+      .update({ codigo_seguridad: newHash })
+      .eq('id', usuarioId);
+    if (error) console.warn('[login] rehash codigo_seguridad:', error.message);
+    else console.log('[login] codigo_seguridad migrado a bcrypt uid=' + usuarioId);
+  } catch (e) {
+    console.warn('[login] rehash codigo_seguridad:', e.message);
+  }
+}
 
 // ── Creadores de mini apps ────────────────────────────────────────────────────
 
@@ -3146,7 +3189,6 @@ async function _buscarCompraPorCodigo(codigo) {
   const cod = String(codigo || '').trim().toUpperCase();
   if (!cod) return null;
   const colsFull = 'id, miniapp_id, miniapp_slug, codigo_acceso, comprador_email, ref_vendedor, vendedor_id, monto, estado_pago, descargas_count, descargas_max, creado_en';
-  const colsBase = 'id, miniapp_id, miniapp_slug, codigo_acceso, comprador_email, ref_vendedor, vendedor_id, monto, estado_pago, creado_en';
 
   let { data, error } = await supabase
     .from('miniapp_compras')
@@ -3155,15 +3197,8 @@ async function _buscarCompraPorCodigo(codigo) {
     .maybeSingle();
 
   if (error && /descargas_count|descargas_max|column|schema cache/.test(String(error.message || ''))) {
-    ({ data, error } = await supabase
-      .from('miniapp_compras')
-      .select(colsBase)
-      .eq('codigo_acceso', cod)
-      .maybeSingle());
-    if (data) {
-      data.descargas_count = 0;
-      data.descargas_max   = ENTREGA_DESCARGAS_MAX_DEFAULT;
-    }
+    console.error('[entrega/cuota] columnas descargas_* ausentes — acceso denegado (fail-closed)');
+    return null;
   }
 
   if (error) throw error;
@@ -3281,9 +3316,8 @@ async function _consumirCuotaDescarga(compra, recurso, req) {
 
   if (error) {
     if (/descargas_count|descargas_max|column|schema cache/.test(String(error.message || ''))) {
-      console.warn('[entrega/cuota] columnas descargas_* ausentes — ejecuta migracion Supabase');
-      await _logAccesoEntrega(compra, recurso, ip);
-      return { ok: true, degraded: true };
+      console.error('[entrega/cuota] columnas descargas_* ausentes — acceso denegado (fail-closed)');
+      return { ok: false, reason: 'invalid' };
     }
     console.error('[entrega/cuota]', error.message);
     return { ok: false, reason: 'invalid' };
@@ -4155,9 +4189,8 @@ app.post('/api/miniapp/comprar-prueba', async (req, res) => {
 
     let { error: insErr } = await supabase.from('miniapp_compras').insert(insertPayload);
     if (insErr && /descargas_count|descargas_max|column|schema cache/.test(String(insErr.message || ''))) {
-      delete insertPayload.descargas_count;
-      delete insertPayload.descargas_max;
-      ({ error: insErr } = await supabase.from('miniapp_compras').insert(insertPayload));
+      console.error('[comprar-prueba] columnas descargas_* ausentes — compra denegada (fail-closed)');
+      return res.status(403).json({ ok: false, error: 'Servicio de entrega no disponible.' });
     }
     if (insErr) throw insErr;
 
