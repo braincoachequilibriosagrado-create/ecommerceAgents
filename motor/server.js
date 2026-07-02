@@ -28,6 +28,7 @@ const PORT = process.env.PORT || 3002;
 
 // URL pública base donde el motor sirve las páginas de venta
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || 'https://motor.ecommerceagents.store';
+const COMPRA_PRUEBA_ACTIVA = process.env.COMPRA_PRUEBA_ACTIVA === 'true';
 
 const ENTREGA_MINIAPP_TEMPLATE = path.join(__dirname, 'templates', 'template-entrega-miniapp.html');
 const DEFAULT_MINIAPP_COLORS = { color_1: '#2f86ff', color_2: '#7c3aed', color_3: '#ff5a3c' };
@@ -1524,12 +1525,37 @@ app.get('/health', (req, res) => res.json({ status: 'ok', motor: 'EcommerceAgent
 
 // ── AGENTE DE VENTAS WhatsApp ─────────────────────────────────────────────────
 
-app.post('/api/ventas/config', (req, res) => {
+function _maskTelegramToken(token) {
+  const t = String(token || '').trim();
+  if (!t) return '';
+  if (t.length <= 4) return '****';
+  return '...' + t.slice(-4);
+}
+
+function _ventasConfigParaCliente(cfg) {
+  const raw = cfg || {};
+  const token = String(raw.telegramToken || '').trim();
+  const safe = { ...raw };
+  delete safe.telegramToken;
+  safe.telegramToken = token ? _maskTelegramToken(token) : '';
+  safe.telegramConfigured = !!token;
+  return safe;
+}
+
+function _esTokenTelegramEnmascarado(val) {
+  const s = String(val || '').trim();
+  return !s || /^\.\.\.[A-Za-z0-9_-]{1,8}$/.test(s) || s === '****';
+}
+
+app.post('/api/ventas/config', requireAdmin, (req, res) => {
   try {
     const cfg = req.body || {};
-    // Merge with existing so nothing is lost if partial save
     const current = agenteVentas.cargarConfig();
-    const updated  = { ...current, ...cfg };
+    const updated = { ...current, ...cfg };
+    const incomingToken = cfg.telegramToken;
+    if (incomingToken !== undefined && _esTokenTelegramEnmascarado(incomingToken)) {
+      updated.telegramToken = current.telegramToken || '';
+    }
     agenteVentas.guardarConfig(updated);
     res.json({ ok: true });
   } catch (e) {
@@ -1538,13 +1564,10 @@ app.post('/api/ventas/config', (req, res) => {
   }
 });
 
-app.get('/api/ventas/config', (req, res) => {
+app.get('/api/ventas/config', requireAdmin, (req, res) => {
   try {
     const cfg = agenteVentas.cargarConfig();
-    // Never expose tokens to the frontend in full — mask for display only
-    const safe = { ...cfg };
-    if (safe.telegramToken) safe.telegramToken = safe.telegramToken; // keep for prefill
-    res.json(safe);
+    res.json(_ventasConfigParaCliente(cfg));
   } catch (e) {
     console.error('[ventas/config GET]', e.message);
     res.status(500).json({ error: e.message });
@@ -3266,6 +3289,9 @@ app.get('/api/checkout/info', async (req, res) => {
       if (!miniapp) {
         return res.status(404).json({ ok: false, error: 'Mini app no encontrada.' });
       }
+      if (miniapp.estado_aprobacion !== 'aprobada') {
+        return res.status(400).json({ ok: false, error: 'Producto no disponible.' });
+      }
       const { data: pagina } = await supabase
         .from('paginas_venta')
         .select('html')
@@ -4037,6 +4063,10 @@ function abrirAsesorWA() {
 
 // ── Compra de prueba mini apps (sin Stripe) ───────────────────────────────────
 app.post('/api/miniapp/comprar-prueba', async (req, res) => {
+  if (!COMPRA_PRUEBA_ACTIVA) {
+    return res.status(403).json({ ok: false, error: 'Funcion no disponible' });
+  }
+
   const { slug_pagina, ref, comprador_email } = req.body || {};
   const slug = String(slug_pagina || '').trim();
   if (!slug) {
@@ -4051,8 +4081,8 @@ app.post('/api/miniapp/comprar-prueba', async (req, res) => {
     if (!miniapp) {
       return res.status(404).json({ ok: false, error: 'Mini app no encontrada.' });
     }
-    if (miniapp.estado_aprobacion && miniapp.estado_aprobacion !== 'aprobada') {
-      return res.status(400).json({ ok: false, error: 'Esta mini app aun no esta disponible para compra.' });
+    if (miniapp.estado_aprobacion !== 'aprobada') {
+      return res.status(400).json({ ok: false, error: 'Producto no disponible.' });
     }
     if (!miniapp.r2_key) {
       return res.status(400).json({ ok: false, error: 'La mini app no tiene contenido disponible.' });
