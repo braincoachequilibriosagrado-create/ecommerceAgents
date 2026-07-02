@@ -1988,6 +1988,143 @@ async function _resolverRefVendedorCompra(ref) {
   return { vendedor_id: vend.id, ref_vendedor: vend.codigo || refUpper };
 }
 
+function _calcRepartoCompraDigital(monto, miniapp, vendedor_id) {
+  const m = Number(monto) || 0;
+  const comision_plataforma_pct = MINIAPP_PLATAFORMA_PCT;
+  const tuvoVendedor = vendedor_id != null && String(vendedor_id).trim() !== '';
+  const comision_vendedor_pct = tuvoVendedor ? (Number(miniapp.comision_vendedor) || 0) : 0;
+  const monto_plataforma = _calcPartePlataformaMiniapp(m);
+  const monto_vendedor   = tuvoVendedor ? _calcComisionVendedorMiniapp(m, comision_vendedor_pct) : 0;
+  const monto_creador    = _roundMoney(Math.max(0, m - monto_plataforma - monto_vendedor));
+  return {
+    comision_plataforma_pct,
+    comision_vendedor_pct,
+    monto_plataforma,
+    monto_vendedor,
+    monto_creador
+  };
+}
+
+const ENTREGA_DESCARGAS_MAX_MINIAPP   = 30;
+const ENTREGA_DESCARGAS_MAX_PDF       = 10;
+const ENTREGA_DESCARGAS_MAX_POR_VIDEO = 5;
+
+async function _calcDescargasMaxMiniapp(miniapp) {
+  const cat = String(miniapp.categoria || 'miniapp').toLowerCase();
+  if (cat === 'infoproducto') return ENTREGA_DESCARGAS_MAX_PDF;
+  if (cat === 'miniapp') return ENTREGA_DESCARGAS_MAX_MINIAPP;
+  if (cat === 'contenido_digital') {
+    const { count, error } = await supabase
+      .from('miniapp_videos')
+      .select('id', { count: 'exact', head: true })
+      .eq('miniapp_id', miniapp.id);
+    if (error) throw error;
+    const numVideos = Math.max(1, Number(count) || 1);
+    return numVideos * ENTREGA_DESCARGAS_MAX_POR_VIDEO;
+  }
+  return 20;
+}
+
+async function _registrarCompraDigital(opts) {
+  const {
+    miniapp,
+    ref,
+    email,
+    estado_pago,
+    stripe_session_id,
+    stripe_payment_intent_id
+  } = opts || {};
+
+  if (!miniapp || !miniapp.id) {
+    const err = new Error('Producto no valido.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const emailValido = _emailCompradorValido(email);
+  if (!emailValido) {
+    const err = new Error('Email requerido.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const estado = String(estado_pago || 'pendiente').toLowerCase();
+  if (estado !== 'pendiente' && estado !== 'pagado') {
+    const err = new Error('estado_pago invalido.');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  let mini = miniapp;
+  if (mini.comision_vendedor === undefined) {
+    const { data, error } = await supabase
+      .from('miniapps')
+      .select('id, slug, precio, precio_promocion, comision_vendedor, categoria')
+      .eq('id', miniapp.id)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) {
+      const err = new Error('Producto no encontrado.');
+      err.statusCode = 404;
+      throw err;
+    }
+    mini = Object.assign({}, miniapp, data);
+  }
+
+  const refRes       = await _resolverRefVendedorCompra(ref);
+  const monto        = _miniappPrecioVenta(mini);
+  const codigo       = await _generarCodigoAccesoUnico();
+  const descargas_max = await _calcDescargasMaxMiniapp(mini);
+  const reparto      = _calcRepartoCompraDigital(monto, mini, refRes.vendedor_id);
+
+  const insertPayload = {
+    miniapp_id:              mini.id,
+    miniapp_slug:            mini.slug,
+    codigo_acceso:           codigo,
+    comprador_email:         emailValido,
+    ref_vendedor:            refRes.ref_vendedor,
+    vendedor_id:             refRes.vendedor_id,
+    monto,
+    estado_pago:             estado,
+    descargas_count:         0,
+    descargas_max,
+    comision_plataforma_pct: reparto.comision_plataforma_pct,
+    comision_vendedor_pct:   reparto.comision_vendedor_pct,
+    monto_plataforma:        reparto.monto_plataforma,
+    monto_vendedor:          reparto.monto_vendedor,
+    monto_creador:           reparto.monto_creador
+  };
+
+  if (stripe_session_id) {
+    insertPayload.stripe_session_id = String(stripe_session_id).slice(0, 255);
+  }
+  if (stripe_payment_intent_id) {
+    insertPayload.stripe_payment_intent_id = String(stripe_payment_intent_id).slice(0, 255);
+  }
+  if (estado === 'pagado') {
+    insertPayload.pagado_en = new Date().toISOString();
+  }
+
+  const { data: compra, error: insErr } = await supabase
+    .from('miniapp_compras')
+    .insert(insertPayload)
+    .select()
+    .single();
+
+  if (insErr) {
+    if (/descargas_count|descargas_max|comision_|monto_|stripe_|pagado_en|column|schema cache/.test(String(insErr.message || ''))) {
+      console.error('[registrarCompraDigital] columnas requeridas ausentes — compra denegada (fail-closed):', insErr.message);
+      const err = new Error('Servicio de entrega no disponible.');
+      err.statusCode = 403;
+      throw err;
+    }
+    throw insErr;
+  }
+
+  const link_unico = PUBLIC_BASE_URL + '/mi-compra/' + codigo;
+  return { codigo, link_unico, compra };
+}
+
 function _calcParteCreadorVenta(monto, comisionVendedorPct, tuvoVendedor) {
   const m = Number(monto) || 0;
   const plat = _calcPartePlataformaMiniapp(m);
@@ -3338,7 +3475,7 @@ async function _buscarMiniappPorPaginaSlug(slugPagina) {
   if (!slug) return null;
   const { data, error } = await supabase
     .from('miniapps')
-    .select('id, nombre, slug, precio, precio_promocion, r2_key, pdf_key, foto1_key, tipo_producto, categoria, pagina_venta_slug, estado_aprobacion')
+    .select('id, nombre, slug, precio, precio_promocion, r2_key, pdf_key, foto1_key, tipo_producto, categoria, comision_vendedor, pagina_venta_slug, estado_aprobacion')
     .eq('pagina_venta_slug', slug)
     .maybeSingle();
   if (error) throw error;
@@ -4344,35 +4481,22 @@ app.post('/api/miniapp/comprar-prueba', compraRateLimiter, async (req, res) => {
       return res.status(400).json({ ok: false, error: disp.error });
     }
 
-    const monto  = _miniappPrecioVenta(miniapp);
-    const codigo = await _generarCodigoAccesoUnico();
+    const result = await _registrarCompraDigital({
+      miniapp,
+      ref,
+      email: emailValido,
+      estado_pago: 'pagado'
+    });
 
-    const refRes = await _resolverRefVendedorCompra(ref);
-
-    const insertPayload = {
-      miniapp_id:      miniapp.id,
-      miniapp_slug:    miniapp.slug,
-      codigo_acceso:   codigo,
-      comprador_email: emailValido,
-      ref_vendedor:    refRes.ref_vendedor,
-      vendedor_id:     refRes.vendedor_id,
-      monto,
-      estado_pago:     'pagado',
-      descargas_count: 0,
-      descargas_max:   ENTREGA_DESCARGAS_MAX_DEFAULT
-    };
-
-    let { error: insErr } = await supabase.from('miniapp_compras').insert(insertPayload);
-    if (insErr && /descargas_count|descargas_max|column|schema cache/.test(String(insErr.message || ''))) {
-      console.error('[comprar-prueba] columnas descargas_* ausentes — compra denegada (fail-closed)');
-      return res.status(403).json({ ok: false, error: 'Servicio de entrega no disponible.' });
-    }
-    if (insErr) throw insErr;
-
-    const link_unico = PUBLIC_BASE_URL + '/mi-compra/' + codigo;
-    console.log('[miniapp/comprar-prueba] slug=' + slug + ' codigo=' + codigo + ' monto=' + monto);
-    res.json({ ok: true, codigo, link_unico });
+    console.log('[miniapp/comprar-prueba] slug=' + slug + ' codigo=' + result.codigo + ' monto=' + result.compra.monto);
+    res.json({ ok: true, codigo: result.codigo, link_unico: result.link_unico });
   } catch (e) {
+    if (e.statusCode === 403) {
+      return res.status(403).json({ ok: false, error: e.message });
+    }
+    if (e.statusCode === 400 || e.statusCode === 404) {
+      return res.status(e.statusCode).json({ ok: false, error: e.message });
+    }
     console.error('[miniapp/comprar-prueba]', e.message);
     res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
