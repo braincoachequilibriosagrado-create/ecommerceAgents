@@ -1372,7 +1372,7 @@ function renderMisProductosGrid() {
   var gridEl  = document.getElementById('agent-grid-mis-productos');
   if (!gridEl) return;
 
-  if (!uid) {
+  if (!uid || !_getJwtToken()) {
     gridEl.innerHTML = ''; gridEl.hidden = true;
     if (emptyEl) emptyEl.hidden = false;
     return;
@@ -1382,7 +1382,7 @@ function renderMisProductosGrid() {
   gridEl.hidden = false;
   if (emptyEl) emptyEl.hidden = true;
 
-  fetch(MOTOR_URL + '/api/mis-productos/' + encodeURIComponent(uid))
+  _motorFetch(MOTOR_URL + '/api/mis-productos/' + encodeURIComponent(uid))
     .then(function (r) { return r.json(); })
     .then(function (data) {
       if (!data.ok) throw new Error(data.error || 'Error');
@@ -1537,9 +1537,7 @@ function _withAuthHeaders(headers) {
 function _precargarMisProductos() {
   var uid = _getUsuarioId();
   if (!uid || !_getJwtToken()) return;
-  fetch(MOTOR_URL + '/api/mis-productos/' + encodeURIComponent(uid), {
-    headers: _withAuthHeaders({})
-  })
+  _motorFetch(MOTOR_URL + '/api/mis-productos/' + encodeURIComponent(uid))
     .then(function (r) { return r.json(); })
     .then(function (data) {
       if (!data.ok) return;
@@ -1884,7 +1882,7 @@ function renderMisMiniappsGrid() {
   var gridEl  = document.getElementById('agent-grid-mis-miniapps');
   if (!gridEl) return;
 
-  if (!uid) {
+  if (!uid || !_getJwtToken()) {
     gridEl.innerHTML = '';
     gridEl.hidden = true;
     if (emptyEl) emptyEl.hidden = false;
@@ -1895,9 +1893,7 @@ function renderMisMiniappsGrid() {
   gridEl.hidden = false;
   if (emptyEl) emptyEl.hidden = true;
 
-  fetch(MOTOR_URL + '/api/mis-miniapps/' + encodeURIComponent(uid), {
-    headers: _withAuthHeaders({})
-  })
+  _motorFetch(MOTOR_URL + '/api/mis-miniapps/' + encodeURIComponent(uid))
     .then(function (r) { return r.json(); })
     .then(function (data) {
       if (!data.ok) throw new Error(data.error || 'Error');
@@ -1948,10 +1944,8 @@ function renderMisMiniappsGrid() {
 
 function _precargarMisMiniapps() {
   var uid = _getUsuarioId();
-  if (!uid) return;
-  fetch(MOTOR_URL + '/api/mis-miniapps/' + encodeURIComponent(uid), {
-    headers: _withAuthHeaders({})
-  })
+  if (!uid || !_getJwtToken()) return;
+  _motorFetch(MOTOR_URL + '/api/mis-miniapps/' + encodeURIComponent(uid))
     .then(function (r) { return r.json(); })
     .then(function (data) {
       if (!data.ok) return;
@@ -2305,16 +2299,14 @@ function eaMiniappsComisionesRender() {
   if (elVentas) elVentas.textContent = '...';
   if (wrap) wrap.innerHTML = '<p class="cuentas-empty">Cargando comisiones de mini apps...</p>';
 
-  if (!uid) {
+  if (!uid || !_getJwtToken()) {
     if (wrap) wrap.innerHTML = '<p class="cuentas-empty">Inicia sesion para ver tus comisiones.</p>';
     if (elTotal)  elTotal.textContent  = '—';
     if (elVentas) elVentas.textContent = '—';
     return;
   }
 
-  fetch(MOTOR_URL + '/api/vendedor/miniapps-comisiones', {
-    headers: _withAuthHeaders({})
-  })
+  _motorFetch(MOTOR_URL + '/api/vendedor/miniapps-comisiones')
     .then(function (r) { return r.json(); })
     .then(function (data) {
       if (!data.ok) throw new Error(data.error || 'Error del servidor');
@@ -2342,14 +2334,12 @@ function eaVentasRender() {
   if (elTicket)  elTicket.textContent  = '...';
   if (wrap)      wrap.innerHTML = '<p class="cuentas-empty">Cargando ventas...</p>';
 
-  if (!uid) {
+  if (!uid || !_getJwtToken()) {
     if (wrap) wrap.innerHTML = '<p class="cuentas-empty">Inicia sesion para ver tus ventas.</p>';
     return;
   }
 
-  fetch(MOTOR_URL + '/api/ventas/usuario/' + encodeURIComponent(uid), {
-    headers: _withAuthHeaders({})
-  })
+  _motorFetch(MOTOR_URL + '/api/ventas/usuario/' + encodeURIComponent(uid))
     .then(function (r) { return r.json(); })
     .then(function (data) {
       if (!data.ok) throw new Error(data.error || 'Error del servidor');
@@ -2863,10 +2853,8 @@ function _mkSinSesion() {
 // Carga el saldo real de créditos desde Supabase al entrar al dashboard
 function _cargarCreditosReales() {
   var uid = _getUsuarioId();
-  if (!uid) return;
-  fetch(MOTOR_URL + '/api/creditos/' + encodeURIComponent(uid), {
-    headers: _withAuthHeaders({})
-  })
+  if (!uid || !_getJwtToken()) return;
+  _motorFetch(MOTOR_URL + '/api/creditos/' + encodeURIComponent(uid))
     .then(function (r) { return r.json(); })
     .then(function (d) { if (d.ok) _actualizarCreditosUI(d.creditos); })
     .catch(function () {});
