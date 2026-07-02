@@ -152,6 +152,15 @@
     gap: 10px;
   }
   .note svg { width: 18px; height: 18px; flex: none; margin-top: 1px; }
+  .recuperar-hint {
+    margin-top: 12px;
+    font-size: 12.5px;
+    color: var(--mist);
+    text-align: center;
+    line-height: 1.5;
+  }
+  .recuperar-hint a { color: var(--c2); font-weight: 600; text-decoration: none; }
+  .recuperar-hint a:hover { text-decoration: underline; }
   .footer { text-align: center; padding: 22px; font-size: 12.5px; color: var(--mist); border-top: 1px solid var(--line); }
   .footer b { background: var(--grad); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
   .toast {
@@ -277,6 +286,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="#8a6d1a" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01" stroke-linecap="round"/></svg>
           <span>Tu código de acceso es <b style="color:#8a6d1a;">{{CODIGO}}</b>. Guarda este enlace en un lugar seguro: es tu única llave para acceder.</span>
         </div>
+        <p class="recuperar-hint">Guarda tu codigo. Puedes recuperar tu acceso en cualquier momento en <a href="{{RECUPERAR_URL}}">{{RECUPERAR_URL}}</a>.</p>
       </div>
     </div>
 

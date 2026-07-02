@@ -4591,6 +4591,79 @@ app.post('/api/miniapp/comprar-prueba', compraRateLimiter, async (req, res) => {
   }
 });
 
+// ── Recuperar compra (codigo de acceso → pagina de entrega) ───────────────────
+function _serveRecuperarCompra(req, res) {
+  const c1 = DEFAULT_MINIAPP_COLORS.color_1;
+  const c2 = DEFAULT_MINIAPP_COLORS.color_2;
+  const c3 = DEFAULT_MINIAPP_COLORS.color_3;
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(`<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Recupera tu compra · EcommerceAgents</title>
+<style>
+:root{--c1:${c1};--c2:${c2};--c3:${c3};--grad:linear-gradient(120deg,var(--c1),var(--c2),var(--c3));--ink:#0d1117;--slate:#5f6571;--line:#e4e7eb;--paper:#f5f7fb;--white:#fff;--err:#c0392b}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;background:radial-gradient(800px 400px at 50% -5%,rgba(124,58,237,.10),transparent 60%),var(--paper);color:var(--ink);min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:40px 20px}
+.card{background:var(--white);border:1px solid var(--line);border-radius:20px;box-shadow:0 20px 60px rgba(13,17,23,.12);width:100%;max-width:480px;overflow:hidden}
+.top{background:var(--grad);color:#fff;padding:36px 28px 28px;text-align:center}
+.top h1{font-size:26px;font-weight:800;margin-bottom:8px}
+.top p{font-size:15px;opacity:.92;line-height:1.5}
+.body{padding:28px}
+.field{margin-bottom:18px}
+.field label{display:block;font-size:13px;font-weight:600;color:var(--ink);margin-bottom:8px}
+.field input{width:100%;border:1.5px solid var(--line);border-radius:12px;padding:14px 16px;font-size:16px;font-family:ui-monospace,Consolas,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--ink);background:#fff}
+.field input:focus{outline:none;border-color:var(--c2);box-shadow:0 0 0 3px rgba(124,58,237,.12)}
+.field input::placeholder{text-transform:none;letter-spacing:normal;font-family:inherit;font-size:15px;color:#8b919e}
+.btn{width:100%;border:none;border-radius:12px;padding:16px 20px;font-size:17px;font-weight:800;color:#fff;background:var(--grad);cursor:pointer;box-shadow:0 12px 32px rgba(124,58,237,.28)}
+.btn:hover{filter:brightness(1.04)}
+.note{margin-top:16px;font-size:13px;color:var(--slate);text-align:center;line-height:1.55}
+.err{display:none;color:var(--err);font-size:13px;margin-bottom:12px;padding:10px 12px;background:#fef5f5;border:1px solid #f5c6c6;border-radius:10px}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="top">
+    <h1>Recupera tu compra</h1>
+    <p>Ingresa el codigo de acceso que recibiste al comprar para volver a tu producto.</p>
+  </div>
+  <div class="body">
+    <p id="err" class="err">Ingresa tu codigo de acceso.</p>
+    <div class="field">
+      <label for="codigo-acceso">Codigo de acceso</label>
+      <input type="text" id="codigo-acceso" autocomplete="off" spellcheck="false" placeholder="Ej. NYRKHYXZS5A4SS" maxlength="20" />
+    </div>
+    <button type="button" id="btn-acceder" class="btn">Acceder</button>
+    <p class="note">Lo encuentras en tu pagina de entrega despues de comprar. Si el codigo no es valido, veras un mensaje de acceso no valido.</p>
+  </div>
+</div>
+<script>
+function irAcceder(){
+  var err=document.getElementById('err');
+  var raw=document.getElementById('codigo-acceso').value||'';
+  var cod=raw.trim().toUpperCase().replace(/\\s+/g,'');
+  err.style.display='none';
+  if(!cod){
+    err.textContent='Ingresa tu codigo de acceso.';
+    err.style.display='block';
+    document.getElementById('codigo-acceso').focus();
+    return;
+  }
+  location.href='/mi-compra/'+encodeURIComponent(cod);
+}
+document.getElementById('btn-acceder').addEventListener('click',irAcceder);
+document.getElementById('codigo-acceso').addEventListener('keydown',function(e){
+  if(e.key==='Enter'){e.preventDefault();irAcceder();}
+});
+</script>
+</body>
+</html>`);
+}
+
+app.get('/recuperar-compra', _serveRecuperarCompra);
+
 // ── Pagina de entrega post-compra (ver pagina NO consume cuota) ───────────────
 app.get('/mi-compra/:codigo', _entregaCodigoGate, async (req, res) => {
   const codigo = String(req.params.codigo || '').trim();
@@ -4687,7 +4760,8 @@ app.get('/mi-compra/:codigo', _entregaCodigoGate, async (req, res) => {
       PDF_BTN:           pdfBtn,
       COLOR_1:           colores.color_1,
       COLOR_2:           colores.color_2,
-      COLOR_3:           colores.color_3
+      COLOR_3:           colores.color_3,
+      RECUPERAR_URL:     PUBLIC_BASE_URL + '/recuperar-compra'
     });
 
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -6208,6 +6282,7 @@ app.listen(PORT, () => {
   console.log(`[motor]   GET  http://localhost:${PORT}/api/vendedor/miniapps-comisiones?usuario_id=`);
   console.log(`[motor]   GET  http://localhost:${PORT}/api/admin/miniapps/comisiones-vendedores`);
   console.log(`[motor]   GET  http://localhost:${PORT}/mi-compra/:codigo`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/recuperar-compra`);
   console.log(`[motor]   GET  http://localhost:${PORT}/usar-miniapp/:codigo`);
   console.log(`[motor]   GET  http://localhost:${PORT}/descargar-pdf/:codigo`);
   console.log(`[motor]   GET  http://localhost:${PORT}/descargar-pack/:codigo`);
