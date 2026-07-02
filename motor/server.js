@@ -77,6 +77,7 @@ function _miniappToClient(m) {
 }
 
 const ENTREGA_MINIAPP_TEMPLATE = path.join(__dirname, 'templates', 'template-entrega-miniapp.html');
+const MOTOR_ASSETS_DIR           = path.join(__dirname, 'assets');
 const DEFAULT_MINIAPP_COLORS = { color_1: '#2f86ff', color_2: '#7c3aed', color_3: '#ff5a3c' };
 
 // ── Autenticación JWT ─────────────────────────────────────────────────────────
@@ -247,6 +248,7 @@ const _corsOpts = {
 // ── Middleware ────────────────────────────────────────────────────────────────
 app.use(cors(_corsOpts));
 app.use(express.json({ limit: '50mb' })); // 50 MB para soportar imagenes base64
+app.use('/assets', express.static(MOTOR_ASSETS_DIR, { maxAge: '7d' }));
 
 // ════════════════════════════════════════════════════════════════════════════
 // OBJETIVO 1 — Helper de limpieza de archivos
@@ -4609,6 +4611,7 @@ function _serveRecuperarCompra(req, res) {
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;background:radial-gradient(800px 400px at 50% -5%,rgba(124,58,237,.10),transparent 60%),var(--paper);color:var(--ink);min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:40px 20px}
 .card{background:var(--white);border:1px solid var(--line);border-radius:20px;box-shadow:0 20px 60px rgba(13,17,23,.12);width:100%;max-width:480px;overflow:hidden}
 .top{background:var(--grad);color:#fff;padding:36px 28px 28px;text-align:center}
+.brand-logo{width:80px;height:80px;border-radius:50%;object-fit:cover;display:block;margin:0 auto 16px;border:3px solid rgba(255,255,255,.55);box-shadow:0 6px 20px rgba(0,0,0,.18)}
 .top h1{font-size:26px;font-weight:800;margin-bottom:8px}
 .top p{font-size:15px;opacity:.92;line-height:1.5}
 .body{padding:28px}
@@ -4626,6 +4629,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;ba
 <body>
 <div class="card">
   <div class="top">
+    <img src="/assets/logo-activos.jpg" alt="Activos Digitales" class="brand-logo" />
     <h1>Recupera tu compra</h1>
     <p>Ingresa el codigo de acceso que recibiste al comprar para volver a tu producto.</p>
   </div>
@@ -6283,6 +6287,7 @@ app.listen(PORT, () => {
   console.log(`[motor]   GET  http://localhost:${PORT}/api/admin/miniapps/comisiones-vendedores`);
   console.log(`[motor]   GET  http://localhost:${PORT}/mi-compra/:codigo`);
   console.log(`[motor]   GET  http://localhost:${PORT}/recuperar-compra`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/assets/logo-activos.jpg`);
   console.log(`[motor]   GET  http://localhost:${PORT}/usar-miniapp/:codigo`);
   console.log(`[motor]   GET  http://localhost:${PORT}/descargar-pdf/:codigo`);
   console.log(`[motor]   GET  http://localhost:${PORT}/descargar-pack/:codigo`);
