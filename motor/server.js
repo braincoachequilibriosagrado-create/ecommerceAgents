@@ -2054,6 +2054,7 @@ async function _registrarCompraDigital(opts) {
   }
 
   const emailOpcional = _emailCompradorOpcional(email);
+  const estado = String(estado_pago || 'pendiente').toLowerCase();
   if (estado !== 'pendiente' && estado !== 'pagado') {
     const err = new Error('estado_pago invalido.');
     err.statusCode = 400;
