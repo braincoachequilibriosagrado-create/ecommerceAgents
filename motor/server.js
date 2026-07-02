@@ -1941,9 +1941,51 @@ function _calcParteCreadorMiniapp(monto, comisionVendedorPct) {
 
 function _compraTuvoVendedor(compra) {
   if (!compra) return false;
-  if (compra.vendedor_id) return true;
-  const ref = String(compra.ref_vendedor || '').trim();
-  return ref.length > 0;
+  return compra.vendedor_id != null && String(compra.vendedor_id).trim() !== '';
+}
+
+function _emailCompradorValido(email) {
+  const e = String(email || '').trim().toLowerCase();
+  if (!e || e.length > 254) return null;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) return null;
+  return e;
+}
+
+async function _validarMiniappDisponibleCompra(miniapp) {
+  if (!miniapp) return { ok: false, error: 'Producto no encontrado.' };
+  const cat = String(miniapp.categoria || 'miniapp').toLowerCase();
+  if (cat === 'miniapp') {
+    if (!miniapp.r2_key) return { ok: false, error: 'Producto no disponible.' };
+    return { ok: true };
+  }
+  if (cat === 'infoproducto') {
+    if (!miniapp.pdf_key) return { ok: false, error: 'Producto no disponible.' };
+    return { ok: true };
+  }
+  if (cat === 'contenido_digital') {
+    const { count, error } = await supabase
+      .from('miniapp_videos')
+      .select('id', { count: 'exact', head: true })
+      .eq('miniapp_id', miniapp.id);
+    if (error) throw error;
+    if (!count || count < 1) return { ok: false, error: 'Producto no disponible.' };
+    return { ok: true };
+  }
+  return { ok: false, error: 'Producto no disponible.' };
+}
+
+async function _resolverRefVendedorCompra(ref) {
+  const refRaw = String(ref || '').trim();
+  if (!refRaw) return { vendedor_id: null, ref_vendedor: null };
+  const refUpper = refRaw.toUpperCase();
+  const { data: vend, error } = await supabase
+    .from('usuarios')
+    .select('id, codigo')
+    .eq('codigo', refUpper)
+    .maybeSingle();
+  if (error) throw error;
+  if (!vend) return { vendedor_id: null, ref_vendedor: null };
+  return { vendedor_id: vend.id, ref_vendedor: vend.codigo || refUpper };
 }
 
 function _calcParteCreadorVenta(monto, comisionVendedorPct, tuvoVendedor) {
@@ -3296,7 +3338,7 @@ async function _buscarMiniappPorPaginaSlug(slugPagina) {
   if (!slug) return null;
   const { data, error } = await supabase
     .from('miniapps')
-    .select('id, nombre, slug, precio, precio_promocion, r2_key, pdf_key, foto1_key, tipo_producto, pagina_venta_slug, estado_aprobacion')
+    .select('id, nombre, slug, precio, precio_promocion, r2_key, pdf_key, foto1_key, tipo_producto, categoria, pagina_venta_slug, estado_aprobacion')
     .eq('pagina_venta_slug', slug)
     .maybeSingle();
   if (error) throw error;
@@ -3480,6 +3522,10 @@ app.get('/api/checkout/info', async (req, res) => {
       if (miniapp.estado_aprobacion !== 'aprobada') {
         return res.status(400).json({ ok: false, error: 'Producto no disponible.' });
       }
+      const disp = await _validarMiniappDisponibleCompra(miniapp);
+      if (!disp.ok) {
+        return res.status(400).json({ ok: false, error: disp.error });
+      }
       const { data: pagina } = await supabase
         .from('paginas_venta')
         .select('html')
@@ -3554,6 +3600,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;ba
 .hero p{font-size:14px;color:var(--slate);line-height:1.5}
 .price{font-size:32px;font-weight:800;background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin-top:14px}
 .body{padding:24px}
+.field{margin-bottom:16px;text-align:left}
+.field label{display:block;font-size:13px;font-weight:600;color:var(--ink);margin-bottom:6px}
+.field input{width:100%;border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:15px;font-family:inherit;color:var(--ink);background:#fff}
+.field input:focus{outline:none;border-color:var(--c2);box-shadow:0 0 0 3px rgba(124,58,237,.12)}
 .btn{width:100%;border:none;border-radius:14px;padding:16px 20px;font-size:17px;font-weight:800;color:#fff;background:var(--grad);cursor:pointer;box-shadow:0 12px 32px rgba(124,58,237,.28);transition:transform .15s,filter .15s}
 .btn:hover{transform:translateY(-2px);filter:brightness(1.04)}
 .btn:disabled{opacity:.65;cursor:not-allowed;transform:none}
@@ -3576,8 +3626,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;ba
       <div class="price" id="precio">—</div>
     </div>
     <div class="body">
+      <div class="field">
+        <label for="co-email">Tu email (para enviarte tu acceso)</label>
+        <input type="email" id="co-email" name="email" autocomplete="email" placeholder="tu@email.com" required />
+      </div>
       <button type="button" id="btn-pagar" class="btn">Pagar —</button>
-      <p class="note">Al pagar recibes tu enlace personal y acceso inmediato a la mini app.</p>
+      <p class="note">Al pagar recibes tu enlace personal y acceso inmediato a tu producto digital.</p>
       <p id="err" class="err"></p>
     </div>
   </div>
@@ -3609,13 +3663,21 @@ var _slug='', _ref='', _precio=0;
 })();
 document.getElementById('btn-pagar').addEventListener('click',function(){
   var btn=this, err=document.getElementById('err');
+  var emailEl=document.getElementById('co-email');
+  var email=emailEl?String(emailEl.value||'').trim():'';
   err.style.display='none';
+  if(!email||!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)){
+    err.textContent='Email requerido.';
+    err.style.display='block';
+    if(emailEl)emailEl.focus();
+    return;
+  }
   btn.disabled=true;
   btn.textContent='Procesando...';
   fetch('/api/miniapp/comprar-prueba',{
     method:'POST',
     headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({slug_pagina:_slug,ref:_ref||undefined})
+    body:JSON.stringify({slug_pagina:_slug,ref:_ref||undefined,email:email})
   })
     .then(function(r){return r.json();})
     .then(function(d){
@@ -4255,13 +4317,18 @@ app.post('/api/miniapp/comprar-prueba', compraRateLimiter, async (req, res) => {
     return res.status(403).json({ ok: false, error: 'Funcion no disponible' });
   }
 
-  const { slug_pagina, ref, comprador_email } = req.body || {};
+  const { slug_pagina, ref, comprador_email, email } = req.body || {};
   const slug = String(slug_pagina || '').trim();
   if (!slug) {
     return res.status(400).json({ ok: false, error: 'Se requiere slug_pagina.' });
   }
   if (!_isMiniappCheckoutSlug(slug)) {
     return res.status(400).json({ ok: false, error: 'Este checkout es solo para mini apps (slug app-*).' });
+  }
+
+  const emailValido = _emailCompradorValido(email || comprador_email);
+  if (!emailValido) {
+    return res.status(400).json({ ok: false, error: 'Email requerido.' });
   }
 
   try {
@@ -4272,33 +4339,23 @@ app.post('/api/miniapp/comprar-prueba', compraRateLimiter, async (req, res) => {
     if (miniapp.estado_aprobacion !== 'aprobada') {
       return res.status(400).json({ ok: false, error: 'Producto no disponible.' });
     }
-    if (!miniapp.r2_key) {
-      return res.status(400).json({ ok: false, error: 'La mini app no tiene contenido disponible.' });
+    const disp = await _validarMiniappDisponibleCompra(miniapp);
+    if (!disp.ok) {
+      return res.status(400).json({ ok: false, error: disp.error });
     }
 
     const monto  = _miniappPrecioVenta(miniapp);
     const codigo = await _generarCodigoAccesoUnico();
 
-    let vendedor_id = null;
-    const refClean  = String(ref || '').trim();
-    if (refClean) {
-      const { data: vend } = await supabase
-        .from('usuarios')
-        .select('id')
-        .eq('codigo', refClean)
-        .maybeSingle();
-      if (vend) vendedor_id = vend.id;
-    }
-
-    const emailClean = String(comprador_email || '').trim() || null;
+    const refRes = await _resolverRefVendedorCompra(ref);
 
     const insertPayload = {
       miniapp_id:      miniapp.id,
       miniapp_slug:    miniapp.slug,
       codigo_acceso:   codigo,
-      comprador_email: emailClean,
-      ref_vendedor:    refClean || null,
-      vendedor_id,
+      comprador_email: emailValido,
+      ref_vendedor:    refRes.ref_vendedor,
+      vendedor_id:     refRes.vendedor_id,
       monto,
       estado_pago:     'pagado',
       descargas_count: 0,
