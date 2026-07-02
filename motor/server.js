@@ -1951,6 +1951,18 @@ function _emailCompradorValido(email) {
   return e;
 }
 
+function _emailCompradorOpcional(email) {
+  const raw = String(email || '').trim();
+  if (!raw) return null;
+  const valido = _emailCompradorValido(raw);
+  if (!valido) {
+    const err = new Error('Email invalido.');
+    err.statusCode = 400;
+    throw err;
+  }
+  return valido;
+}
+
 async function _validarMiniappDisponibleCompra(miniapp) {
   if (!miniapp) return { ok: false, error: 'Producto no encontrado.' };
   const cat = String(miniapp.categoria || 'miniapp').toLowerCase();
@@ -2041,14 +2053,7 @@ async function _registrarCompraDigital(opts) {
     throw err;
   }
 
-  const emailValido = _emailCompradorValido(email);
-  if (!emailValido) {
-    const err = new Error('Email requerido.');
-    err.statusCode = 400;
-    throw err;
-  }
-
-  const estado = String(estado_pago || 'pendiente').toLowerCase();
+  const emailOpcional = _emailCompradorOpcional(email);
   if (estado !== 'pendiente' && estado !== 'pagado') {
     const err = new Error('estado_pago invalido.');
     err.statusCode = 400;
@@ -2081,7 +2086,7 @@ async function _registrarCompraDigital(opts) {
     miniapp_id:              mini.id,
     miniapp_slug:            mini.slug,
     codigo_acceso:           codigo,
-    comprador_email:         emailValido,
+    comprador_email:         emailOpcional,
     ref_vendedor:            refRes.ref_vendedor,
     vendedor_id:             refRes.vendedor_id,
     monto,
@@ -3755,18 +3760,20 @@ app.get('/checkout-miniapp.js', (req, res) => {
 '  var emailEl=document.getElementById("co-email");\n' +
 '  var email=emailEl?String(emailEl.value||"").trim():"";\n' +
 '  _coMostrarErr("");\n' +
-'  if(!_coEmailOk(email)){\n' +
-'    _coMostrarErr("Email requerido.");\n' +
+'  if(email&&!_coEmailOk(email)){\n' +
+'    _coMostrarErr("Email invalido.");\n' +
 '    if(emailEl) emailEl.focus();\n' +
 '    return false;\n' +
 '  }\n' +
 '  if(!btn||btn.disabled) return false;\n' +
 '  btn.disabled=true;\n' +
 '  btn.textContent="Procesando...";\n' +
+'  var payload={slug_pagina:_slug,ref:_ref||undefined};\n' +
+'  if(email) payload.email=email;\n' +
 '  fetch("/api/miniapp/comprar-prueba",{\n' +
 '    method:"POST",\n' +
 '    headers:{"Content-Type":"application/json"},\n' +
-'    body:JSON.stringify({slug_pagina:_slug,ref:_ref||undefined,email:email})\n' +
+'    body:JSON.stringify(payload)\n' +
 '  })\n' +
 '    .then(function(r){return r.json();})\n' +
 '    .then(function(d){\n' +
@@ -3896,12 +3903,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;ba
     </div>
     <div class="co-card-body">
       <div class="co-field">
-        <label for="co-email">Tu email (para enviarte tu acceso)</label>
-        <input type="email" id="co-email" name="email" autocomplete="email" placeholder="tu@email.com" required />
+        <label for="co-email">Tu email (opcional — te enviamos una copia de tu acceso)</label>
+        <input type="email" id="co-email" name="email" autocomplete="email" placeholder="tu@email.com" />
       </div>
       <p id="co-pay-err" role="alert"></p>
       <button type="button" id="co-btn-pagar">Pagar —</button>
-      <p class="co-note">Al pagar recibes tu enlace personal y acceso inmediato a tu producto digital.</p>
+      <p class="co-note">Al pagar accedes al instante a tu producto en pantalla. No necesitas esperar correo ni registrarte.</p>
     </div>
   </div>
 </div>
@@ -4539,11 +4546,6 @@ app.post('/api/miniapp/comprar-prueba', compraRateLimiter, async (req, res) => {
     return res.status(400).json({ ok: false, error: 'Este checkout es solo para mini apps (slug app-*).' });
   }
 
-  const emailValido = _emailCompradorValido(email || comprador_email);
-  if (!emailValido) {
-    return res.status(400).json({ ok: false, error: 'Email requerido.' });
-  }
-
   try {
     const miniapp = await _buscarMiniappPorPaginaSlug(slug);
     if (!miniapp) {
@@ -4557,10 +4559,20 @@ app.post('/api/miniapp/comprar-prueba', compraRateLimiter, async (req, res) => {
       return res.status(400).json({ ok: false, error: disp.error });
     }
 
+    let emailOpcional = null;
+    try {
+      emailOpcional = _emailCompradorOpcional(email || comprador_email);
+    } catch (e) {
+      if (e.statusCode === 400) {
+        return res.status(400).json({ ok: false, error: e.message });
+      }
+      throw e;
+    }
+
     const result = await _registrarCompraDigital({
       miniapp,
       ref,
-      email: emailValido,
+      email: emailOpcional,
       estado_pago: 'pagado'
     });
 
