@@ -87,6 +87,34 @@ function _miniappToClient(m) {
   return out;
 }
 
+function _vitrinaDescCorta(desc, maxLen) {
+  const s = String(desc || '').replace(/\s+/g, ' ').trim();
+  const max = maxLen || 140;
+  if (!s) return '';
+  if (s.length <= max) return s;
+  return s.slice(0, max).trim() + '…';
+}
+
+function _miniappToVitrina(m) {
+  const pagSlug = String(m.pagina_venta_slug || '').trim();
+  const miniSlug = String(m.slug || '').trim();
+  const promo = m.precio_promocion != null ? Number(m.precio_promocion) : null;
+  return {
+    nombre:              String(m.nombre || '').trim(),
+    descripcion_corta:   _vitrinaDescCorta(m.descripcion, 140),
+    precio:              Number(m.precio) || 0,
+    precio_promocion:    promo != null && promo > 0 ? promo : null,
+    categoria:           String(m.categoria || 'miniapp').toLowerCase(),
+    foto1_url:           miniSlug && m.foto1_key ? _miniappFotoUrl(miniSlug, 'foto1') : null,
+    pagina_venta_slug:   pagSlug,
+    link_dueno:          pagSlug ? PUBLIC_BASE_URL + '/p/' + encodeURIComponent(pagSlug) : null
+  };
+}
+
+function _setNoCacheJson(res) {
+  res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+}
+
 const ENTREGA_MINIAPP_TEMPLATE = path.join(__dirname, 'templates', 'template-entrega-miniapp.html');
 const MOTOR_ASSETS_DIR           = path.join(__dirname, 'assets');
 const DEFAULT_MINIAPP_COLORS = { color_1: '#2f86ff', color_2: '#7c3aed', color_3: '#ff5a3c' };
@@ -261,6 +289,7 @@ const ORIGENES_PERMITIDOS = [
   'https://ecommerce-admin-eta-ten.vercel.app', // admin en Vercel
   'http://localhost:3003',  // panel creadores (local)
   'https://ecommerce-creadores.vercel.app',     // panel creadores en Vercel
+  'https://activosdigitales.ecommerceagents.store',
 ];
 
 const _corsOpts = {
@@ -2893,6 +2922,97 @@ app.post('/api/mis-productos/quitar', requireUsuario, async (req, res) => {
     res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
+
+// ── Vitrina publica (Activos Digitales) ───────────────────────────────────────
+
+// GET /api/vitrina — productos aprobados para venta directa del dueño (sin datos sensibles)
+app.get('/api/vitrina', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('miniapps')
+      .select('nombre, slug, descripcion, precio, precio_promocion, categoria, foto1_key, pagina_venta_slug, creado_en')
+      .eq('estado_aprobacion', 'aprobada')
+      .eq('estado', 'activo')
+      .not('pagina_venta_slug', 'is', null)
+      .order('creado_en', { ascending: false });
+    if (error) throw error;
+    _setNoCacheJson(res);
+    res.json({
+      ok: true,
+      productos: (data || []).map(_miniappToVitrina).filter(function (p) {
+        return p.pagina_venta_slug && p.link_dueno;
+      })
+    });
+  } catch (e) {
+    console.error('[vitrina/api]', e.message);
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
+  }
+});
+
+function _serveVitrina(req, res) {
+  _setNoCacheHtml(res);
+  const logoUrl = _assetUrl('/assets/logo-activos.jpg');
+  const cssUrl  = _assetUrl('/assets/vitrina.css');
+  const jsUrl   = _assetUrl('/assets/vitrina.js');
+  res.send(`<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Activos Digitales — Vitrina</title>
+<meta name="description" content="Explora y compra los mejores activos digitales: mini apps, infoproductos y contenido digital.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="${cssUrl}">
+</head>
+<body>
+<div class="vt-page">
+  <header class="vt-header">
+    <div class="vt-header-inner">
+      <a href="/vitrina" class="vt-brand">
+        <img src="${logoUrl}" alt="Activos Digitales" class="vt-brand-logo" />
+        <span class="vt-brand-name">Activos Digitales</span>
+      </a>
+    </div>
+  </header>
+
+  <main class="vt-main">
+    <section class="vt-hero">
+      <h1 class="vt-hero-title">Explora los mejores activos digitales</h1>
+      <p class="vt-hero-sub">Mini apps, infoproductos y contenido digital listos para usar. Compra segura y acceso inmediato.</p>
+    </section>
+
+    <div class="vt-toolbar">
+      <div class="vt-search-wrap">
+        <input type="search" id="vt-search" class="vt-search" placeholder="Buscar por nombre..." autocomplete="off" />
+      </div>
+      <div class="vt-filters" id="vt-filters" role="tablist" aria-label="Filtrar por categoria">
+        <button type="button" class="vt-chip vt-chip--active" data-cat="all">Todos</button>
+        <button type="button" class="vt-chip" data-cat="infoproducto">Infoproductos</button>
+        <button type="button" class="vt-chip" data-cat="contenido_digital">Contenido Digital</button>
+        <button type="button" class="vt-chip" data-cat="miniapp">Mini Apps</button>
+      </div>
+    </div>
+
+    <div id="vt-status" class="vt-status" aria-live="polite">Cargando productos...</div>
+    <div id="vt-grid" class="vt-grid" hidden></div>
+    <div id="vt-empty" class="vt-empty" hidden>
+      <p class="vt-empty-title">Aun no hay productos en la vitrina</p>
+      <p class="vt-empty-sub">Vuelve pronto — los creadores estan publicando nuevos activos digitales.</p>
+    </div>
+  </main>
+
+  <footer class="vt-footer">
+    <p>Distribuido por <strong>EcommerceAgents</strong> · Activos digitales listos para usar</p>
+  </footer>
+</div>
+<script src="${jsUrl}"></script>
+</body>
+</html>`);
+}
+
+app.get('/vitrina', _serveVitrina);
 
 // ── Catalogo mini apps (activos digitales para vendedores) ────────────────────
 
@@ -6675,6 +6795,8 @@ app.listen(PORT, () => {
   console.log(`[motor]   GET  http://localhost:${PORT}/api/admin/miniapps/comisiones-vendedores`);
   console.log(`[motor]   GET  http://localhost:${PORT}/mi-compra/:codigo`);
   console.log(`[motor]   GET  http://localhost:${PORT}/recuperar-compra`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/vitrina`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/api/vitrina`);
   console.log(`[motor]   GET  http://localhost:${PORT}/assets/logo-activos.jpg`);
   console.log(`[motor]   GET  http://localhost:${PORT}/usar-miniapp/:codigo`);
   console.log(`[motor]   GET  http://localhost:${PORT}/descargar-pdf/:codigo`);
