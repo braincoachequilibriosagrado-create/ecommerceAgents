@@ -24,7 +24,8 @@ const { subirArchivo, obtenerArchivo, obtenerArchivoBuffer } = require('./r2');
 const { generarPaginaVentaMiniapp } = require('./generar-pagina-miniapp');
 const miniappSeg = require('./miniapp-seguridad');
 const jwtAuth    = require('./jwt-auth');
-const rateLimit  = require('express-rate-limit');
+const rateLimit = require('express-rate-limit');
+const ipKeyGenerator = rateLimit.ipKeyGenerator;
 const Stripe     = require('stripe');
 const { Resend } = require('resend');
 
@@ -51,8 +52,8 @@ const recuperarPasswordLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: function (req) {
     const email = String((req.body && req.body.email) || '').trim().toLowerCase();
-    const ip    = req.ip || (req.socket && req.socket.remoteAddress) || 'unknown';
-    return (email || 'no-email') + '|' + ip;
+    const ipKey = req.ip ? ipKeyGenerator(req.ip) : 'unknown';
+    return (email || 'no-email') + '|' + ipKey;
   },
   message: { ok: true, mensaje: 'Si el email esta registrado, recibiras un correo con instrucciones.' }
 });
