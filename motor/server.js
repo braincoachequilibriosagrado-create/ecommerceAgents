@@ -2302,20 +2302,29 @@ function _escapeHtmlEntrega(s) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-function _buildVideosEntregaHtml(videos, codigo) {
+function _buildVideosEntregaHtml(videos, codigo, descargasRestantesMap) {
   if (!videos || !videos.length) return '';
+  const map = descargasRestantesMap || {};
   return videos.map(function (v, idx) {
     const baseUrl = PUBLIC_BASE_URL + '/descargar-video/' + encodeURIComponent(codigo) + '/' + encodeURIComponent(v.id);
     const nombre = _escapeHtmlEntrega(v.nombre || ('Video ' + (idx + 1)));
+    const vidKey = String(v.id);
+    const restantes = map[vidKey] != null ? Number(map[vidKey]) : LIMITE_DESCARGAS_VIDEO;
+    const sinDescargas = restantes <= 0;
+    const btnDl = sinDescargas
+      ? '<button type="button" class="btn btn-video-dl" disabled>Limite alcanzado</button>'
+      : '<button type="button" class="btn btn-video-dl" data-video-dl data-codigo="' + _escapeHtmlEntrega(codigo) + '" data-video-id="' + _escapeHtmlEntrega(v.id) + '" data-url="' + _escapeHtmlEntrega(baseUrl) + '" data-restantes="' + restantes + '">Descargar</button>';
+    const metaHtml = '<p class="video-dl-meta">Descargas restantes: ' + restantes + ' de ' + LIMITE_DESCARGAS_VIDEO + '</p>';
     return (
       '<div class="video-item">' +
       '<div class="video-item-info">' +
       '<span class="video-item-num">' + (idx + 1) + '</span>' +
       '<span class="video-item-name">' + nombre + '</span>' +
       '</div>' +
+      metaHtml +
       '<div class="video-item-actions">' +
       '<a href="' + baseUrl + '" target="_blank" rel="noopener" class="btn btn-grad btn-video">Ver</a>' +
-      '<button type="button" class="btn btn-video-dl" data-video-dl data-codigo="' + _escapeHtmlEntrega(codigo) + '" data-video-id="' + _escapeHtmlEntrega(v.id) + '" data-url="' + _escapeHtmlEntrega(baseUrl) + '">Descargar</button>' +
+      btnDl +
       '</div>' +
       '<div class="video-dl-queue" hidden aria-live="polite"></div>' +
       '</div>'
@@ -3844,6 +3853,8 @@ const ENTREGA_RATE_WINDOW_MS        = 60 * 1000;
 const ENTREGA_MSG_INVALIDO          = 'Acceso no valido';
 const ENTREGA_MSG_LIMITE            = 'Limite de accesos alcanzado. Contacta soporte.';
 const ENTREGA_MSG_RATE              = 'Demasiados intentos. Intenta de nuevo en unos minutos.';
+const LIMITE_DESCARGAS_VIDEO        = 3;
+const ENTREGA_MSG_VIDEO_DL_LIMITE   = 'Alcanzaste el limite de descargas de este video (3). Puedes verlo online cuando quieras.';
 
 const _entregaRateMap = new Map();
 
@@ -3963,6 +3974,127 @@ async function _consumirCuotaDescarga(compra, recurso, req) {
   compra.descargas_count = data.descargas_count;
   await _logAccesoEntrega(compra, recurso, ip);
   return { ok: true };
+}
+
+function _isVideoDlSchemaError(msg) {
+  return /miniapp_video_descargas|column|schema cache|relation/i.test(String(msg || ''));
+}
+
+async function _leerDescargasVideoUsadas(compraId, videoId) {
+  const { data, error } = await supabase
+    .from('miniapp_video_descargas')
+    .select('descargas_count')
+    .eq('compra_id', compraId)
+    .eq('video_id', String(videoId).trim())
+    .maybeSingle();
+  if (error) {
+    if (_isVideoDlSchemaError(error.message)) return { ok: false, failClosed: true };
+    throw error;
+  }
+  return { ok: true, usadas: Number(data && data.descargas_count) || 0 };
+}
+
+async function _verificarLimiteDescargaVideo(compraId, videoId) {
+  const r = await _leerDescargasVideoUsadas(compraId, videoId);
+  if (!r.ok) return { ok: false, failClosed: true };
+  const restantes = LIMITE_DESCARGAS_VIDEO - r.usadas;
+  if (restantes <= 0) {
+    return { ok: false, reason: 'video_limit', message: ENTREGA_MSG_VIDEO_DL_LIMITE };
+  }
+  return { ok: true, usadas: r.usadas, restantes };
+}
+
+async function _cargarDescargasVideoRestantesMap(compraId, videoIds) {
+  const map = {};
+  const ids = (videoIds || []).map(String);
+  ids.forEach(function (id) { map[id] = LIMITE_DESCARGAS_VIDEO; });
+  if (!ids.length) return map;
+  const { data, error } = await supabase
+    .from('miniapp_video_descargas')
+    .select('video_id, descargas_count')
+    .eq('compra_id', compraId)
+    .in('video_id', ids);
+  if (error) {
+    if (_isVideoDlSchemaError(error.message)) return null;
+    throw error;
+  }
+  (data || []).forEach(function (row) {
+    const used = Number(row.descargas_count) || 0;
+    map[String(row.video_id)] = Math.max(0, LIMITE_DESCARGAS_VIDEO - used);
+  });
+  return map;
+}
+
+async function _incrementarDescargaVideo(compra, videoId, req) {
+  const compraId = compra.id;
+  const vid      = String(videoId).trim();
+  const ip       = _getClientIp(req);
+
+  const prev = await _verificarLimiteDescargaVideo(compraId, vid);
+  if (!prev.ok) return prev;
+
+  const { data: row, error: selErr } = await supabase
+    .from('miniapp_video_descargas')
+    .select('id, descargas_count')
+    .eq('compra_id', compraId)
+    .eq('video_id', vid)
+    .maybeSingle();
+  if (selErr) {
+    if (_isVideoDlSchemaError(selErr.message)) return { ok: false, failClosed: true };
+    throw selErr;
+  }
+
+  let data = null;
+  let error = null;
+
+  if (!row) {
+    const ins = await supabase
+      .from('miniapp_video_descargas')
+      .insert({ compra_id: compraId, video_id: vid, descargas_count: 1 })
+      .select('descargas_count')
+      .single();
+    data  = ins.data;
+    error = ins.error;
+    if (error && /duplicate|unique|23505/i.test(String(error.message || ''))) {
+      const upd = await supabase
+        .from('miniapp_video_descargas')
+        .update({ descargas_count: (prev.usadas || 0) + 1 })
+        .eq('compra_id', compraId)
+        .eq('video_id', vid)
+        .lt('descargas_count', LIMITE_DESCARGAS_VIDEO)
+        .select('descargas_count')
+        .maybeSingle();
+      data  = upd.data;
+      error = upd.error;
+    }
+  } else {
+    const upd = await supabase
+      .from('miniapp_video_descargas')
+      .update({ descargas_count: (Number(row.descargas_count) || 0) + 1 })
+      .eq('compra_id', compraId)
+      .eq('video_id', vid)
+      .lt('descargas_count', LIMITE_DESCARGAS_VIDEO)
+      .select('descargas_count')
+      .maybeSingle();
+    data  = upd.data;
+    error = upd.error;
+  }
+
+  if (error) {
+    if (_isVideoDlSchemaError(error.message)) return { ok: false, failClosed: true };
+    throw error;
+  }
+  if (!data) {
+    return { ok: false, reason: 'video_limit', message: ENTREGA_MSG_VIDEO_DL_LIMITE };
+  }
+
+  await _logAccesoEntrega(compra, 'video-dl:' + vid, ip);
+  const usadas = Number(data.descargas_count) || LIMITE_DESCARGAS_VIDEO;
+  return { ok: true, restantes: Math.max(0, LIMITE_DESCARGAS_VIDEO - usadas) };
+}
+
+function _denegarVideoDescarga(res, message) {
+  return res.status(403).send(message || ENTREGA_MSG_VIDEO_DL_LIMITE);
 }
 
 function _entregaCodigoGate(req, res, next) {
@@ -5232,7 +5364,17 @@ app.get('/mi-compra/:codigo', _entregaCodigoGate, async (req, res) => {
     const packUrl   = tienePack
       ? PUBLIC_BASE_URL + '/descargar-pack/' + compra.codigo_acceso
       : '';
-    const videosHtml = _buildVideosEntregaHtml(videos, compra.codigo_acceso);
+    let descargasVideoMap = {};
+    if (esContenido && videos.length) {
+      const videoIds = videos.map(function (v) { return v.id; });
+      const map = await _cargarDescargasVideoRestantesMap(compra.id, videoIds);
+      if (map) {
+        descargasVideoMap = map;
+      } else {
+        videoIds.forEach(function (id) { descargasVideoMap[String(id)] = 0; });
+      }
+    }
+    const videosHtml = _buildVideosEntregaHtml(videos, compra.codigo_acceso, descargasVideoMap);
 
     let productoEtiqueta = 'Tu producto';
     let pdfTitulo = 'Descarga tu PDF';
@@ -5590,6 +5732,18 @@ app.get('/descargar-video/:codigo/:video_id/estado', _entregaCodigoGate, async (
     const acc = await _videoDlValidarAcceso(codigo, videoId);
     if (!acc.ok) return _denegarEntregaTexto(res, acc.reason);
 
+    const limite = await _verificarLimiteDescargaVideo(acc.compra.id, videoId);
+    if (!limite.ok) {
+      if (limite.failClosed) {
+        return res.status(503).json({ ok: false, error: CLIENT_ERROR_MSG });
+      }
+      return res.status(403).json({
+        ok: false,
+        error: limite.message || ENTREGA_MSG_VIDEO_DL_LIMITE,
+        limite_alcanzado: true
+      });
+    }
+
     _setNoCacheJson(res);
     if (!ticketQ) {
       const info = _videoDlIniciarReserva(codigo, videoId);
@@ -5619,19 +5773,28 @@ app.get('/descargar-video/:codigo/:video_id', _entregaCodigoGate, async (req, re
     const ticketId   = String(req.query.ticket || '').trim();
 
     if (asDownload) {
+      const limite = await _verificarLimiteDescargaVideo(compra.id, videoId);
+      if (!limite.ok) {
+        if (limite.failClosed) return res.status(503).send(ENTREGA_MSG_INVALIDO);
+        return _denegarVideoDescarga(res, limite.message);
+      }
       if (!ticketId || !_videoDlMarcarServing(ticketId)) {
         return res.status(409).send('Tu descarga aun no esta lista. Usa el boton Descargar en tu pagina de entrega.');
       }
       liberarCupo = _videoDlAtarLiberacion(req, res, ticketId);
     }
 
-    const cuota = await _consumirCuotaDescarga(compra, 'video:' + videoId, req);
-    if (!cuota.ok) {
-      if (liberarCupo) liberarCupo();
-      return _denegarEntregaTexto(res, cuota.reason);
+    const buf = await obtenerArchivoBuffer(video.video_key);
+
+    if (asDownload) {
+      const consumo = await _incrementarDescargaVideo(compra, videoId, req);
+      if (!consumo.ok) {
+        if (liberarCupo) liberarCupo();
+        if (consumo.failClosed) return res.status(503).send(ENTREGA_MSG_INVALIDO);
+        return _denegarVideoDescarga(res, consumo.message);
+      }
     }
 
-    const buf = await obtenerArchivoBuffer(video.video_key);
     const ext = path.extname(video.video_key).toLowerCase();
     const mime = _mimeVideoExt(ext.replace('.', ''));
     const safeName = String(video.nombre || 'video').replace(/[^\w\s.-]/g, '_').trim() || 'video';
