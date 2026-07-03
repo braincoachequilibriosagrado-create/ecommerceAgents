@@ -31,13 +31,7 @@
   }
 
   body.ea-premium-bg {
-    background:
-      radial-gradient(1200px 600px at 15% 0%, rgba(43, 58, 245, 0.55), transparent 55%),
-      radial-gradient(1000px 700px at 85% 15%, rgba(255, 106, 61, 0.42), transparent 55%),
-      radial-gradient(900px 600px at 50% 100%, rgba(139, 47, 214, 0.55), transparent 60%),
-      linear-gradient(135deg, #2b3af5 0%, #6a28d9 45%, #8b2fd6 65%, #ff6a3d 100%);
-    background-attachment: fixed;
-    color: #1A1714;
+    background: transparent;
   }
 
   /* ─── PAGES ─────────────────────────────────── */

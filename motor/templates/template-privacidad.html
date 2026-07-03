@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="{{CSS_URL}}">
   <link rel="stylesheet" href="{{PREMIUM_CSS_URL}}">
 </head>
-<body class="ea-premium-bg ea-premium-bg--animated">
+<body class="ea-shader-page">
   <header class="legal-header">
     <div class="legal-header-inner">
       <a href="/marketplace" class="legal-brand">
@@ -105,5 +105,9 @@
   <footer class="legal-footer">
     <p>&copy; 2026 <strong>EcommerceAgents</strong> · <a href="/terminos">Terminos</a> · <a href="/privacidad">Privacidad</a> · <a href="/marketplace">Marketplace</a></p>
   </footer>
+  <script src="{{HERO_JS_URL}}"></script>
+  <script>
+    if (typeof initPremiumPageBg === 'function') initPremiumPageBg();
+  </script>
 </body>
 </html>

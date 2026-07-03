@@ -162,12 +162,7 @@
 
   load();
 
-  function initVtHero() {
-    if (typeof initPremiumHero === 'function') initPremiumHero('#vt-hero');
-  }
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initVtHero);
-  } else {
-    initVtHero();
-  }
+  document.addEventListener('DOMContentLoaded', function () {
+    if (typeof initAllPremiumHeroes === 'function') initAllPremiumHeroes();
+  });
 })();

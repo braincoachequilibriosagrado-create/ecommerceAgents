@@ -8,8 +8,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/css/premium-platform.css?v=1" />
-  <link rel="stylesheet" href="assets/css/creadores.css?v=30" />
+  <link rel="stylesheet" href="assets/css/premium-platform.css?v=2" />
+  <link rel="stylesheet" href="assets/css/creadores.css?v=32" />
 </head>
 <body class="cr-body--landing">
 
@@ -28,7 +28,14 @@
       <div class="cr-nav-right">
         <span class="cr-nav-hola" id="cr-nav-hola" hidden>Hola, <strong id="cr-nav-nombre"></strong></span>
         <span class="cr-nav-badge" id="cr-nav-badge" hidden>CREADOR</span>
-        <button type="button" class="cr-btn-logout" id="cr-nav-logout" hidden onclick="creadorLogout()">Salir</button>
+        <button type="button" class="cr-btn-logout" id="cr-nav-logout" hidden onclick="creadorLogout()" aria-label="Cerrar sesion">
+          <svg class="cr-btn-logout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+            <polyline points="16 17 21 12 16 7"/>
+            <line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+          Cerrar sesion
+        </button>
       </div>
     </div>
   </header>
@@ -187,8 +194,10 @@
       </div>
     </section>
 
-    <section class="lp-cta">
-      <div class="lp-container lp-cta-inner">
+    <section class="lp-cta premium-hero" id="lp-cta">
+      <canvas class="premium-hero-canvas" aria-hidden="true"></canvas>
+      <div class="premium-hero-overlay" aria-hidden="true"></div>
+      <div class="lp-container lp-cta-inner premium-hero-content">
         <h2>Empieza a vender hoy</h2>
         <p>Publica tu primer activo digital en minutos. Sin tarjeta, sin mensualidad.</p>
         <button type="button" class="lp-btn-primary premium-btn lp-btn-lg" onclick="irAuth('registro')">Crear mi cuenta gratis</button>
@@ -341,6 +350,7 @@
 
   <!-- Dashboard -->
   <div id="cr-dashboard" hidden>
+    <div class="cr-dashboard-shell">
     <div class="cr-welcome-hero">
       <p class="cr-welcome-eyebrow">BIENVENIDO DE VUELTA</p>
       <h1 class="cr-welcome-title">Tu estudio digital</h1>
@@ -672,18 +682,19 @@
       </section>
 
     </main>
+    </div>
   </div>
 
-  <script src="assets/js/premium-hero.js?v=1"></script>
-  <script src="assets/js/creadores.js?v=23"></script>
+  <script src="assets/js/premium-hero.js?v=2"></script>
+  <script src="assets/js/creadores.js?v=25"></script>
   <script>
-    function initLpHero() {
-      if (typeof initPremiumHero === 'function') initPremiumHero('#lp-hero');
+    function initCrShaders() {
+      if (typeof initAllPremiumHeroes === 'function') initAllPremiumHeroes();
     }
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initLpHero);
+      document.addEventListener('DOMContentLoaded', initCrShaders);
     } else {
-      initLpHero();
+      initCrShaders();
     }
   </script>
 </body>

@@ -2,6 +2,7 @@
   'use strict';
 
   var THREE_CDN = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+  var instances = [];
 
   function prefersReducedMotion() {
     return global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -48,7 +49,6 @@
     '  vec2 p = (uv - 0.5) * vec2(uResolution.x / uResolution.y, 1.0);',
     '  float t = uTime * 0.18;',
     '  vec3 col = vec3(0.02, 0.024, 0.059);',
-    '  float acc = 0.0;',
     '  for (int i = 0; i < 6; i++) {',
     '    float fi = float(i);',
     '    float ang = 0.55 + fi * 0.16;',
@@ -61,7 +61,6 @@
     '    float mixA = fract(fi * 0.27 + p.x * 0.15 + t * 0.08);',
     '    vec3 ray = mix(cBlue, cPurple, smoothstep(0.0, 0.55, mixA));',
     '    ray = mix(ray, cOrange, smoothstep(0.55, 1.0, mixA));',
-    '    acc += line * (0.14 + fi * 0.025);',
     '    col += ray * line * (0.22 + fi * 0.04);',
     '  }',
     '  col += vec3(0.03, 0.02, 0.06) * smoothstep(0.2, 0.9, uv.y);',
@@ -73,12 +72,16 @@
     this.heroEl = heroEl;
     this.canvas = heroEl.querySelector('.premium-hero-canvas');
     this.running = false;
+    this.active = false;
     this.rafId = null;
     this.observer = null;
     this.renderer = null;
     this.material = null;
     this.clock = null;
     this.staticMode = shouldUseStatic();
+    this.isPage = heroEl.classList.contains('premium-hero--page');
+    this.isControlled = heroEl.classList.contains('premium-hero--controlled');
+    this._onResize = this.resize.bind(this);
   }
 
   PremiumHero.prototype.enableStatic = function () {
@@ -88,10 +91,18 @@
     if (this.canvas) this.canvas.style.display = 'none';
   };
 
+  PremiumHero.prototype.getSize = function () {
+    if (this.isPage) {
+      return { w: global.innerWidth, h: global.innerHeight };
+    }
+    return { w: this.heroEl.clientWidth, h: this.heroEl.clientHeight };
+  };
+
   PremiumHero.prototype.resize = function () {
     if (!this.renderer || !this.material) return;
-    var w = this.heroEl.clientWidth;
-    var h = this.heroEl.clientHeight;
+    var size = this.getSize();
+    var w = size.w;
+    var h = size.h;
     if (w < 1 || h < 1) return;
     var dpr = Math.min(global.devicePixelRatio || 1, 2);
     this.renderer.setSize(w, h, false);
@@ -108,6 +119,8 @@
 
   PremiumHero.prototype.start = function () {
     if (this.staticMode || this.running) return;
+    if (this.isControlled && !this.active) return;
+    if (this.heroEl.hasAttribute('hidden')) return;
     this.running = true;
     this.resize();
     this.tick();
@@ -121,10 +134,24 @@
     }
   };
 
+  PremiumHero.prototype.setActive = function (active) {
+    this.active = !!active;
+    if (this.active) this.start();
+    else this.stop();
+  };
+
   PremiumHero.prototype.observe = function () {
     var self = this;
+    if (self.isPage) {
+      global.addEventListener('visibilitychange', function () {
+        if (document.hidden) self.stop();
+        else if (self.active || !self.isControlled) self.start();
+      });
+      if (!self.isControlled) self.start();
+      return;
+    }
     if (!('IntersectionObserver' in global)) {
-      self.start();
+      if (!self.isControlled) self.start();
       return;
     }
     self.observer = new IntersectionObserver(function (entries) {
@@ -159,12 +186,14 @@
     });
     this.renderer.setPixelRatio(Math.min(global.devicePixelRatio || 1, 2));
     this.resize();
-    global.addEventListener('resize', this.resize.bind(this));
+    global.addEventListener('resize', this._onResize);
     this.observe();
+    if (this.isControlled && this.active) this.start();
   };
 
   PremiumHero.prototype.destroy = function () {
     this.stop();
+    global.removeEventListener('resize', this._onResize);
     if (this.observer) this.observer.disconnect();
     if (this.renderer) this.renderer.dispose();
   };
@@ -173,10 +202,14 @@
     var heroEl = typeof selector === 'string'
       ? document.querySelector(selector)
       : selector;
-    if (!heroEl || heroEl.getAttribute('data-premium-init') === '1') return null;
+    if (!heroEl || heroEl.getAttribute('data-premium-init') === '1') {
+      return heroEl && heroEl._premiumHero ? heroEl._premiumHero : null;
+    }
 
     heroEl.setAttribute('data-premium-init', '1');
     var instance = new PremiumHero(heroEl);
+    heroEl._premiumHero = instance;
+    instances.push(instance);
 
     if (instance.staticMode) {
       instance.enableStatic();
@@ -190,5 +223,34 @@
     return instance;
   }
 
+  function initAllPremiumHeroes(root) {
+    var scope = root && root.querySelectorAll ? root : document;
+    var nodes = scope.querySelectorAll('.premium-hero:not([data-premium-init])');
+    var list = [];
+    nodes.forEach(function (el) {
+      var inst = initPremiumHero(el);
+      if (inst) list.push(inst);
+    });
+    return list;
+  }
+
+  function initPremiumPageBg() {
+    var el = document.getElementById('ea-page-shader');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'ea-page-shader';
+      el.className = 'premium-hero premium-hero--page';
+      el.setAttribute('aria-hidden', 'true');
+      el.innerHTML =
+        '<canvas class="premium-hero-canvas" aria-hidden="true"></canvas>' +
+        '<div class="premium-hero-overlay premium-hero-overlay--page" aria-hidden="true"></div>';
+      document.body.insertBefore(el, document.body.firstChild);
+      document.body.classList.add('ea-shader-page');
+    }
+    return initPremiumHero(el);
+  }
+
   global.initPremiumHero = initPremiumHero;
+  global.initAllPremiumHeroes = initAllPremiumHeroes;
+  global.initPremiumPageBg = initPremiumPageBg;
 })(typeof window !== 'undefined' ? window : this);

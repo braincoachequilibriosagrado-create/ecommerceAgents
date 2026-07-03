@@ -173,7 +173,8 @@ function _serveLegalPage(res, templatePath) {
     html = html
       .replace(/\{\{LOGO_URL\}\}/g, _assetUrl('/assets/logo-activos.jpg'))
       .replace(/\{\{CSS_URL\}\}/g, _assetUrl('/assets/legal.css'))
-      .replace(/\{\{PREMIUM_CSS_URL\}\}/g, _assetUrl('/assets/premium-platform.css'));
+      .replace(/\{\{PREMIUM_CSS_URL\}\}/g, _assetUrl('/assets/premium-platform.css'))
+      .replace(/\{\{HERO_JS_URL\}\}/g, _assetUrl('/assets/premium-hero.js'));
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Cache-Control', 'public, max-age=3600');
     res.send(html);
@@ -3155,7 +3156,7 @@ app.post('/api/mis-productos/quitar', requireUsuario, async (req, res) => {
 });
 
 // ── Marketplace publico (Activos Digitales) ─────────────────────────────────────
-const MARKETPLACE_ASSET_BUST = '3';
+const MARKETPLACE_ASSET_BUST = '4';
 
 async function _apiMarketplace(req, res) {
   try {

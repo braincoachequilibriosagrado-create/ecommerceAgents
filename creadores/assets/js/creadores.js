@@ -205,24 +205,36 @@ function _setView(view) {
   document.body.classList.toggle('cr-body--landing', view === CR_VIEW.LANDING);
   document.body.classList.toggle('cr-body--auth', view === CR_VIEW.AUTH);
   document.body.classList.toggle('cr-body--dash', view === CR_VIEW.DASH);
-  var premiumBg = view === CR_VIEW.AUTH || view === CR_VIEW.DASH;
-  document.body.classList.toggle('ea-premium-bg', premiumBg);
-  document.body.classList.toggle('ea-premium-bg--animated', premiumBg);
+  document.body.classList.toggle('ea-shader-page', view === CR_VIEW.AUTH || view === CR_VIEW.DASH);
+
+  var pageShader = document.getElementById('ea-page-shader');
+  if (!pageShader && (view === CR_VIEW.AUTH || view === CR_VIEW.DASH) && typeof initPremiumPageBg === 'function') {
+    initPremiumPageBg();
+    pageShader = document.getElementById('ea-page-shader');
+  }
+  if (pageShader && pageShader._premiumHero) {
+    pageShader._premiumHero.setActive(view === CR_VIEW.AUTH || view === CR_VIEW.DASH);
+  }
+}
+
+function _syncNavPanel(visible) {
+  var hola = document.getElementById('cr-nav-hola');
+  var badge = document.getElementById('cr-nav-badge');
+  var logout = document.getElementById('cr-nav-logout');
+  if (hola) hola.hidden = !visible;
+  if (badge) badge.hidden = !visible;
+  if (logout) logout.hidden = !visible;
 }
 
 function mostrarLanding() {
   _setView(CR_VIEW.LANDING);
-  document.getElementById('cr-nav-logout').hidden = true;
-  document.getElementById('cr-nav-badge').hidden  = true;
-  document.getElementById('cr-nav-hola').hidden   = true;
+  _syncNavPanel(false);
   window.scrollTo(0, 0);
 }
 
 function mostrarAuth() {
   _setView(CR_VIEW.AUTH);
-  document.getElementById('cr-nav-logout').hidden = true;
-  document.getElementById('cr-nav-badge').hidden  = true;
-  document.getElementById('cr-nav-hola').hidden   = true;
+  _syncNavPanel(false);
   window.scrollTo(0, 0);
 }
 
@@ -246,9 +258,7 @@ function scrollLandingSection(id) {
 
 function mostrarDashboard() {
   _setView(CR_VIEW.DASH);
-  document.getElementById('cr-nav-logout').hidden = false;
-  document.getElementById('cr-nav-badge').hidden  = false;
-  document.getElementById('cr-nav-hola').hidden   = false;
+  _syncNavPanel(true);
   _actualizarNavNombre();
   switchCrTab('cuentas');
   window.scrollTo(0, 0);
@@ -424,7 +434,12 @@ async function creadorRegistro() {
 
 function creadorLogout() {
   _limpiarSesion();
-  mostrarLanding();
+  var pwEl = document.getElementById('cr-login-password');
+  if (pwEl) pwEl.value = '';
+  var msgEl = document.getElementById('cr-login-msg');
+  if (msgEl) { msgEl.textContent = ''; msgEl.className = 'cr-msg'; }
+  mostrarAuth();
+  switchAuthTab('login');
 }
 
 /* ── Dashboard tabs ──────────────────────────────────────── */
