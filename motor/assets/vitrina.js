@@ -113,7 +113,7 @@
             '<h2 class="vt-card-name">' + esc(p.nombre) + '</h2>' +
             desc +
             '<div class="vt-card-prices">' + precioHtml(p) + '</div>' +
-            '<a href="' + esc(link) + '" class="vt-card-btn">Ver / Comprar</a>' +
+            '<a href="' + esc(link) + '" class="vt-card-btn premium-btn">Ver / Comprar</a>' +
           '</div>' +
         '</article>'
       );
@@ -161,4 +161,13 @@
   }
 
   load();
+
+  function initVtHero() {
+    if (typeof initPremiumHero === 'function') initPremiumHero('#vt-hero');
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initVtHero);
+  } else {
+    initVtHero();
+  }
 })();

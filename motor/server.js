@@ -3154,7 +3154,7 @@ app.post('/api/mis-productos/quitar', requireUsuario, async (req, res) => {
 });
 
 // ── Marketplace publico (Activos Digitales) ─────────────────────────────────────
-const MARKETPLACE_ASSET_BUST = '2';
+const MARKETPLACE_ASSET_BUST = '3';
 
 async function _apiMarketplace(req, res) {
   try {
@@ -3188,6 +3188,7 @@ function _serveMarketplace(req, res) {
   const logoUrl = _assetUrl('/assets/logo-activos.jpg') + bust;
   const cssUrl  = _assetUrl('/assets/vitrina.css') + bust;
   const jsUrl   = _assetUrl('/assets/vitrina.js') + bust;
+  const heroJsUrl = _assetUrl('/assets/premium-hero.js') + bust;
   res.send(`<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -3212,9 +3213,14 @@ function _serveMarketplace(req, res) {
   </header>
 
   <main class="vt-main">
-    <section class="vt-hero">
-      <h1 class="vt-hero-title">Marketplace de Activos Digitales</h1>
-      <p class="vt-hero-sub">Explora mini apps, infoproductos y contenido digital listos para usar. Compra segura y acceso inmediato.</p>
+    <section class="vt-hero premium-hero" id="vt-hero">
+      <canvas class="premium-hero-canvas" aria-hidden="true"></canvas>
+      <div class="premium-hero-overlay" aria-hidden="true"></div>
+      <div class="premium-hero-content vt-hero-content">
+        <p class="vt-hero-badge"><span class="vt-hero-badge-dot" aria-hidden="true"></span> Marketplace oficial</p>
+        <h1 class="vt-hero-title">Marketplace de Activos Digitales</h1>
+        <p class="vt-hero-sub">Explora mini apps, infoproductos y contenido digital listos para usar. Compra segura y acceso inmediato.</p>
+      </div>
     </section>
 
     <div class="vt-toolbar">
@@ -3242,6 +3248,7 @@ function _serveMarketplace(req, res) {
     <p class="vt-footer-legal"><a href="/terminos">Terminos y Condiciones</a> · <a href="/privacidad">Politica de Privacidad</a></p>
   </footer>
 </div>
+<script src="${heroJsUrl}"></script>
 <script src="${jsUrl}"></script>
 </body>
 </html>`);

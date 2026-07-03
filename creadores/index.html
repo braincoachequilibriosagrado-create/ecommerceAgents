@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/css/creadores.css?v=28" />
+  <link rel="stylesheet" href="assets/css/creadores.css?v=29" />
 </head>
 <body class="cr-body--landing">
 
@@ -34,7 +34,7 @@
 
   <!-- Landing -->
   <div id="cr-landing" class="lp">
-    <nav class="lp-nav">
+    <nav class="lp-nav lp-nav--premium">
       <div class="lp-nav-inner">
         <a href="#" class="lp-brand" onclick="mostrarLanding(); return false;">
           <img src="assets/img/logo.jpg?v=3" alt="Activos Digitales" class="lp-brand-logo" />
@@ -50,24 +50,32 @@
         </div>
         <div class="lp-nav-actions">
           <button type="button" class="lp-btn-ghost" onclick="irAuth('login')">Iniciar sesion</button>
-          <button type="button" class="lp-btn-primary lp-btn-sm" onclick="irAuth('registro')">Empezar gratis</button>
+          <button type="button" class="lp-btn-primary premium-btn lp-btn-sm" onclick="irAuth('registro')">Empezar gratis</button>
         </div>
       </div>
     </nav>
 
-    <section class="lp-hero">
-      <div class="lp-container lp-hero-inner">
+    <section class="lp-hero premium-hero" id="lp-hero">
+      <canvas class="premium-hero-canvas" aria-hidden="true"></canvas>
+      <div class="premium-hero-overlay" aria-hidden="true"></div>
+      <div class="lp-container lp-hero-inner premium-hero-content">
+        <p class="lp-hero-badge"><span class="lp-hero-badge-dot" aria-hidden="true"></span> Plataforma de activos digitales</p>
         <h1 class="lp-hero-title">Convierte tu conocimiento en un <span class="lp-grad-text">activo que vende solo</span></h1>
         <p class="lp-hero-sub">Sube tu producto digital una vez. Nosotros creamos tu pagina de venta con IA y una red de vendedores lo promociona. Tu solo cobras.</p>
         <div class="lp-hero-actions">
-          <button type="button" class="lp-btn-primary" onclick="irAuth('registro')">Crear mi cuenta gratis</button>
-          <button type="button" class="lp-btn-outline" onclick="scrollLandingSection('como')">Ver como funciona</button>
+          <button type="button" class="lp-btn-primary premium-btn" onclick="irAuth('registro')">Crear mi cuenta gratis</button>
+          <button type="button" class="lp-btn-outline lp-btn-outline--hero" onclick="scrollLandingSection('como')">Ver como funciona</button>
         </div>
         <p class="lp-hero-note">Sin costos de inicio · Sin mensualidades · Solo ganas cuando vendes</p>
+        <div class="lp-hero-stats">
+          <div class="lp-hero-stat"><span class="lp-hero-stat-val">3</span><span class="lp-hero-stat-lbl">Tipos de producto</span></div>
+          <div class="lp-hero-stat"><span class="lp-hero-stat-val">0%</span><span class="lp-hero-stat-lbl">Costo inicial</span></div>
+          <div class="lp-hero-stat"><span class="lp-hero-stat-val">24/7</span><span class="lp-hero-stat-lbl">Ventas automaticas</span></div>
+        </div>
       </div>
     </section>
 
-    <section class="lp-stats">
+    <section class="lp-stats" hidden aria-hidden="true">
       <div class="lp-container lp-stats-grid">
         <div class="lp-stat"><span class="lp-stat-val">3</span><span class="lp-stat-lbl">Tipos de productos</span></div>
         <div class="lp-stat"><span class="lp-stat-val">0%</span><span class="lp-stat-lbl">Costo para empezar</span></div>
@@ -182,7 +190,7 @@
       <div class="lp-container lp-cta-inner">
         <h2>Empieza a vender hoy</h2>
         <p>Publica tu primer activo digital en minutos. Sin tarjeta, sin mensualidad.</p>
-        <button type="button" class="lp-btn-primary lp-btn-lg" onclick="irAuth('registro')">Crear mi cuenta gratis</button>
+        <button type="button" class="lp-btn-primary premium-btn lp-btn-lg" onclick="irAuth('registro')">Crear mi cuenta gratis</button>
         <button type="button" class="lp-cta-link" onclick="irAuth('login')">Ya tienes cuenta? Inicia sesion</button>
       </div>
     </section>
@@ -665,6 +673,17 @@
     </main>
   </div>
 
-  <script src="assets/js/creadores.js?v=21"></script>
+  <script src="assets/js/premium-hero.js?v=1"></script>
+  <script src="assets/js/creadores.js?v=22"></script>
+  <script>
+    function initLpHero() {
+      if (typeof initPremiumHero === 'function') initPremiumHero('#lp-hero');
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initLpHero);
+    } else {
+      initLpHero();
+    }
+  </script>
 </body>
 </html>
