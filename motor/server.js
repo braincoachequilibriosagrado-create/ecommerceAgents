@@ -26,6 +26,7 @@ const miniappSeg = require('./miniapp-seguridad');
 const jwtAuth    = require('./jwt-auth');
 const rateLimit  = require('express-rate-limit');
 const Stripe     = require('stripe');
+const { Resend } = require('resend');
 
 const app  = express();
 const PORT = process.env.PORT || 3002;
@@ -43,6 +44,19 @@ const authRateLimiter = rateLimit({
   message: { ok: false, error: RATE_LIMIT_MSG }
 });
 
+const recuperarPasswordLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 3,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: function (req) {
+    const email = String((req.body && req.body.email) || '').trim().toLowerCase();
+    const ip    = req.ip || (req.socket && req.socket.remoteAddress) || 'unknown';
+    return (email || 'no-email') + '|' + ip;
+  },
+  message: { ok: true, mensaje: 'Si el email esta registrado, recibiras un correo con instrucciones.' }
+});
+
 const compraRateLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 30,
@@ -57,6 +71,16 @@ const COMPRA_PRUEBA_ACTIVA = process.env.COMPRA_PRUEBA_ACTIVA === 'true';
 const STRIPE_SECRET_KEY       = process.env.STRIPE_SECRET_KEY || '';
 const STRIPE_WEBHOOK_SECRET   = process.env.STRIPE_WEBHOOK_SECRET || '';
 const STRIPE_PUBLISHABLE_KEY  = process.env.STRIPE_PUBLISHABLE_KEY || '';
+const RESEND_API_KEY          = process.env.RESEND_API_KEY || '';
+const RESEND_FROM_EMAIL       = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
+const CREADORES_PANEL_URL     = (process.env.CREADORES_PANEL_URL || 'https://ecommerce-creadores.vercel.app').replace(/\/$/, '');
+
+let _resendClient = null;
+function _getResend() {
+  if (!RESEND_API_KEY) return null;
+  if (!_resendClient) _resendClient = new Resend(RESEND_API_KEY);
+  return _resendClient;
+}
 
 let _stripeClient = null;
 function _getStripe() {
@@ -1980,6 +2004,181 @@ app.post('/api/creador/login', authRateLimiter, async (req, res) => {
     });
   } catch (e) {
     console.error('[creador/login]', e.message);
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
+  }
+});
+
+const CREADOR_MSG_RECUPERAR_OK = 'Si el email esta registrado, recibiras un correo con instrucciones.';
+
+function _hashPasswordResetToken(token) {
+  return crypto.createHash('sha256').update(String(token || '').trim()).digest('hex');
+}
+
+function _generarPasswordResetToken() {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+async function _enviarCorreoRecuperarCreador(email, nombre, resetUrl) {
+  const resend = _getResend();
+  if (!resend) {
+    console.error('[creador/recuperar-password] RESEND_API_KEY no configurada');
+    return false;
+  }
+  const displayName = String(nombre || '').trim() || 'Creador';
+  const html =
+    '<div style="font-family:Inter,Arial,sans-serif;max-width:520px;margin:0 auto;color:#0f1222">' +
+    '<h2 style="color:#5b28e0;margin:0 0 12px">Recupera tu contraseña</h2>' +
+    '<p>Hola ' + displayName.replace(/</g, '&lt;') + ',</p>' +
+    '<p>Recibimos una solicitud para restablecer la contraseña de tu cuenta en <strong>Activos Digitales</strong>.</p>' +
+    '<p style="margin:28px 0"><a href="' + resetUrl + '" style="display:inline-block;background:linear-gradient(120deg,#2b3af5,#8b2fd6);color:#fff;text-decoration:none;padding:14px 24px;border-radius:10px;font-weight:700">Restablecer contraseña</a></p>' +
+    '<p style="font-size:13px;color:#5a5f74">O copia este enlace en tu navegador:<br><a href="' + resetUrl + '">' + resetUrl + '</a></p>' +
+    '<p style="font-size:13px;color:#8b90a4;margin-top:24px">Este enlace expira en <strong>1 hora</strong>. Si no solicitaste este cambio, ignora este correo.</p>' +
+    '</div>';
+  try {
+    const { error } = await resend.emails.send({
+      from:    RESEND_FROM_EMAIL,
+      to:      email,
+      subject: 'Recupera tu contraseña - Activos Digitales',
+      html
+    });
+    if (error) {
+      console.error('[creador/recuperar-password] Resend:', error.message || error);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error('[creador/recuperar-password] Resend:', e.message);
+    return false;
+  }
+}
+
+// POST /api/creador/recuperar-password
+app.post('/api/creador/recuperar-password', recuperarPasswordLimiter, async (req, res) => {
+  const emailNorm = String((req.body && req.body.email) || '').trim().toLowerCase();
+  const responderOk = function () {
+    res.json({ ok: true, mensaje: CREADOR_MSG_RECUPERAR_OK });
+  };
+
+  if (!emailNorm || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNorm)) {
+    return responderOk();
+  }
+
+  try {
+    const { data: creador, error } = await supabase
+      .from('creadores')
+      .select('id, nombre, email, estado')
+      .eq('email', emailNorm)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (!creador || creador.estado !== 'activo') {
+      return responderOk();
+    }
+
+    const token     = _generarPasswordResetToken();
+    const tokenHash = _hashPasswordResetToken(token);
+    const expira    = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+
+    await supabase
+      .from('password_resets')
+      .update({ usado: true })
+      .eq('creador_id', creador.id)
+      .eq('usado', false);
+
+    const { error: insErr } = await supabase
+      .from('password_resets')
+      .insert({
+        creador_id: creador.id,
+        token_hash: tokenHash,
+        expira_en:  expira,
+        usado:      false
+      });
+
+    if (insErr) {
+      if (/password_resets|relation|schema cache/i.test(String(insErr.message || ''))) {
+        console.error('[creador/recuperar-password] tabla password_resets ausente');
+        return responderOk();
+      }
+      throw insErr;
+    }
+
+    const resetUrl = CREADORES_PANEL_URL + '/restablecer?token=' + encodeURIComponent(token);
+    const enviado  = await _enviarCorreoRecuperarCreador(creador.email, creador.nombre, resetUrl);
+    if (!enviado) {
+      await supabase.from('password_resets').update({ usado: true }).eq('token_hash', tokenHash);
+    } else {
+      console.log('[creador/recuperar-password] correo enviado a', creador.email);
+    }
+
+    responderOk();
+  } catch (e) {
+    console.error('[creador/recuperar-password]', e.message);
+    responderOk();
+  }
+});
+
+// POST /api/creador/restablecer-password
+app.post('/api/creador/restablecer-password', authRateLimiter, async (req, res) => {
+  const token   = String((req.body && req.body.token) || '').trim();
+  const nueva   = String((req.body && req.body.nueva_password) || '');
+
+  if (!token) {
+    return res.status(400).json({ ok: false, error: 'El enlace no es valido o ha expirado.' });
+  }
+  if (!nueva || nueva.length < 6) {
+    return res.status(400).json({ ok: false, error: 'La contraseña debe tener al menos 6 caracteres.' });
+  }
+
+  try {
+    const tokenHash = _hashPasswordResetToken(token);
+    const { data: row, error: selErr } = await supabase
+      .from('password_resets')
+      .select('id, creador_id, expira_en, usado')
+      .eq('token_hash', tokenHash)
+      .maybeSingle();
+
+    if (selErr) {
+      if (/password_resets|relation|schema cache/i.test(String(selErr.message || ''))) {
+        console.error('[creador/restablecer-password] tabla password_resets ausente');
+        return res.status(503).json({ ok: false, error: 'Servicio no disponible. Intenta mas tarde.' });
+      }
+      throw selErr;
+    }
+
+    if (!row || row.usado) {
+      return res.status(400).json({ ok: false, error: 'El enlace no es valido o ya fue utilizado.' });
+    }
+    if (new Date(row.expira_en).getTime() < Date.now()) {
+      return res.status(400).json({ ok: false, error: 'El enlace ha expirado. Solicita uno nuevo.' });
+    }
+
+    const password_hash = await bcrypt.hash(nueva, CREADOR_SALT_ROUNDS);
+    const { error: updErr } = await supabase
+      .from('creadores')
+      .update({ password_hash })
+      .eq('id', row.creador_id);
+
+    if (updErr) throw updErr;
+
+    const { error: markErr } = await supabase
+      .from('password_resets')
+      .update({ usado: true })
+      .eq('id', row.id)
+      .eq('usado', false);
+
+    if (markErr) throw markErr;
+
+    await supabase
+      .from('password_resets')
+      .update({ usado: true })
+      .eq('creador_id', row.creador_id)
+      .eq('usado', false);
+
+    console.log('[creador/restablecer-password] ok creador_id=' + row.creador_id);
+    res.json({ ok: true, mensaje: 'Contraseña actualizada. Ya puedes iniciar sesion.' });
+  } catch (e) {
+    console.error('[creador/restablecer-password]', e.message);
     res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
@@ -7154,6 +7353,14 @@ app.listen(PORT, () => {
   } else {
     console.warn('[motor] STRIPE_SECRET_KEY no configurada — pagos reales desactivados');
   }
+  if (RESEND_API_KEY) {
+    console.log('[motor] Resend activo (from: ' + RESEND_FROM_EMAIL + ')');
+  } else {
+    console.warn('[motor] RESEND_API_KEY no configurada — recuperacion de contraseña sin correo');
+  }
+  console.log('[motor]   POST http://localhost:' + PORT + '/api/creador/recuperar-password');
+  console.log('[motor]   POST http://localhost:' + PORT + '/api/creador/restablecer-password');
+  console.log('[motor]   Panel creadores reset URL base: ' + CREADORES_PANEL_URL + '/restablecer');
   console.log(`[motor]   GET  http://localhost:${PORT}/api/vendedor/miniapps-comisiones?usuario_id=`);
   console.log(`[motor]   GET  http://localhost:${PORT}/api/admin/miniapps/comisiones-vendedores`);
   console.log(`[motor]   GET  http://localhost:${PORT}/mi-compra/:codigo`);

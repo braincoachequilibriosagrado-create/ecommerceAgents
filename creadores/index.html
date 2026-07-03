@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/css/creadores.css?v=27" />
+  <link rel="stylesheet" href="assets/css/creadores.css?v=28" />
 </head>
 <body class="cr-body--landing">
 
@@ -199,7 +199,7 @@
   <div id="cr-auth-screen" class="cr-auth-wrap" hidden>
     <div class="cr-auth-card">
       <button type="button" class="cr-auth-back" onclick="mostrarLanding()">← Volver al inicio</button>
-      <div class="cr-auth-tabs">
+      <div class="cr-auth-tabs" id="cr-auth-tabs">
         <button type="button" class="cr-auth-tab active" id="cr-tab-login" onclick="switchAuthTab('login')">Iniciar sesion</button>
         <button type="button" class="cr-auth-tab" id="cr-tab-registro" onclick="switchAuthTab('registro')">Registrarse</button>
       </div>
@@ -234,6 +234,58 @@
             <span>Recordarme</span>
           </label>
           <button type="button" class="cr-btn-primary" id="cr-login-btn" onclick="creadorLogin()">Entrar</button>
+          <p class="cr-auth-forgot-wrap">
+            <button type="button" class="cr-auth-link" onclick="mostrarRecuperarPassword()">¿Olvidaste tu contraseña?</button>
+          </p>
+        </div>
+        <div id="cr-panel-recuperar" hidden>
+          <h1 class="cr-auth-title">Recuperar contraseña</h1>
+          <p class="cr-auth-sub">Te enviaremos un enlace a tu email para elegir una nueva contraseña.</p>
+          <div id="cr-recuperar-msg" class="cr-msg"></div>
+          <div class="cr-field">
+            <label class="cr-label" for="cr-recuperar-email">Email</label>
+            <input type="email" id="cr-recuperar-email" class="cr-input" placeholder="tu@email.com" autocomplete="email"
+              onkeydown="if(event.key==='Enter')enviarRecuperarPassword()" />
+          </div>
+          <button type="button" class="cr-btn-primary" id="cr-recuperar-btn" onclick="enviarRecuperarPassword()">Enviar instrucciones</button>
+          <p class="cr-auth-forgot-wrap">
+            <button type="button" class="cr-auth-link" onclick="switchAuthTab('login')">← Volver al login</button>
+          </p>
+        </div>
+        <div id="cr-panel-restablecer" hidden>
+          <h1 class="cr-auth-title">Nueva contraseña</h1>
+          <p class="cr-auth-sub">Elige una contraseña nueva para tu cuenta.</p>
+          <div id="cr-restablecer-msg" class="cr-msg"></div>
+          <input type="hidden" id="cr-reset-token" value="" />
+          <div class="cr-field">
+            <label class="cr-label" for="cr-reset-password">Nueva contraseña</label>
+            <div class="cr-password-wrap">
+              <input type="password" id="cr-reset-password" class="cr-input cr-input--password" placeholder="Minimo 6 caracteres" autocomplete="new-password" />
+              <button type="button" class="cr-password-toggle" id="cr-reset-password-toggle" aria-label="Mostrar contraseña"
+                onclick="toggleCrPassword('cr-reset-password','cr-reset-password-toggle')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="cr-field">
+            <label class="cr-label" for="cr-reset-confirm">Confirmar contraseña</label>
+            <div class="cr-password-wrap">
+              <input type="password" id="cr-reset-confirm" class="cr-input cr-input--password" placeholder="Repite tu contraseña" autocomplete="new-password"
+                onkeydown="if(event.key==='Enter')enviarRestablecerPassword()" />
+              <button type="button" class="cr-password-toggle" id="cr-reset-confirm-toggle" aria-label="Mostrar contraseña"
+                onclick="toggleCrPassword('cr-reset-confirm','cr-reset-confirm-toggle')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <button type="button" class="cr-btn-primary" id="cr-restablecer-btn" onclick="enviarRestablecerPassword()">Guardar contraseña</button>
+          <p class="cr-auth-forgot-wrap">
+            <button type="button" class="cr-auth-link" onclick="switchAuthTab('login')">← Volver al login</button>
+          </p>
         </div>
         <div id="cr-panel-registro" hidden>
           <h1 class="cr-auth-title">Crear cuenta</h1>
@@ -613,6 +665,6 @@
     </main>
   </div>
 
-  <script src="assets/js/creadores.js?v=20"></script>
+  <script src="assets/js/creadores.js?v=21"></script>
 </body>
 </html>

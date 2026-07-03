@@ -252,13 +252,103 @@ function mostrarDashboard() {
 }
 
 function switchAuthTab(tab) {
-  var isLogin = tab === 'login';
-  document.getElementById('cr-tab-login').classList.toggle('active', isLogin);
-  document.getElementById('cr-tab-registro').classList.toggle('active', !isLogin);
-  document.getElementById('cr-panel-login').hidden    = !isLogin;
-  document.getElementById('cr-panel-registro').hidden = isLogin;
+  _showAuthPanel(tab === 'registro' ? 'registro' : 'login');
+}
+
+function _showAuthPanel(panel) {
+  var panels = ['login', 'registro', 'recuperar', 'restablecer'];
+  panels.forEach(function (p) {
+    var el = document.getElementById('cr-panel-' + p);
+    if (el) el.hidden = p !== panel;
+  });
+  var tabsEl = document.getElementById('cr-auth-tabs');
+  if (tabsEl) tabsEl.hidden = panel !== 'login' && panel !== 'registro';
+  var isLogin = panel === 'login';
+  var tabLogin = document.getElementById('cr-tab-login');
+  var tabReg = document.getElementById('cr-tab-registro');
+  if (tabLogin) tabLogin.classList.toggle('active', isLogin);
+  if (tabReg) tabReg.classList.toggle('active', panel === 'registro');
   _clearMsg('cr-login-msg');
   _clearMsg('cr-reg-msg');
+  _clearMsg('cr-recuperar-msg');
+  _clearMsg('cr-restablecer-msg');
+}
+
+function mostrarRecuperarPassword() {
+  mostrarAuth();
+  var emailLogin = (document.getElementById('cr-login-email') || {}).value || '';
+  _showAuthPanel('recuperar');
+  var recEmail = document.getElementById('cr-recuperar-email');
+  if (recEmail && emailLogin.trim()) recEmail.value = emailLogin.trim();
+}
+
+function mostrarRestablecerPassword(token) {
+  mostrarAuth();
+  _showAuthPanel('restablecer');
+  var tokenEl = document.getElementById('cr-reset-token');
+  if (tokenEl) tokenEl.value = token || '';
+}
+
+async function enviarRecuperarPassword() {
+  var email = (document.getElementById('cr-recuperar-email').value || '').trim();
+  var btn   = document.getElementById('cr-recuperar-btn');
+  if (!email) { _showMsg('cr-recuperar-msg', 'Ingresa tu email.', false); return; }
+  if (btn) btn.disabled = true;
+  _clearMsg('cr-recuperar-msg');
+  try {
+    var r = await fetch(MOTOR_URL + '/api/creador/recuperar-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email })
+    });
+    var d = await r.json();
+    _showMsg('cr-recuperar-msg', d.mensaje || 'Si el email esta registrado, recibiras un correo con instrucciones.', true);
+  } catch (e) {
+    _showMsg('cr-recuperar-msg', 'Error de conexion. Intenta de nuevo.', false);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function enviarRestablecerPassword() {
+  var token    = (document.getElementById('cr-reset-token').value || '').trim();
+  var password = (document.getElementById('cr-reset-password').value || '');
+  var confirm  = (document.getElementById('cr-reset-confirm').value || '');
+  var btn      = document.getElementById('cr-restablecer-btn');
+  if (!token) { _showMsg('cr-restablecer-msg', 'Enlace invalido. Solicita uno nuevo.', false); return; }
+  if (password.length < 6) { _showMsg('cr-restablecer-msg', 'La contraseña debe tener al menos 6 caracteres.', false); return; }
+  if (password !== confirm) { _showMsg('cr-restablecer-msg', 'Las contraseñas no coinciden.', false); return; }
+  if (btn) btn.disabled = true;
+  _clearMsg('cr-restablecer-msg');
+  try {
+    var r = await fetch(MOTOR_URL + '/api/creador/restablecer-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: token, nueva_password: password })
+    });
+    var d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'No se pudo actualizar la contraseña.');
+    _showMsg('cr-restablecer-msg', d.mensaje || 'Contraseña actualizada. Ya puedes iniciar sesion.', true);
+    setTimeout(function () {
+      switchAuthTab('login');
+      if (history.replaceState) {
+        history.replaceState(null, '', location.pathname.replace(/\/restablecer\/?$/, '/') || '/');
+      }
+    }, 2200);
+  } catch (e) {
+    _showMsg('cr-restablecer-msg', e.message || 'Error de conexion.', false);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function _initRestablecerDesdeUrl() {
+  var params = new URLSearchParams(location.search);
+  var token  = params.get('token');
+  var path   = location.pathname || '';
+  if (token || /\/restablecer\/?$/i.test(path)) {
+    mostrarRestablecerPassword(token || '');
+  }
 }
 
 function _clearMsg(id) {
@@ -1049,6 +1139,12 @@ document.addEventListener('DOMContentLoaded', function () {
   switchHtmlMode('pegar');
   toggleComisionField();
   _updateCategoriaUI();
+  var params = new URLSearchParams(location.search);
+  var esRestablecer = !!params.get('token') || /\/restablecer\/?$/i.test(location.pathname || '');
+  if (esRestablecer) {
+    _initRestablecerDesdeUrl();
+    return;
+  }
   try {
     var lastEmail = localStorage.getItem(CR_EMAIL_KEY);
     if (lastEmail) {
