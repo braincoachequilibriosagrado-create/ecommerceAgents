@@ -110,7 +110,7 @@ var DEMO_PAGINAS_VENTA = [];
 var DEMO_USUARIOS = [];
 
 // -- VENTAS GLOBALES (se cargan desde motor via /api/admin/ventas-por-vendedor) --
-var DEMO_VENTAS_GLOBAL = [];   // solo usado para ranking del dashboard hasta migrar ese bloque
+var DEMO_VENTAS_GLOBAL = [];   // legacy — seccion oculta en UI
 
 // -- SOLICITUDES DE PAGO --
 // TODO: cargar datos reales desde Supabase tabla `solicitudes_pago`
@@ -1275,23 +1275,7 @@ function renderUsuarios() {
       );
     });
 
-  // Ventas globales
-  // TODO: cargar datos reales desde Supabase/backend
-  var rowsV = DEMO_VENTAS_GLOBAL.map(function (v) {
-    return '<tr>' +
-      '<td class="adm-td-muted">' + _fmtFecha(v.fecha) + '</td>' +
-      '<td class="adm-td-strong">' + _esc(v.usuario) + '</td>' +
-      '<td>' + _esc(v.producto) + '</td>' +
-      '<td>' + _fmt(v.monto) + '</td>' +
-      '<td>' + _badgeVenta(v.estado) + '</td>' +
-    '</tr>';
-  }).join('');
-
-  _setHtml('usr-ventas-wrap',
-    '<table class="adm-table">' +
-    '<thead><tr><th>Fecha</th><th>Usuario</th><th>Producto</th><th>Monto</th><th>Estado</th></tr></thead>' +
-    '<tbody>' + (rowsV || '<tr><td colspan="5" class="adm-empty">No hay ventas registradas aun.</td></tr>') + '</tbody></table>'
-  );
+  // Ventas globales: oculto hasta API dedicada (ver Utilidad y Ventas en Cuentas)
 }
 
 /* ============================================================
@@ -1302,6 +1286,7 @@ function renderUsuarios() {
 var _cuentasSubTab = 'utilidad'; // default active
 
 function cuentasSwitchSubTab(tabId) {
+  if (tabId === 'pagos') tabId = 'utilidad';
   ['utilidad', 'pagos'].forEach(function (id) {
     var panel = document.getElementById('cuentas-subpanel-' + id);
     var btn   = document.getElementById('cuentas-subtab-btn-' + id);
@@ -1434,6 +1419,7 @@ function _apagQuincenaKey(fechaStr) {
 }
 
 function renderPagosAdmin() {
+  return; // demo localStorage — pestana Pagos oculta hasta backend real
   var solicitudes = _apagCargar();
   var historial   = _apagHistCargar();
 

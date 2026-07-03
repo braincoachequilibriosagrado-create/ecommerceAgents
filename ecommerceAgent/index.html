@@ -659,9 +659,9 @@
           <div class="mon-credits-bar">
             <div class="mon-credits-info">
               <span class="mon-credits-label">Creditos disponibles:</span>
-              <span class="mon-credits-value" id="mon-credits-balance">1000</span>
+              <span class="mon-credits-value" id="mon-credits-balance">0</span>
             </div>
-            <button type="button" class="mon-btn-recargar" onclick="recargarCreditosMonetizacion()">Recargar</button>
+            <button type="button" class="mon-btn-recargar" disabled title="Proximamente">Recargar (proximamente)</button>
           </div>
           <p id="mon-credits-notice" class="mon-credits-notice" hidden></p>
 
@@ -1540,10 +1540,10 @@
               <button type="button" class="mon-subtab active" id="cuentas-subtab-btn-ventas" role="tab" aria-selected="true" aria-controls="cuentas-sub-ventas" onclick="switchCuentasSubTab('ventas')">
                 <span class="mon-subtab-label">Ventas</span>
               </button>
-              <button type="button" class="mon-subtab" id="cuentas-subtab-btn-afiliados" role="tab" aria-selected="false" aria-controls="cuentas-sub-afiliados" onclick="switchCuentasSubTab('afiliados')">
+              <button type="button" class="mon-subtab" id="cuentas-subtab-btn-afiliados" role="tab" aria-selected="false" aria-controls="cuentas-sub-afiliados" onclick="switchCuentasSubTab('afiliados')" hidden>
                 <span class="mon-subtab-label">Afiliados</span>
               </button>
-              <button type="button" class="mon-subtab" id="cuentas-subtab-btn-pagos" role="tab" aria-selected="false" aria-controls="cuentas-sub-pagos" onclick="switchCuentasSubTab('pagos')">
+              <button type="button" class="mon-subtab" id="cuentas-subtab-btn-pagos" role="tab" aria-selected="false" aria-controls="cuentas-sub-pagos" onclick="switchCuentasSubTab('pagos')" hidden>
                 <span class="mon-subtab-label">Pagos</span>
               </button>
             </nav>
@@ -1582,7 +1582,7 @@
                 </div>
               </div>
 
-              <div class="ventas-registrar-wrap">
+              <div class="ventas-registrar-wrap" hidden>
                 <button type="button" class="ventas-add-btn" id="ventas-toggle-form" onclick="eaVentasToggleForm()">Registrar venta</button>
                 <div id="ventas-form-card" class="ventas-form-card" hidden>
                   <datalist id="ventas-producto-list"></datalist>
@@ -1643,7 +1643,7 @@
             localStorage por ser dinero real y multiusuario. Aqui es solo UI/estructura visual
             con datos de ejemplo.
           -->
-          <div id="cuentas-sub-afiliados" class="mon-sub-panel" role="tabpanel" hidden>
+          <div id="cuentas-sub-afiliados" class="mon-sub-panel" role="tabpanel" hidden data-demo-hidden="1">
 
             <!-- 1. NIVEL / RANGO -->
             <div class="afil-nivel-card">
@@ -1799,7 +1799,7 @@
             TODO (produccion): balance real, aprobacion de pagos y desembolso en backend.
             Aqui es la UI con regla quincenal (15 dias) en localStorage. ea_solicitudes_pago / ea_ultima_solicitud_pago.
           -->
-          <div id="cuentas-sub-pagos" class="mon-sub-panel" role="tabpanel" hidden>
+          <div id="cuentas-sub-pagos" class="mon-sub-panel" role="tabpanel" hidden data-demo-hidden="1">
 
             <!-- 1. BALANCE HERO -->
             <div class="pagos-balance-hero">
@@ -2002,21 +2002,17 @@
               <h2 class="welcome-title">Visión general de toda la red EcommerceAgents</h2>
             </div>
           </div>
-          <div class="cards-grid">
-            <div class="stat-card" onclick="switchViewFromAdminHome()"><div class="card-icon">◎</div><div class="card-label">Total Agentes Activos</div><div class="card-value">12</div><div class="card-delta up">Red completa</div><div class="card-arrow">→</div></div>
-            <div class="stat-card" onclick="switchViewFromAdminHome()"><div class="card-icon">$</div><div class="card-label">Ventas Totales del Mes</div><div class="card-value">$8,420</div><div class="card-delta up">Consolidado</div><div class="card-arrow">→</div></div>
-            <div class="stat-card" onclick="switchViewFromAdminHome()"><div class="card-icon">◫</div><div class="card-label">Productos en Catálogo</div><div class="card-value">9</div><div class="card-delta neutral">Catálogo global</div><div class="card-arrow">→</div></div>
-            <div class="stat-card" onclick="switchViewFromAdminHome()"><div class="card-icon">◈</div><div class="card-label">Comisiones Pagadas</div><div class="card-value">$1,240</div><div class="card-delta up">Este mes</div><div class="card-arrow">→</div></div>
+          <div class="cards-grid" id="admin-home-stats" hidden>
+            <div class="stat-card"><div class="card-icon">◎</div><div class="card-label">Total Agentes Activos</div><div class="card-value">—</div></div>
+            <div class="stat-card"><div class="card-icon">$</div><div class="card-label">Ventas Totales del Mes</div><div class="card-value">—</div></div>
+            <div class="stat-card"><div class="card-icon">◫</div><div class="card-label">Productos en Catálogo</div><div class="card-value">—</div></div>
+            <div class="stat-card"><div class="card-icon">◈</div><div class="card-label">Comisiones Pagadas</div><div class="card-value">—</div></div>
           </div>
-          <div class="section-header"><h3 class="section-title">Actividad <span>Reciente de Agentes</span></h3></div>
-          <table class="data-table">
+          <p class="agent-empty-state" style="margin:0 0 24px">Metricas consolidadas en el panel admin dedicado (admin.ecommerceagents.store).</p>
+          <div class="section-header" hidden><h3 class="section-title">Actividad <span>Reciente de Agentes</span></h3></div>
+          <table class="data-table" hidden>
             <thead><tr><th>Agente</th><th>Ventas del Mes</th><th>Comisión</th><th>Estado</th></tr></thead>
-            <tbody>
-              <tr><td>María López</td><td>$2,180</td><td style="color:var(--gold);">$261</td><td><span class="badge badge-active">Activo</span></td></tr>
-              <tr><td>Carlos Ríos</td><td>$1,540</td><td style="color:var(--gold);">$185</td><td><span class="badge badge-active">Activo</span></td></tr>
-              <tr><td>Ana Velásquez</td><td>$890</td><td style="color:var(--gold);">$107</td><td><span class="badge badge-pending">Pendiente</span></td></tr>
-              <tr><td>Luis Méndez</td><td>$3,210</td><td style="color:var(--gold);">$385</td><td><span class="badge badge-active">Activo</span></td></tr>
-            </tbody>
+            <tbody></tbody>
           </table>
         </div>
         <div id="view-catalog" class="dash-view">

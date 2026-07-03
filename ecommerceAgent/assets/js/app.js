@@ -963,8 +963,7 @@ const CATALOGO_PRODUCTOS = [
     utilidad: 44,    // % de margen para el vendedor
     precioProveedor: 26,
     precioSugerido: 59,
-    estado: 'Disponible',
-    ventas: 120
+    estado: 'Disponible'
   },
   {
     slug: 'airpods-segunda-generacion-con-pantalla',
@@ -977,8 +976,7 @@ const CATALOGO_PRODUCTOS = [
     utilidad: 51,
     precioProveedor: 68,
     precioSugerido: 139,
-    estado: 'Disponible',
-    ventas: 95
+    estado: 'Disponible'
   },
   {
     slug: 'combo-hidratacion-intensiva-bioaqu',
@@ -991,8 +989,7 @@ const CATALOGO_PRODUCTOS = [
     utilidad: 54,
     precioProveedor: 18,
     precioSugerido: 39,
-    estado: 'Limitado',
-    ventas: 80
+    estado: 'Limitado'
   },
   {
     slug: 'juego-cubiertos-24pcs-acero-inoxidable',
@@ -1005,8 +1002,7 @@ const CATALOGO_PRODUCTOS = [
     utilidad: 57,
     precioProveedor: 12,
     precioSugerido: 28,
-    estado: 'Disponible',
-    ventas: 70
+    estado: 'Disponible'
   },
   {
     slug: 'humidificador-montana-inalambrico-led',
@@ -1019,8 +1015,7 @@ const CATALOGO_PRODUCTOS = [
     utilidad: 56,
     precioProveedor: 28,
     precioSugerido: 64,
-    estado: 'Disponible',
-    ventas: 55
+    estado: 'Disponible'
   },
   {
     slug: 'x3-blood-sugar-complex',
@@ -1033,8 +1028,7 @@ const CATALOGO_PRODUCTOS = [
     utilidad: 52,
     precioProveedor: 38,
     precioSugerido: 79,
-    estado: 'Disponible',
-    ventas: 50
+    estado: 'Disponible'
   },
   {
     slug: 'destornillador-electrico-inalambrico',
@@ -1047,8 +1041,7 @@ const CATALOGO_PRODUCTOS = [
     utilidad: 56,
     precioProveedor: 27,
     precioSugerido: 62,
-    estado: 'Disponible',
-    ventas: 45
+    estado: 'Disponible'
   },
   {
     slug: 'cortador-verduras-electrico-portatil',
@@ -1061,8 +1054,7 @@ const CATALOGO_PRODUCTOS = [
     utilidad: 61,
     precioProveedor: 16,
     precioSugerido: 41,
-    estado: 'Disponible',
-    ventas: 40
+    estado: 'Disponible'
   },
   {
     slug: 'tablero-educativo-didactico-blln3744',
@@ -1075,8 +1067,7 @@ const CATALOGO_PRODUCTOS = [
     utilidad: 54,
     precioProveedor: 34,
     precioSugerido: 74,
-    estado: 'Disponible',
-    ventas: 35
+    estado: 'Disponible'
   }
 ];
 
@@ -2103,13 +2094,6 @@ function getCatalogoOrdenado() {
   return CATALOGO_PRODUCTOS.slice();
 }
 
-function getMasVendidosOrdenado() {
-  // TODO: ordenar por ventas reales cuando exista el dato en backend
-  return CATALOGO_PRODUCTOS.slice().sort(function (a, b) {
-    return (b.ventas || 0) - (a.ventas || 0);
-  });
-}
-
 function renderAgentProductGrids() {
   _catalogoSupa = null;
   _catalogoMiniapps = null;
@@ -2136,7 +2120,7 @@ function updateAgentCuentasPanel() {
    CUENTAS SUB-TABS
    ============================================================ */
 
-const CUENTAS_SUB_TAB_IDS = ['ventas', 'afiliados', 'pagos'];
+const CUENTAS_SUB_TAB_IDS = ['ventas'];
 const VENTAS_TIPO_TAB_IDS = ['productos', 'digitales'];
 
 function switchVentasTipoTab(tipoId) {
@@ -2370,14 +2354,11 @@ function switchCuentasSubTab(subId) {
       btn.setAttribute('aria-selected', active ? 'true' : 'false');
     }
   });
-  if (subId === 'ventas')    eaVentasRender();
-  if (subId === 'afiliados') afiliRenderArbol();
-  if (subId === 'pagos')     pagosRender();
+  if (subId === 'ventas') eaVentasRender();
 }
 
 /* ============================================================
-   AFILIADOS — red de venta directa
-   La red multinivel se implementa cuando haya datos reales de referidos.
+   AFILIADOS / PAGOS (demo) — ocultos en UI hasta backend real
    ============================================================ */
 
 // Constantes de comisiones (ajustables)
@@ -2590,6 +2571,7 @@ function pagosRenderHistorial() {
 }
 
 function pagosRender() {
+  return;
   pagosRenderResumen();
   pagosRenderBoton();
   pagosRenderHistorial();
@@ -2601,6 +2583,7 @@ function pagosRender() {
 }
 
 function pagosSolicitar() {
+  return;
   var calc = _pagosCalcularBalance();
   if (calc.balance <= 0) {
     var status = document.getElementById('pagos-solicitar-status');
@@ -4433,10 +4416,9 @@ function showMonetizacionMotorPending(resultId) {
 }
 
 function recargarCreditosMonetizacion() {
-  // TODO: flujo de recarga de creditos via backend / pagos
   const notice = document.getElementById('mon-credits-notice');
   if (notice) {
-    notice.textContent = MONETIZACION_MOTOR_MSG;
+    notice.textContent = 'Recarga de creditos: proximamente.';
     notice.hidden = false;
   }
 }
@@ -5487,6 +5469,12 @@ function ensureQrcodeJsLoaded() {
   });
 }
 
+// Servicio WA legacy (ARIA / redes) — desactivado; Agents Ventas usa MOTOR_URL
+
+function _waLegacyUnavailableMsg() {
+  return 'Conexion WhatsApp/Redes (ARIA) no disponible en produccion.';
+}
+
 function stopWhatsAppPolling() {
   if (whatsappQrPollTimer) {
     clearInterval(whatsappQrPollTimer);
@@ -5499,93 +5487,10 @@ function stopWhatsAppPolling() {
 }
 
 function iniciarPollingMensajes() {
-  console.log('iniciarPollingMensajes ejecutado');
-  if (mensajesWaPollTimer) {
-    clearInterval(mensajesWaPollTimer);
-    mensajesWaPollTimer = null;
+  var lista = document.getElementById('aria-wa-mensajes-lista');
+  if (lista) {
+    lista.innerHTML = '<p style="color:#A89E94;font-size:12px;">' + _esc(_waLegacyUnavailableMsg()) + '</p>';
   }
-  // Ejecutar inmediatamente sin esperar 5 segundos
-  (async () => {
-    const refCode = (getCurrentAgentRefCode() || '').toUpperCase();
-    if (!refCode) return;
-    try {
-      const res = await fetch(
-        'http://localhost:3001/mensajes/' + encodeURIComponent(refCode)
-      );
-      const data = await res.json();
-      console.log('Mensajes inmediatos:', data);
-      const lista = document.getElementById('aria-wa-mensajes-lista');
-      if (!lista) return;
-      if (!data.mensajes || data.mensajes.length === 0) {
-        lista.innerHTML =
-          '<p style="color:#A89E94;font-size:12px;">No hay mensajes aún.</p>';
-        return;
-      }
-      lista.innerHTML = data.mensajes.slice(-50).reverse().map(function (m) {
-        const de = m.de != null ? m.de : m.from;
-        const hora = m.hora != null ? m.hora : m.ts;
-        const texto = m.texto != null ? String(m.texto) : '';
-        const horaStr = hora != null
-          ? new Date(hora).toLocaleTimeString()
-          : '';
-        return (
-          '<div style="padding:10px;border-bottom:1px solid #DDD5C8;font-size:12px;">' +
-          '<span style="color:#A89E94;font-size:10px;">' +
-          _esc(de) +
-          ' — ' +
-          _esc(horaStr) +
-          '</span><br><span style="color:#1A1714;white-space:pre-wrap;">' +
-          _esc(texto) +
-          '</span></div>'
-        );
-      }).join('');
-    } catch (e) {
-      console.error('Error mensajes inmediatos:', e);
-    }
-  })();
-  mensajesWaPollTimer = setInterval(async () => {
-    const refCode = (getCurrentAgentRefCode() || '').toUpperCase();
-    if (!refCode) return;
-    console.log('Iniciando polling de mensajes para:', refCode);
-    try {
-      const res = await fetch(
-        'http://localhost:3001/mensajes/' + encodeURIComponent(refCode)
-      );
-      const data = await res.json();
-      console.log('Mensajes recibidos:', data);
-      const lista = document.getElementById('aria-wa-mensajes-lista');
-      if (!lista) return;
-      if (!data.mensajes || data.mensajes.length === 0) {
-        lista.innerHTML =
-          '<p style="color:#A89E94;font-size:12px;">No hay mensajes aún.</p>';
-        return;
-      }
-      lista.innerHTML = data.mensajes
-        .slice(-50)
-        .reverse()
-        .map(function (m) {
-          const de = m.de != null ? m.de : m.from;
-          const hora = m.hora != null ? m.hora : m.ts;
-          const texto = m.texto != null ? String(m.texto) : '';
-          const horaStr = hora != null
-            ? new Date(hora).toLocaleTimeString()
-            : '';
-          return (
-            '<div style="padding:10px;border-bottom:1px solid #DDD5C8;font-size:12px;">' +
-            '<span style="color:#A89E94;font-size:10px;">' +
-            _esc(de) +
-            ' — ' +
-            _esc(horaStr) +
-            '</span><br>' +
-            '<span style="color:#1A1714;white-space:pre-wrap;">' +
-            _esc(texto) +
-            '</span>' +
-            '</div>'
-          );
-        })
-        .join('');
-    } catch (e) {}
-  }, 3000);
 }
 
 function updateWhatsAppUiForState(state) {
@@ -5618,84 +5523,20 @@ function renderWhatsAppQr(qrText) {
 }
 
 async function pollWhatsAppQr() {
-  const refCode = getCurrentAgentRefCode();
-  if (!refCode) {
-    setWhatsAppStatusMessage('No se encontró currentAgent.refCode.', false);
-    return;
-  }
-
-  try {
-    const response = await fetch('http://localhost:3001/qr/' + encodeURIComponent(refCode));
-    if (!response.ok) throw new Error('No se pudo consultar el estado de WhatsApp.');
-    const data = await response.json();
-    const state = (data && (data.estado || data.status || '')).toString();
-    const qrText = data && (data.qr || data.qrCode || data.code || data.value || '');
-    console.log('QR data:', data);
-    console.log('QR text:', qrText);
-
-    updateWhatsAppUiForState(state);
-    if (!state || (state.toLowerCase() !== 'conectado' && state.toLowerCase() !== 'connected')) {
-      setWhatsAppStatusMessage(
-        qrText ? 'Escanea el QR con WhatsApp para conectar.' : 'Esperando QR...',
-        false
-      );
-      if (qrText) {
-        await ensureQrcodeJsLoaded();
-        renderWhatsAppQr(qrText);
-      }
-    } else {
-      stopWhatsAppPolling();
-    }
-  } catch (err) {
-    setWhatsAppStatusMessage(err.message || 'Error consultando QR.', false);
-  }
+  setWhatsAppStatusMessage(_waLegacyUnavailableMsg(), false);
 }
 
 function startWhatsAppPolling() {
   stopWhatsAppPolling();
   pollWhatsAppQr();
-  whatsappQrPollTimer = setInterval(pollWhatsAppQr, 3000);
 }
 
 async function conectarWhatsAppARIA() {
-  const refCode = getCurrentAgentRefCode();
-  if (!refCode) {
-    setWhatsAppStatusMessage('No se encontró currentAgent.refCode.', false);
-    return;
-  }
-  setWhatsAppStatusMessage('Conectando WhatsApp...', false);
-  try {
-    const response = await fetch(
-      'http://localhost:3001/conectar/' + encodeURIComponent(refCode),
-      { method: 'POST' }
-    );
-    if (!response.ok) throw new Error('No se pudo iniciar la conexión de WhatsApp.');
-    startWhatsAppPolling();
-  } catch (err) {
-    setWhatsAppStatusMessage(err.message || 'Error conectando WhatsApp.', false);
-  }
+  setWhatsAppStatusMessage(_waLegacyUnavailableMsg(), false);
 }
 
 async function desconectarWhatsAppARIA() {
-  const refCode = getCurrentAgentRefCode();
-  if (!refCode) {
-    setWhatsAppStatusMessage('No se encontró currentAgent.refCode.', false);
-    return;
-  }
-  setWhatsAppStatusMessage('Desconectando WhatsApp...', false);
-  try {
-    const response = await fetch(
-      'http://localhost:3001/desconectar/' + encodeURIComponent(refCode),
-      { method: 'POST' }
-    );
-    if (!response.ok) throw new Error('No se pudo desconectar WhatsApp.');
-    stopWhatsAppPolling();
-    clearWhatsAppQr();
-    updateWhatsAppUiForState('desconectado');
-    setWhatsAppStatusMessage('WhatsApp desconectado.', false);
-  } catch (err) {
-    setWhatsAppStatusMessage(err.message || 'Error desconectando WhatsApp.', false);
-  }
+  setWhatsAppStatusMessage(_waLegacyUnavailableMsg(), false);
 }
 
 function openAriaSection(section) {
@@ -5787,8 +5628,11 @@ function openAriaSection(section) {
       redes.style.display = 'block';
       redes.style.visibility = 'visible';
     }
-    updateWhatsAppUiForState('desconectado');
-    startWhatsAppPolling();
+    setWhatsAppStatusMessage(_waLegacyUnavailableMsg(), false);
+    var lista = document.getElementById('aria-wa-mensajes-lista');
+    if (lista) {
+      lista.innerHTML = '<p style="color:#A89E94;font-size:12px;">' + _esc(_waLegacyUnavailableMsg()) + '</p>';
+    }
     window.scrollTo(0, 0);
     return;
   }
@@ -5899,10 +5743,8 @@ function switchAriaSection(section) {
   }
 
   if (section === 'redes') {
-    console.log('entrando a redes, llamando iniciarPollingMensajes')
-    iniciarPollingMensajes()
-    openAriaSection('redes')
-    return
+    openAriaSection('redes');
+    return;
   }
 }
 
