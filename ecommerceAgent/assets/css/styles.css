@@ -335,6 +335,137 @@
     align-items: center;
     justify-content: center;
   }
+
+  /* Spotlight dorado que sigue el cursor en el hero */
+  .landing-hero-spotlight {
+    --spot-x: 62%;
+    --spot-y: 42%;
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background:
+      radial-gradient(
+        520px circle at var(--spot-x) var(--spot-y),
+        rgba(217, 193, 163, 0.28) 0%,
+        rgba(184, 147, 104, 0.12) 28%,
+        transparent 62%
+      );
+    opacity: 0.85;
+    transition: opacity 0.4s ease;
+  }
+
+  /* Robot 3D Spline — area derecha del hero */
+  .landing-robot-wrap {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    min-height: 480px;
+    max-width: 620px;
+    margin: 0 auto;
+    border-radius: 22px;
+    overflow: hidden;
+    background:
+      radial-gradient(ellipse 85% 75% at 50% 55%, rgba(26, 23, 20, 0.22) 0%, transparent 68%),
+      linear-gradient(165deg, rgba(26, 23, 20, 0.06) 0%, rgba(250, 248, 244, 0.02) 100%);
+    box-shadow:
+      0 0 0 1px rgba(184, 147, 104, 0.14),
+      0 28px 64px rgba(26, 23, 20, 0.12);
+  }
+
+  .landing-robot-stage {
+    position: relative;
+    width: 100%;
+    min-height: 480px;
+    height: clamp(420px, 52vh, 560px);
+    opacity: 0;
+    transition: opacity 0.55s ease;
+  }
+
+  .landing-robot-stage.is-ready {
+    opacity: 1;
+  }
+
+  .landing-spline-viewer,
+  .landing-robot-stage spline-viewer {
+    display: block;
+    width: 100%;
+    height: 100%;
+    min-height: inherit;
+    background: transparent !important;
+  }
+
+  /* Ocultar badge "Built with Spline" */
+  .landing-robot-badge-cover {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 168px;
+    height: 52px;
+    pointer-events: none;
+    z-index: 6;
+    background: linear-gradient(135deg, transparent 0%, rgba(250, 248, 244, 0.92) 42%);
+  }
+
+  spline-viewer #logo,
+  .landing-spline-viewer #logo {
+    display: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+  }
+
+  .landing-robot-loader {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    background: rgba(250, 248, 244, 0.72);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    transition: opacity 0.35s ease, visibility 0.35s ease;
+  }
+
+  .landing-robot-loader.is-hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .landing-robot-spinner {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 2px solid rgba(184, 147, 104, 0.25);
+    border-top-color: var(--gold);
+    animation: landing-robot-spin 0.85s linear infinite;
+  }
+
+  .landing-robot-loader-text {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--gold-muted);
+  }
+
+  @keyframes landing-robot-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .landing-hero-fallback {
+    position: relative;
+    width: 100%;
+    z-index: 1;
+  }
+
+  .landing-hero-fallback.is-hidden-by-robot {
+    display: none;
+  }
+
   .landing-deco-shapes {
     position: absolute;
     inset: -24px;
@@ -4735,6 +4866,8 @@
       gap: 10px 14px;
     }
     .landing-hero { padding: 24px 20px 36px; }
+    .landing-robot-wrap { display: none !important; }
+    .landing-hero-fallback.is-hidden-by-robot { display: block !important; }
     .mock-stack {
       max-width: none;
       padding-bottom: 4px;
@@ -4762,6 +4895,10 @@
     .deco-a, .deco-b, .deco-c, .mock-stack--float,
     .lp-carousel-track, .landing-title span { animation: none !important; }
     .landing-title span { background: none; -webkit-text-fill-color: var(--gold); color: var(--gold); }
+    .landing-hero-spotlight { display: none; }
+    .landing-robot-wrap { display: none !important; }
+    .landing-robot-spinner { animation: none; }
+    .landing-hero-fallback.is-hidden-by-robot { display: block !important; }
   }
 
   /* ─── BOTÓN COPIAR LINK ───────────────────────── */

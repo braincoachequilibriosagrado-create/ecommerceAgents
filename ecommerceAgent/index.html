@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,300;1,400&family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/premium-platform.css?v=2">
-<link rel="stylesheet" href="assets/css/styles.css?v=43">
+<link rel="stylesheet" href="assets/css/styles.css?v=44">
 </head>
 <body class="ea-shader-page">
 
@@ -33,6 +33,7 @@
   <div class="corner-decoration br"></div>
 
   <section class="landing-hero" id="landing-top">
+    <div class="landing-hero-spotlight" id="landing-hero-spotlight" aria-hidden="true"></div>
     <div class="landing-hero-inner">
       <div class="landing-hero-copy">
         <div class="landing-badge"><span>Vende · Gana en Dolares</span></div>
@@ -49,20 +50,33 @@
       </div>
 
       <div class="landing-hero-visual" aria-hidden="true">
-        <div class="landing-deco-shapes">
-          <span class="deco-sq deco-a"></span>
-          <span class="deco-sq deco-b"></span>
-          <span class="deco-sq deco-c"></span>
+        <!-- Robot 3D Spline (desktop) -->
+        <div class="landing-robot-wrap" id="landing-robot-wrap" hidden>
+          <div class="landing-robot-loader" id="landing-robot-loader" aria-live="polite">
+            <div class="landing-robot-spinner" aria-hidden="true"></div>
+            <span class="landing-robot-loader-text">Cargando agente…</span>
+          </div>
+          <div class="landing-robot-stage" id="landing-robot-stage"></div>
+          <div class="landing-robot-badge-cover" aria-hidden="true"></div>
         </div>
-        <div class="mock-stack mock-stack--float">
-          <div class="mock-premium-frame">
-            <img
-              src="assets/img/mis-ventas-premium.png?v=5"
-              alt="Catálogo y Mis ventas"
-              class="mock-premium-img"
-              loading="lazy"
-              decoding="async"
-            />
+
+        <!-- Fallback: mockup (movil, reduced-motion o si Spline falla) -->
+        <div class="landing-hero-fallback" id="landing-hero-fallback">
+          <div class="landing-deco-shapes">
+            <span class="deco-sq deco-a"></span>
+            <span class="deco-sq deco-b"></span>
+            <span class="deco-sq deco-c"></span>
+          </div>
+          <div class="mock-stack mock-stack--float">
+            <div class="mock-premium-frame">
+              <img
+                src="assets/img/mis-ventas-premium.png?v=5"
+                alt="Catálogo y Mis ventas"
+                class="mock-premium-img"
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -2057,6 +2071,7 @@
 </div>
 
 <script src="assets/js/premium-hero.js?v=2"></script>
+<script src="assets/js/landing-hero-spline.js?v=1"></script>
 <script src="assets/js/app.js?v=27"></script>
 <script>
   (function () {
