@@ -396,3 +396,19 @@ body {
 .vt-footer strong {
   font-weight: 700;
 }
+
+.vt-footer-legal {
+  margin-top: 10px;
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+.vt-footer-legal a {
+  color: #fff;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.vt-footer-legal a:hover {
+  opacity: 0.85;
+}

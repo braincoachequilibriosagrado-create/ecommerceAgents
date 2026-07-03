@@ -141,6 +141,8 @@ function _setNoCacheJson(res) {
 }
 
 const ENTREGA_MINIAPP_TEMPLATE = path.join(__dirname, 'templates', 'template-entrega-miniapp.html');
+const LEGAL_TERMINOS_TEMPLATE    = path.join(__dirname, 'templates', 'template-terminos.html');
+const LEGAL_PRIVACIDAD_TEMPLATE  = path.join(__dirname, 'templates', 'template-privacidad.html');
 const MOTOR_ASSETS_DIR           = path.join(__dirname, 'assets');
 const DEFAULT_MINIAPP_COLORS = { color_1: '#2f86ff', color_2: '#7c3aed', color_3: '#ff5a3c' };
 // Cambia en cada deploy/restart → cache-buster para JS/CSS/HTML del motor
@@ -160,6 +162,24 @@ function _setNoCacheHtml(res) {
 function _setNoCacheJs(res) {
   res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+}
+
+function _serveLegalPage(res, templatePath) {
+  try {
+    if (!fs.existsSync(templatePath)) {
+      return res.status(500).send('Pagina no disponible.');
+    }
+    let html = fs.readFileSync(templatePath, 'utf-8');
+    html = html
+      .replace(/\{\{LOGO_URL\}\}/g, _assetUrl('/assets/logo-activos.jpg'))
+      .replace(/\{\{CSS_URL\}\}/g, _assetUrl('/assets/legal.css'));
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.send(html);
+  } catch (e) {
+    console.error('[legal]', e.message);
+    res.status(500).send('Error al cargar la pagina.');
+  }
 }
 
 // ── Autenticación JWT ─────────────────────────────────────────────────────────
@@ -3219,6 +3239,7 @@ function _serveMarketplace(req, res) {
 
   <footer class="vt-footer">
     <p>Distribuido por <strong>EcommerceAgents</strong> · Marketplace de activos digitales</p>
+    <p class="vt-footer-legal"><a href="/terminos">Terminos y Condiciones</a> · <a href="/privacidad">Politica de Privacidad</a></p>
   </footer>
 </div>
 <script src="${jsUrl}"></script>
@@ -3229,6 +3250,13 @@ function _serveMarketplace(req, res) {
 app.get('/marketplace', _serveMarketplace);
 app.get('/vitrina', function (req, res) {
   res.redirect(301, '/marketplace');
+});
+
+app.get('/terminos', function (req, res) {
+  _serveLegalPage(res, LEGAL_TERMINOS_TEMPLATE);
+});
+app.get('/privacidad', function (req, res) {
+  _serveLegalPage(res, LEGAL_PRIVACIDAD_TEMPLATE);
 });
 
 // ── Catalogo mini apps (activos digitales para vendedores) ────────────────────
@@ -4644,6 +4672,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;ba
 #co-btn-pagar:hover{transform:translateY(-2px);filter:brightness(1.04)}
 #co-btn-pagar:disabled{opacity:.65;cursor:not-allowed;transform:none}
 .co-note{margin-top:14px;font-size:12.5px;color:var(--slate);text-align:center;line-height:1.55}
+.co-legal{margin-top:12px;font-size:11.5px;color:var(--slate);text-align:center;line-height:1.55}
+.co-legal a{color:var(--c2);font-weight:600;text-decoration:underline}
 .load{text-align:center;padding:48px 16px;color:var(--slate)}
 .spin{width:28px;height:28px;border:2.5px solid var(--line);border-top-color:var(--c2);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 12px}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -4667,6 +4697,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;ba
       </div>
       <p id="co-pay-err" role="alert"></p>
       <button type="button" id="co-btn-pagar">Pagar —</button>
+      <p class="co-legal">Al comprar aceptas nuestros <a href="/terminos" target="_blank" rel="noopener">Terminos y Condiciones</a> y la <a href="/terminos#no-devoluciones" target="_blank" rel="noopener">Politica de No Devoluciones</a> (productos digitales de descarga inmediata). <a href="/privacidad" target="_blank" rel="noopener">Politica de Privacidad</a>.</p>
       <p class="co-note">Al pagar accedes al instante a tu producto en pantalla. No necesitas esperar correo ni registrarte.</p>
     </div>
   </div>
@@ -4733,6 +4764,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-seri
 .ck-btn:active{transform:scale(.99)}
 .ck-btn:disabled{opacity:.65;cursor:not-allowed;transform:none}
 .ck-bsub{text-align:center;font-size:11px;color:var(--txt-lt);margin-top:9px;line-height:1.5}
+.ck-legal{font-size:11px;color:var(--txt-lt);margin-top:10px;line-height:1.55;text-align:center}
+.ck-legal a{color:var(--accent-dk);font-weight:600}
 .ck-err{color:var(--err);font-size:13px;margin-top:10px;padding:9px 13px;background:#fef5f5;border-radius:4px;border:1px solid #f5c6c6;display:none}
 /* ─── Trust zone (near button) ──────────── */
 .ck-guarantee{display:flex;align-items:flex-start;gap:10px;background:#faf9f6;border:1px solid var(--bd);border-left:3px solid var(--accent);border-radius:var(--r);padding:11px 13px;margin:14px 0 0}
@@ -4974,6 +5007,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-seri
             Confirmar pedido
           </button>
 
+          <p class="ck-legal">Al comprar aceptas nuestros <a href="/terminos" target="_blank" rel="noopener">Terminos y Condiciones</a> y la <a href="/terminos#no-devoluciones" target="_blank" rel="noopener">Politica de No Devoluciones</a> (productos digitales de descarga inmediata).</p>
+
           <!-- Linea SSL bajo el boton -->
           <div class="ck-ssl-line">
             <svg width="12" height="13" viewBox="0 0 12 13" fill="none">
@@ -5090,6 +5125,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-seri
       </div>
     </div>
     <p class="ck-note" style="margin-top:12px">Tus datos estan protegidos. Nunca compartimos tu informacion con terceros.</p>
+    <p class="ck-legal" style="margin-top:14px"><a href="/terminos">Terminos</a> · <a href="/privacidad">Privacidad</a></p>
   </div>
 
 </div>
@@ -7181,6 +7217,8 @@ app.listen(PORT, () => {
   console.log(`[motor]   GET  http://localhost:${PORT}/api/admin/miniapps/comisiones-vendedores`);
   console.log(`[motor]   GET  http://localhost:${PORT}/mi-compra/:codigo`);
   console.log(`[motor]   GET  http://localhost:${PORT}/recuperar-compra`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/terminos`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/privacidad`);
   console.log(`[motor]   GET  http://localhost:${PORT}/marketplace`);
   console.log(`[motor]   GET  http://localhost:${PORT}/vitrina  (redirect → /marketplace)`);
   console.log(`[motor]   GET  http://localhost:${PORT}/api/marketplace`);
