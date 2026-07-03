@@ -33,7 +33,7 @@
   --cr-glass: rgba(255, 255, 255, 0.14);
   --cr-glass-border: rgba(255, 255, 255, 0.25);
   --grad-brand: linear-gradient(135deg, var(--c-blue) 0%, var(--c-purple) 60%, var(--c-magenta) 100%);
-  --grad-bg: linear-gradient(135deg, #2b3af5 0%, #6a28d9 45%, #b02d8f 72%, #ff6a2b 100%);
+  --grad-bg: linear-gradient(135deg, #2b3af5 0%, #6a28d9 45%, #8b2fd6 65%, #ff6a3d 100%);
   --grad-stat: linear-gradient(90deg, var(--c-blue), var(--c-purple) 50%, var(--c-orange));
   --font-display: 'Sora', system-ui, sans-serif;
   --font-ui: 'Inter', system-ui, -apple-system, sans-serif;
@@ -50,9 +50,13 @@ body {
   font-family: var(--font-ui);
   color: var(--cr-text);
   min-height: 100vh;
+  background: #ffffff;
+}
+
+body.ea-premium-bg {
   background:
     radial-gradient(1200px 600px at 15% 0%, rgba(43, 58, 245, .55), transparent 55%),
-    radial-gradient(1000px 700px at 85% 15%, rgba(255, 106, 43, .42), transparent 55%),
+    radial-gradient(1000px 700px at 85% 15%, rgba(255, 106, 61, .42), transparent 55%),
     radial-gradient(900px 600px at 50% 100%, rgba(139, 47, 214, .55), transparent 60%),
     var(--grad-bg);
   background-attachment: fixed;
@@ -208,7 +212,7 @@ body {
   background: var(--white);
   border: 1px solid rgba(255, 255, 255, 0.6);
   border-radius: var(--cr-radius);
-  box-shadow: var(--cr-shadow-lg);
+  box-shadow: var(--ea-premium-shadow-lg, var(--cr-shadow-lg));
   width: 100%;
   max-width: 440px;
   overflow: hidden;
@@ -451,8 +455,6 @@ body {
 .cr-btn-primary {
   width: 100%;
   padding: 14px 18px;
-  background: var(--grad-brand);
-  color: #fff;
   border: none;
   border-radius: var(--cr-radius-sm);
   font-size: 14px;
@@ -461,12 +463,9 @@ body {
   cursor: pointer;
   transition: transform 0.15s, box-shadow 0.2s, filter 0.2s;
   margin-top: 6px;
-  box-shadow: 0 10px 28px rgba(91, 40, 224, 0.32);
 }
 
 .cr-btn-primary:hover:not(:disabled) {
-  filter: brightness(1.05);
-  box-shadow: 0 14px 34px rgba(91, 40, 224, 0.4);
   transform: translateY(-2px);
 }
 
@@ -1943,15 +1942,7 @@ body.cr-body--landing {
   background-attachment: scroll;
 }
 
-body.cr-body--auth,
-body.cr-body--dash {
-  background:
-    radial-gradient(1200px 600px at 15% 0%, rgba(43, 58, 245, .55), transparent 55%),
-    radial-gradient(1000px 700px at 85% 15%, rgba(255, 106, 43, .42), transparent 55%),
-    radial-gradient(900px 600px at 50% 100%, rgba(139, 47, 214, .55), transparent 60%),
-    var(--grad-bg);
-  background-attachment: fixed;
-}
+/* auth/dash: fondo premium via .ea-premium-bg en body (premium-platform.css) */
 
 .lp {
   color: #0b0e1a;

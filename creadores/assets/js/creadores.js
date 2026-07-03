@@ -205,6 +205,9 @@ function _setView(view) {
   document.body.classList.toggle('cr-body--landing', view === CR_VIEW.LANDING);
   document.body.classList.toggle('cr-body--auth', view === CR_VIEW.AUTH);
   document.body.classList.toggle('cr-body--dash', view === CR_VIEW.DASH);
+  var premiumBg = view === CR_VIEW.AUTH || view === CR_VIEW.DASH;
+  document.body.classList.toggle('ea-premium-bg', premiumBg);
+  document.body.classList.toggle('ea-premium-bg--animated', premiumBg);
 }
 
 function mostrarLanding() {

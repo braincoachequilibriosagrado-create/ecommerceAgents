@@ -23,11 +23,21 @@
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   html { scroll-behavior: smooth; scroll-padding-top: 88px; }
   body {
-    background: var(--black);
+    background: #080808;
     color: var(--white);
     font-family: var(--font-ui);
     overflow-x: hidden;
     cursor: default;
+  }
+
+  body.ea-premium-bg {
+    background:
+      radial-gradient(1200px 600px at 15% 0%, rgba(43, 58, 245, 0.55), transparent 55%),
+      radial-gradient(1000px 700px at 85% 15%, rgba(255, 106, 61, 0.42), transparent 55%),
+      radial-gradient(900px 600px at 50% 100%, rgba(139, 47, 214, 0.55), transparent 60%),
+      linear-gradient(135deg, #2b3af5 0%, #6a28d9 45%, #8b2fd6 65%, #ff6a3d 100%);
+    background-attachment: fixed;
+    color: #1A1714;
   }
 
   /* ─── PAGES ─────────────────────────────────── */
@@ -1676,7 +1686,7 @@
   #page-token, #page-register, #page-login {
     align-items: center;
     justify-content: center;
-    background: #FAF8F4;
+    background: transparent;
     color: #1A1714;
     position: relative;
   }
@@ -1863,7 +1873,7 @@
     --deep: #FFFFFF;
     --surface: #FAF8F4;
     --border: rgba(221, 213, 200, 0.95);
-    --border-bright: rgba(184, 147, 104, 0.42);
+    --border-bright: rgba(139, 47, 214, 0.35);
     --white: #1A1714;
     --muted: #6B6258;
     --agent-inner-max: 1100px;
@@ -1871,7 +1881,7 @@
     --agent-section-gap: 32px;
     --agent-form-max: 680px;
     flex-direction: column;
-    background: #FFFFFF;
+    background: transparent;
     min-height: 100vh;
     color: #1A1714;
     overflow-x: hidden;
@@ -1894,7 +1904,7 @@
     flex-direction: column;
     min-height: 100vh;
     width: 100%;
-    background: #FFFFFF;
+    background: transparent;
   }
 
   .agent-dashboard-shell[hidden] {
@@ -1905,9 +1915,18 @@
     position: sticky;
     top: 0;
     z-index: 20;
-    padding: 28px 0 22px;
-    background: #FFFFFF;
-    border-bottom: 1px solid rgba(221, 213, 200, 0.7);
+    padding: 20px 0 16px;
+    background: transparent;
+    border-bottom: none;
+  }
+
+  .agent-topbar .agent-dashboard-inner {
+    background: #ffffff;
+    border: 1px solid rgba(15, 18, 34, 0.06);
+    border-radius: 18px;
+    box-shadow: 0 12px 36px rgba(15, 18, 34, 0.1);
+    padding-top: 20px;
+    padding-bottom: 18px;
   }
 
   .agent-dashboard-inner {
@@ -3881,7 +3900,7 @@
     padding: 0;
   }
 
-  .welcome-banner { background: linear-gradient(135deg, #FAF8F4 0%, #F2EDE4 100%); border: 1px solid rgba(184,147,104,0.22); padding: 0; margin-bottom: 36px; position: relative; overflow: hidden; border-radius: 2px; }
+  .welcome-banner { background: #ffffff; border: 1px solid rgba(15, 18, 34, 0.06); padding: 0; margin-bottom: 36px; position: relative; overflow: hidden; border-radius: 14px; box-shadow: 0 12px 36px rgba(15, 18, 34, 0.1); }
   .welcome-banner::before { content: 'EA'; position: absolute; right: 32px; top: 50%; transform: translateY(-50%); font-family: var(--font-display); font-size: clamp(72px, 14vw, 120px); font-weight: 700; color: rgba(184,147,104,0.05); line-height: 1; pointer-events: none; z-index: 0; }
   #aria-btn {
     width: 80px;
@@ -4806,7 +4825,10 @@
   #page-dashboard .balance-hero,
   #page-dashboard .balance-mini-card,
   #page-dashboard .admin-panel {
-    box-shadow: 0 1px 3px rgba(26, 23, 20, 0.06);
+    background: #ffffff;
+    border-color: rgba(15, 18, 34, 0.06);
+    box-shadow: 0 12px 36px rgba(15, 18, 34, 0.1);
+    border-radius: 14px;
   }
   #page-dashboard .form-input {
     background: rgba(255, 255, 255, 0.98);
@@ -7180,7 +7202,7 @@
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  background: #f8f6f1;
+  background: transparent;
 }
 #page-login.active {
   display: flex;
@@ -7194,9 +7216,9 @@
 }
 .ea-login-card {
   background: #fff;
-  border: 1px solid #e8e0cc;
-  border-radius: 10px;
-  box-shadow: 0 4px 24px rgba(0,0,0,.07);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  border-radius: 18px;
+  box-shadow: 0 20px 50px rgba(20, 18, 60, 0.18);
   padding: 44px 40px 36px;
   width: 100%;
   max-width: 420px;

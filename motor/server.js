@@ -172,7 +172,8 @@ function _serveLegalPage(res, templatePath) {
     let html = fs.readFileSync(templatePath, 'utf-8');
     html = html
       .replace(/\{\{LOGO_URL\}\}/g, _assetUrl('/assets/logo-activos.jpg'))
-      .replace(/\{\{CSS_URL\}\}/g, _assetUrl('/assets/legal.css'));
+      .replace(/\{\{CSS_URL\}\}/g, _assetUrl('/assets/legal.css'))
+      .replace(/\{\{PREMIUM_CSS_URL\}\}/g, _assetUrl('/assets/premium-platform.css'));
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Cache-Control', 'public, max-age=3600');
     res.send(html);

@@ -6,23 +6,20 @@
   <title>EcommerceAgent - Administrador</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=Syne:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/admin.css?v=18">
+  <link rel="stylesheet" href="assets/css/premium-platform.css?v=1">
+  <link rel="stylesheet" href="assets/css/admin.css?v=19">
 </head>
-<body>
+<body class="ea-premium-bg ea-premium-bg--animated">
 
   <!-- ===== LOGIN SCREEN ===== -->
-  <div id="adm-login-screen" style="display:none;position:fixed;inset:0;background:#faf8f5;z-index:9999;align-items:center;justify-content:center;">
-    <div style="background:#fff;border:1px solid #e8ddd0;border-radius:8px;padding:52px 44px;width:100%;max-width:380px;text-align:center;box-shadow:0 4px 28px rgba(184,147,104,0.10);">
-      <div style="font-family:'Syne',sans-serif;font-size:17px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:#1a1a1a;margin-bottom:4px;">EcommerceAgent</div>
-      <div style="font-family:'Syne',sans-serif;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#b89368;margin-bottom:36px;">Panel de Administrador</div>
-      <div id="adm-login-error" style="display:none;background:#fdf0ed;border:1px solid #e8b4a8;border-radius:4px;padding:10px 14px;font-family:'Syne',sans-serif;font-size:12px;color:#c0392b;margin-bottom:14px;text-align:left;"></div>
-      <input type="password" id="adm-login-password" placeholder="Contraseña de administrador"
-        style="width:100%;box-sizing:border-box;border:1px solid #d4c9b8;border-radius:4px;padding:12px 16px;font-size:14px;font-family:'Syne',sans-serif;background:#faf8f5;outline:none;margin-bottom:14px;transition:border-color .2s;"
-        onkeydown="if(event.key==='Enter')adminLogin()"
-        onfocus="this.style.borderColor='#b89368'" onblur="this.style.borderColor='#d4c9b8'" />
-      <button onclick="adminLogin()" id="adm-login-btn"
-        style="width:100%;padding:13px;background:#1a1a1a;color:#fff;border:none;border-radius:4px;font-family:'Syne',sans-serif;font-size:10px;letter-spacing:2.5px;text-transform:uppercase;cursor:pointer;font-weight:600;transition:background .2s;"
-        onmouseover="this.style.background='#b89368'" onmouseout="this.style.background='#1a1a1a'">
+  <div id="adm-login-screen" class="adm-login-screen" style="display:none;">
+    <div class="adm-login-card ea-premium-card">
+      <div class="adm-login-brand">EcommerceAgent</div>
+      <div class="adm-login-tag">Panel de Administrador</div>
+      <div id="adm-login-error" class="adm-login-error" style="display:none;"></div>
+      <input type="password" id="adm-login-password" class="adm-login-input" placeholder="Contraseña de administrador"
+        onkeydown="if(event.key==='Enter')adminLogin()" />
+      <button onclick="adminLogin()" id="adm-login-btn" class="adm-login-btn premium-btn" type="button">
         Entrar al panel
       </button>
     </div>
