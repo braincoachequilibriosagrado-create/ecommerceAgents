@@ -17,12 +17,14 @@ const {
   GetObjectCommand,
   DeleteObjectCommand
 } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
 // ── Validar que las variables de entorno estén presentes ──────────────────────
 const R2_ENDPOINT         = process.env.R2_ENDPOINT;
 const R2_ACCESS_KEY_ID    = process.env.R2_ACCESS_KEY_ID;
 const R2_SECRET_ACCESS_KEY= process.env.R2_SECRET_ACCESS_KEY;
 const R2_BUCKET           = process.env.R2_BUCKET;
+const R2_PRESIGNED_EXPIRES_SEC = 300;
 
 const _r2Configurado = Boolean(R2_ENDPOINT && R2_ACCESS_KEY_ID && R2_SECRET_ACCESS_KEY && R2_BUCKET);
 
@@ -135,12 +137,29 @@ async function obtenerArchivoBuffer(key) {
   }
 }
 
+/**
+ * Genera una URL firmada (presigned GET) para descargar o ver un objeto en R2.
+ * @param {string} key
+ * @param {{ expiresIn?: number, contentDisposition?: string, contentType?: string }} [opts]
+ * @returns {Promise<string>}
+ */
+async function generarUrlFirmada(key, opts) {
+  const o = opts || {};
+  const params = { Bucket: R2_BUCKET, Key: key };
+  if (o.contentDisposition) params.ResponseContentDisposition = o.contentDisposition;
+  if (o.contentType) params.ResponseContentType = o.contentType;
+  const cmd = new GetObjectCommand(params);
+  return getSignedUrl(r2Client, cmd, { expiresIn: o.expiresIn || R2_PRESIGNED_EXPIRES_SEC });
+}
+
 // ── Exports ───────────────────────────────────────────────────────────────────
 module.exports = {
   r2Client,
   R2_BUCKET,
+  R2_PRESIGNED_EXPIRES_SEC,
   subirArchivo,
   obtenerArchivo,
   obtenerArchivoBuffer,
+  generarUrlFirmada,
   borrarArchivo
 };

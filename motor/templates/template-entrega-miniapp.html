@@ -208,22 +208,16 @@
   }
   .btn-video-dl:hover { border-color: var(--c2); color: var(--ink); }
 
-  .video-dl-queue {
-    flex-basis: 100%;
-    width: 100%;
-    margin-top: 10px;
-    padding: 10px 14px;
-    font-size: 13px;
-    line-height: 1.45;
-    color: #5a4a12;
-    background: #fff8e6;
-    border: 1px solid #ffe7a3;
-    border-radius: 10px;
+  .btn-video-dl[aria-disabled="true"],
+  .btn-video-dl.disabled {
+    opacity: .55;
+    pointer-events: none;
+    cursor: not-allowed;
   }
 
   .btn-video-dl:disabled {
     opacity: 0.65;
-    cursor: wait;
+    cursor: not-allowed;
   }
 
   @media (max-width: 520px) {
@@ -232,7 +226,6 @@
     .video-item { flex-direction: column; align-items: stretch; }
     .video-item-actions { width: 100%; }
     .btn-video, .btn-video-dl { flex: 1; text-align: center; }
-    .video-dl-queue { margin-top: 0; }
   }
 </style>
 </head>
@@ -353,17 +346,6 @@
       }
     }
 
-    function _parseEstadoVideo(r) {
-      return r.json().then(function (d) {
-        if (!r.ok) {
-          var err = new Error(d.error || 'Error');
-          if (d.limite_alcanzado) err.limite = true;
-          throw err;
-        }
-        return d;
-      });
-    }
-
     function _actualizarRestantesVideo(item, btn) {
       if (!btn || !item) return;
       var meta = item.querySelector('.video-dl-meta');
@@ -372,110 +354,19 @@
       btn.setAttribute('data-restantes', String(rest));
       if (meta) meta.textContent = 'Descargas restantes: ' + rest + ' de 3';
       if (rest <= 0) {
-        btn.disabled = true;
+        btn.classList.add('disabled');
+        btn.setAttribute('aria-disabled', 'true');
         btn.textContent = 'Limite alcanzado';
         btn.removeAttribute('data-video-dl');
+        btn.removeAttribute('href');
       }
-    }
-
-    function _mostrarColaVideo(queueEl, pos) {
-      if (!queueEl) return;
-      queueEl.hidden = false;
-      queueEl.textContent = 'Estas en cola. Eres el #' + pos + '. Tu descarga empezara en un momento...';
-    }
-
-    function _iniciarArchivoVideo(btn, queueEl, baseUrl, ticket) {
-      if (queueEl) queueEl.textContent = 'Iniciando tu descarga...';
-      var url = baseUrl + '?download=1&ticket=' + encodeURIComponent(ticket);
-      var item = btn ? btn.closest('.video-item') : null;
-      var a = document.createElement('a');
-      a.href = url;
-      a.style.display = 'none';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      if (btn) _actualizarRestantesVideo(item, btn);
-      setTimeout(function () {
-        if (queueEl) { queueEl.hidden = true; queueEl.textContent = ''; }
-        if (btn && btn.hasAttribute('data-video-dl')) btn.disabled = false;
-      }, 4000);
-    }
-
-    function _pollColaVideo(btn, queueEl, baseUrl, ticket) {
-      fetch(baseUrl + '/estado?ticket=' + encodeURIComponent(ticket), { cache: 'no-store' })
-        .then(_parseEstadoVideo)
-        .then(function (d) {
-          if (!d.ok) throw new Error(d.error || 'Error');
-          if (d.listo && !d.en_cola) {
-            _iniciarArchivoVideo(btn, queueEl, baseUrl, d.ticket || ticket);
-            return;
-          }
-          if (d.en_cola) _mostrarColaVideo(queueEl, d.posicion || 1);
-          setTimeout(function () { _pollColaVideo(btn, queueEl, baseUrl, d.ticket || ticket); }, 2500);
-        })
-        .catch(function (e) {
-          if (queueEl) {
-            queueEl.hidden = false;
-            queueEl.textContent = (e && e.message) || 'No se pudo iniciar la descarga. Intenta de nuevo.';
-          }
-          if (btn) {
-            if (e && e.limite) {
-              btn.disabled = true;
-              btn.textContent = 'Limite alcanzado';
-              btn.removeAttribute('data-video-dl');
-            } else if (btn.hasAttribute('data-video-dl')) {
-              btn.disabled = false;
-            }
-          }
-        });
-    }
-
-    function iniciarDescargaVideo(btn) {
-      var baseUrl = btn.getAttribute('data-url');
-      if (!baseUrl) return;
-      var item = btn.closest('.video-item');
-      var queueEl = item ? item.querySelector('.video-dl-queue') : null;
-
-      btn.disabled = true;
-      if (queueEl) {
-        queueEl.hidden = false;
-        queueEl.textContent = 'Preparando tu descarga...';
-      }
-
-      fetch(baseUrl + '/estado', { cache: 'no-store' })
-        .then(_parseEstadoVideo)
-        .then(function (d) {
-          if (!d.ok) throw new Error(d.error || 'Error');
-          if (d.listo && !d.en_cola) {
-            _iniciarArchivoVideo(btn, queueEl, baseUrl, d.ticket);
-            return;
-          }
-          if (d.en_cola) _mostrarColaVideo(queueEl, d.posicion || 1);
-          setTimeout(function () { _pollColaVideo(btn, queueEl, baseUrl, d.ticket); }, 2500);
-        })
-        .catch(function (e) {
-          if (queueEl) {
-            queueEl.hidden = false;
-            queueEl.textContent = (e && e.message) || 'No se pudo iniciar la descarga. Intenta de nuevo.';
-          }
-          if (btn) {
-            if (e && e.limite) {
-              btn.disabled = true;
-              btn.textContent = 'Limite alcanzado';
-              btn.removeAttribute('data-video-dl');
-            } else if (btn.hasAttribute('data-video-dl')) {
-              btn.disabled = false;
-            }
-          }
-        });
     }
 
     document.addEventListener('click', function (e) {
       var btn = e.target.closest('[data-video-dl]');
-      if (btn) {
-        e.preventDefault();
-        iniciarDescargaVideo(btn);
-      }
+      if (!btn || btn.classList.contains('disabled')) return;
+      var item = btn.closest('.video-item');
+      _actualizarRestantesVideo(item, btn);
     });
   </script>
 </body>

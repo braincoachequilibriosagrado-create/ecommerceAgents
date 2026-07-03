@@ -20,7 +20,7 @@ const SYSTEM_CONTENIDO   = require('./system-contenido');
 const SYSTEM_AVATAR      = require('./system-avatar');
 const agenteVentas       = require('./agente-ventas');
 const supabase           = require('./supabase');
-const { subirArchivo, obtenerArchivo, obtenerArchivoBuffer } = require('./r2');
+const { subirArchivo, obtenerArchivo, obtenerArchivoBuffer, generarUrlFirmada, R2_PRESIGNED_EXPIRES_SEC } = require('./r2');
 const { generarPaginaVentaMiniapp } = require('./generar-pagina-miniapp');
 const miniappSeg = require('./miniapp-seguridad');
 const jwtAuth    = require('./jwt-auth');
@@ -2513,7 +2513,7 @@ function _buildVideosEntregaHtml(videos, codigo, descargasRestantesMap) {
     const sinDescargas = restantes <= 0;
     const btnDl = sinDescargas
       ? '<button type="button" class="btn btn-video-dl" disabled>Limite alcanzado</button>'
-      : '<button type="button" class="btn btn-video-dl" data-video-dl data-codigo="' + _escapeHtmlEntrega(codigo) + '" data-video-id="' + _escapeHtmlEntrega(v.id) + '" data-url="' + _escapeHtmlEntrega(baseUrl) + '" data-restantes="' + restantes + '">Descargar</button>';
+      : '<a href="' + baseUrl + '?download=1" class="btn btn-video-dl" data-video-dl data-restantes="' + restantes + '">Descargar</a>';
     const metaHtml = '<p class="video-dl-meta">Descargas restantes: ' + restantes + ' de ' + LIMITE_DESCARGAS_VIDEO + '</p>';
     return (
       '<div class="video-item">' +
@@ -2526,7 +2526,6 @@ function _buildVideosEntregaHtml(videos, codigo, descargasRestantesMap) {
       '<a href="' + baseUrl + '" target="_blank" rel="noopener" class="btn btn-grad btn-video">Ver</a>' +
       btnDl +
       '</div>' +
-      '<div class="video-dl-queue" hidden aria-live="polite"></div>' +
       '</div>'
     );
   }).join('');
@@ -4297,6 +4296,40 @@ function _denegarVideoDescarga(res, message) {
   return res.status(403).send(message || ENTREGA_MSG_VIDEO_DL_LIMITE);
 }
 
+function _r2ContentDisposition(filename, inline) {
+  const safe = String(filename || 'archivo').replace(/[^\w\s.-]/g, '_').trim() || 'archivo';
+  return (inline ? 'inline' : 'attachment') + '; filename="' + safe + '"';
+}
+
+async function _redirectPresignedR2(res, key, opts) {
+  const url = await generarUrlFirmada(key, {
+    expiresIn: R2_PRESIGNED_EXPIRES_SEC,
+    contentDisposition: opts.contentDisposition,
+    contentType: opts.contentType
+  });
+  res.setHeader('Cache-Control', 'private, no-store');
+  res.redirect(302, url);
+}
+
+async function _videoEntregaValidarAcceso(codigo, videoId) {
+  const validacion = await _entregaValidarCompra(codigo);
+  if (!validacion.ok) return { ok: false, reason: validacion.reason };
+  const compra = validacion.compra;
+  const vid    = String(videoId || '').trim();
+  if (!vid) return { ok: false, reason: 'invalid' };
+
+  const { data: video, error: vErr } = await supabase
+    .from('miniapp_videos')
+    .select('id, video_key, nombre, miniapp_id')
+    .eq('id', vid)
+    .eq('miniapp_id', compra.miniapp_id)
+    .maybeSingle();
+  if (vErr || !video || !video.video_key) {
+    return { ok: false, reason: 'invalid' };
+  }
+  return { ok: true, compra, video };
+}
+
 function _entregaCodigoGate(req, res, next) {
   if (!_entregaRateLimitPermitir(req)) {
     const isHtml = req.path.indexOf('/mi-compra/') === 0;
@@ -5710,12 +5743,11 @@ app.get('/descargar-pdf/:codigo', _entregaCodigoGate, async (req, res) => {
     const cuota = await _consumirCuotaDescarga(compra, 'pdf', req);
     if (!cuota.ok) return _denegarEntregaTexto(res, cuota.reason);
 
-    const buf = await obtenerArchivoBuffer(miniapp.pdf_key);
     const filename = (miniapp.slug || 'producto') + '.pdf';
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'attachment; filename="' + filename + '"');
-    res.setHeader('Cache-Control', 'private, no-store');
-    res.send(buf);
+    await _redirectPresignedR2(res, miniapp.pdf_key, {
+      contentDisposition: _r2ContentDisposition(filename, false),
+      contentType: 'application/pdf'
+    });
   } catch (e) {
     console.error('[descargar-pdf]', e.message);
     res.status(500).send(ENTREGA_MSG_INVALIDO);
@@ -5755,222 +5787,18 @@ app.get('/descargar-pack/:codigo', _entregaCodigoGate, async (req, res) => {
   }
 });
 
-// ── Cola de descargas de video (proteccion VPS — max simultaneas) ─────────────
-const MAX_DESCARGAS_VIDEO           = 5;
-const VIDEO_DL_SERVING_TIMEOUT_MS   = 30 * 60 * 1000;
-const VIDEO_DL_READY_TIMEOUT_MS     = 5 * 60 * 1000;
-const VIDEO_DL_TICKET_TTL_MS        = 45 * 60 * 1000;
-
-let _videoDlActivas = 0;
-const _videoDlWaitQueue = [];
-const _videoDlTickets   = new Map();
-
-function _videoDlLimpiarTimers(ticket) {
-  if (!ticket) return;
-  if (ticket.readyTimer)   { clearTimeout(ticket.readyTimer);   ticket.readyTimer   = null; }
-  if (ticket.servingTimer) { clearTimeout(ticket.servingTimer); ticket.servingTimer = null; }
-}
-
-function _videoDlRecalcularPosiciones() {
-  _videoDlWaitQueue.forEach(function (id, idx) {
-    const t = _videoDlTickets.get(id);
-    if (t && t.estado === 'waiting') t.posicion = idx + 1;
-  });
-}
-
-function _videoDlQuitarDeCola(ticketId) {
-  const idx = _videoDlWaitQueue.indexOf(ticketId);
-  if (idx !== -1) _videoDlWaitQueue.splice(idx, 1);
-  _videoDlRecalcularPosiciones();
-}
-
-function _videoDlOtorgarListo(ticket) {
-  ticket.estado   = 'ready';
-  ticket.posicion = 0;
-  _videoDlActivas++;
-  ticket.readyTimer = setTimeout(function () {
-    if (ticket.estado === 'ready') {
-      console.warn('[video-dl/cola] cupo liberado — ticket listo sin descargar:', ticket.id);
-      _videoDlLiberarCupo(ticket.id);
-    }
-  }, VIDEO_DL_READY_TIMEOUT_MS);
-}
-
-function _videoDlPromoverSiguiente() {
-  while (_videoDlWaitQueue.length > 0) {
-    const nextId = _videoDlWaitQueue.shift();
-    const next   = _videoDlTickets.get(nextId);
-    if (!next || next.estado !== 'waiting') continue;
-    _videoDlOtorgarListo(next);
-    _videoDlRecalcularPosiciones();
-    return;
-  }
-}
-
-function _videoDlNuevoTicket(codigo, videoId) {
-  const id = crypto.randomBytes(12).toString('hex');
-  const ticket = {
-    id,
-    codigo:  String(codigo || '').trim(),
-    videoId: String(videoId || '').trim(),
-    estado:  'waiting',
-    posicion: 0,
-    createdAt: Date.now(),
-    readyTimer: null,
-    servingTimer: null
-  };
-  _videoDlTickets.set(id, ticket);
-  setTimeout(function () { _videoDlExpirarTicket(id); }, VIDEO_DL_TICKET_TTL_MS);
-  return ticket;
-}
-
-function _videoDlIniciarReserva(codigo, videoId) {
-  const ticket = _videoDlNuevoTicket(codigo, videoId);
-  if (_videoDlActivas < MAX_DESCARGAS_VIDEO) {
-    _videoDlOtorgarListo(ticket);
-    return { ticket: ticket.id, en_cola: false, listo: true, posicion: 0 };
-  }
-  ticket.estado = 'waiting';
-  _videoDlWaitQueue.push(ticket.id);
-  ticket.posicion = _videoDlWaitQueue.length;
-  return { ticket: ticket.id, en_cola: true, listo: false, posicion: ticket.posicion };
-}
-
-function _videoDlEstadoTicket(ticketId, codigo, videoId) {
-  const t = _videoDlTickets.get(String(ticketId || '').trim());
-  if (!t || t.codigo !== String(codigo || '').trim() || t.videoId !== String(videoId || '').trim()) {
-    return { ok: false, error: 'Ticket invalido.' };
-  }
-  if (t.estado === 'expired' || t.estado === 'done' || t.estado === 'cancelled') {
-    return { ok: false, error: 'Ticket expirado. Vuelve a intentar.' };
-  }
-  if (t.estado === 'ready' || t.estado === 'serving') {
-    return { ok: true, ticket: t.id, en_cola: false, listo: true, posicion: 0 };
-  }
-  return { ok: true, ticket: t.id, en_cola: true, listo: false, posicion: t.posicion || 1 };
-}
-
-function _videoDlMarcarServing(ticketId) {
-  const t = _videoDlTickets.get(ticketId);
-  if (!t || t.estado !== 'ready') return false;
-  _videoDlLimpiarTimers(t);
-  t.estado = 'serving';
-  t.servingTimer = setTimeout(function () {
-    if (t.estado === 'serving') {
-      console.warn('[video-dl/cola] descarga colgada — liberando cupo:', ticketId);
-      _videoDlLiberarCupo(ticketId);
-    }
-  }, VIDEO_DL_SERVING_TIMEOUT_MS);
-  return true;
-}
-
-function _videoDlLiberarCupo(ticketId) {
-  const t = _videoDlTickets.get(ticketId);
-  if (!t) return;
-  _videoDlLimpiarTimers(t);
-  const ocupaba = t.estado === 'ready' || t.estado === 'serving';
-  if (t.estado !== 'done' && t.estado !== 'expired' && t.estado !== 'cancelled') {
-    t.estado = 'done';
-  }
-  _videoDlQuitarDeCola(ticketId);
-  if (ocupaba) {
-    _videoDlActivas = Math.max(0, _videoDlActivas - 1);
-    _videoDlPromoverSiguiente();
-  }
-}
-
-function _videoDlExpirarTicket(ticketId) {
-  const t = _videoDlTickets.get(ticketId);
-  if (!t || t.estado === 'done' || t.estado === 'serving') return;
-  const ocupaba = t.estado === 'ready';
-  _videoDlLimpiarTimers(t);
-  _videoDlQuitarDeCola(ticketId);
-  t.estado = 'expired';
-  if (ocupaba) {
-    _videoDlActivas = Math.max(0, _videoDlActivas - 1);
-    _videoDlPromoverSiguiente();
-  }
-  setTimeout(function () { _videoDlTickets.delete(ticketId); }, 60000);
-}
-
-function _videoDlAtarLiberacion(req, res, ticketId) {
-  let released = false;
-  return function liberar() {
-    if (released) return;
-    released = true;
-    _videoDlLiberarCupo(ticketId);
-  };
-}
-
-async function _videoDlValidarAcceso(codigo, videoId) {
-  const validacion = await _entregaValidarCompra(codigo);
-  if (!validacion.ok) return { ok: false, reason: validacion.reason };
-  const compra = validacion.compra;
-  const vid    = String(videoId || '').trim();
-  if (!vid) return { ok: false, reason: 'invalid' };
-
-  const { data: video, error: vErr } = await supabase
-    .from('miniapp_videos')
-    .select('id, video_key, nombre, miniapp_id')
-    .eq('id', vid)
-    .eq('miniapp_id', compra.miniapp_id)
-    .maybeSingle();
-  if (vErr || !video || !video.video_key) {
-    return { ok: false, reason: 'invalid' };
-  }
-  return { ok: true, compra, video };
-}
-
-// ── Ver / descargar video individual (protegido por codigo + cuota) ───────────
-// Estado de cola para descargas (?download=1 usa ticket; Ver sin cola)
-app.get('/descargar-video/:codigo/:video_id/estado', _entregaCodigoGate, async (req, res) => {
-  const codigo  = String(req.params.codigo || '').trim();
-  const videoId = String(req.params.video_id || '').trim();
-  const ticketQ = String(req.query.ticket || '').trim();
-
-  try {
-    const acc = await _videoDlValidarAcceso(codigo, videoId);
-    if (!acc.ok) return _denegarEntregaTexto(res, acc.reason);
-
-    const limite = await _verificarLimiteDescargaVideo(acc.compra.id, videoId);
-    if (!limite.ok) {
-      if (limite.failClosed) {
-        return res.status(503).json({ ok: false, error: CLIENT_ERROR_MSG });
-      }
-      return res.status(403).json({
-        ok: false,
-        error: limite.message || ENTREGA_MSG_VIDEO_DL_LIMITE,
-        limite_alcanzado: true
-      });
-    }
-
-    _setNoCacheJson(res);
-    if (!ticketQ) {
-      const info = _videoDlIniciarReserva(codigo, videoId);
-      return res.json({ ok: true, ...info });
-    }
-    const estado = _videoDlEstadoTicket(ticketQ, codigo, videoId);
-    if (!estado.ok) return res.status(400).json(estado);
-    res.json(estado);
-  } catch (e) {
-    console.error('[descargar-video/estado]', e.message);
-    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
-  }
-});
-
+// ── Ver / descargar video individual (R2 presigned — sin cola en VPS) ─────────
 app.get('/descargar-video/:codigo/:video_id', _entregaCodigoGate, async (req, res) => {
   const codigo  = String(req.params.codigo || '').trim();
   const videoId = String(req.params.video_id || '').trim();
-  let liberarCupo = null;
 
   try {
-    const acc = await _videoDlValidarAcceso(codigo, videoId);
+    const acc = await _videoEntregaValidarAcceso(codigo, videoId);
     if (!acc.ok) return _denegarEntregaTexto(res, acc.reason);
     const compra = acc.compra;
     const video  = acc.video;
 
     const asDownload = req.query.download === '1' || req.query.download === 'true';
-    const ticketId   = String(req.query.ticket || '').trim();
 
     if (asDownload) {
       const limite = await _verificarLimiteDescargaVideo(compra.id, videoId);
@@ -5978,18 +5806,8 @@ app.get('/descargar-video/:codigo/:video_id', _entregaCodigoGate, async (req, re
         if (limite.failClosed) return res.status(503).send(ENTREGA_MSG_INVALIDO);
         return _denegarVideoDescarga(res, limite.message);
       }
-      if (!ticketId || !_videoDlMarcarServing(ticketId)) {
-        return res.status(409).send('Tu descarga aun no esta lista. Usa el boton Descargar en tu pagina de entrega.');
-      }
-      liberarCupo = _videoDlAtarLiberacion(req, res, ticketId);
-    }
-
-    const buf = await obtenerArchivoBuffer(video.video_key);
-
-    if (asDownload) {
       const consumo = await _incrementarDescargaVideo(compra, videoId, req);
       if (!consumo.ok) {
-        if (liberarCupo) liberarCupo();
         if (consumo.failClosed) return res.status(503).send(ENTREGA_MSG_INVALIDO);
         return _denegarVideoDescarga(res, consumo.message);
       }
@@ -5999,15 +5817,12 @@ app.get('/descargar-video/:codigo/:video_id', _entregaCodigoGate, async (req, re
     const mime = _mimeVideoExt(ext.replace('.', ''));
     const safeName = String(video.nombre || 'video').replace(/[^\w\s.-]/g, '_').trim() || 'video';
     const filename = safeName + (ext || '.mp4');
-    const disposition = asDownload ? 'attachment' : 'inline';
 
-    res.setHeader('Content-Type', mime);
-    res.setHeader('Content-Disposition', disposition + '; filename="' + filename + '"');
-    res.setHeader('Accept-Ranges', 'bytes');
-    res.setHeader('Cache-Control', 'private, no-store');
-    res.send(buf);
+    await _redirectPresignedR2(res, video.video_key, {
+      contentDisposition: _r2ContentDisposition(filename, !asDownload),
+      contentType: mime
+    });
   } catch (e) {
-    if (liberarCupo) liberarCupo();
     console.error('[descargar-video]', e.message);
     if (!res.headersSent) res.status(500).send(ENTREGA_MSG_INVALIDO);
   }
@@ -7371,10 +7186,9 @@ app.listen(PORT, () => {
   console.log(`[motor]   GET  http://localhost:${PORT}/api/marketplace`);
   console.log(`[motor]   GET  http://localhost:${PORT}/assets/logo-activos.jpg`);
   console.log(`[motor]   GET  http://localhost:${PORT}/usar-miniapp/:codigo`);
-  console.log(`[motor]   GET  http://localhost:${PORT}/descargar-pdf/:codigo`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/descargar-pdf/:codigo (R2 presigned)`);
   console.log(`[motor]   GET  http://localhost:${PORT}/descargar-pack/:codigo`);
-  console.log(`[motor]   GET  http://localhost:${PORT}/descargar-video/:codigo/:video_id/estado`);
-  console.log(`[motor]   GET  http://localhost:${PORT}/descargar-video/:codigo/:video_id (cola descargas max ${MAX_DESCARGAS_VIDEO})`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/descargar-video/:codigo/:video_id (R2 presigned)`);
   console.log(`[motor]   POST http://localhost:${PORT}/api/pedidos/crear`);
   console.log(`[motor]   GET  http://localhost:${PORT}/api/admin/pedidos`);
   console.log(`[motor]   POST http://localhost:${PORT}/api/admin/pedidos/actualizar`);
