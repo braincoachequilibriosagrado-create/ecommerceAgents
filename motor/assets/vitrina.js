@@ -122,7 +122,7 @@
 
   function load() {
     setStatus('Cargando productos...');
-    fetch('/api/vitrina', { cache: 'no-store' })
+    fetch('/api/marketplace', { cache: 'no-store' })
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (!d.ok) throw new Error(d.error || 'Error al cargar');

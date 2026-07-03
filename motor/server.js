@@ -2923,10 +2923,10 @@ app.post('/api/mis-productos/quitar', requireUsuario, async (req, res) => {
   }
 });
 
-// ── Vitrina publica (Activos Digitales) ───────────────────────────────────────
+// ── Marketplace publico (Activos Digitales) ─────────────────────────────────────
+const MARKETPLACE_ASSET_BUST = '2';
 
-// GET /api/vitrina — productos aprobados para venta directa del dueño (sin datos sensibles)
-app.get('/api/vitrina', async (req, res) => {
+async function _apiMarketplace(req, res) {
   try {
     const { data, error } = await supabase
       .from('miniapps')
@@ -2944,23 +2944,27 @@ app.get('/api/vitrina', async (req, res) => {
       })
     });
   } catch (e) {
-    console.error('[vitrina/api]', e.message);
+    console.error('[marketplace/api]', e.message);
     res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
-});
+}
 
-function _serveVitrina(req, res) {
+app.get('/api/marketplace', _apiMarketplace);
+app.get('/api/vitrina', _apiMarketplace);
+
+function _serveMarketplace(req, res) {
   _setNoCacheHtml(res);
-  const logoUrl = _assetUrl('/assets/logo-activos.jpg');
-  const cssUrl  = _assetUrl('/assets/vitrina.css');
-  const jsUrl   = _assetUrl('/assets/vitrina.js');
+  const bust    = '&mp=' + MARKETPLACE_ASSET_BUST;
+  const logoUrl = _assetUrl('/assets/logo-activos.jpg') + bust;
+  const cssUrl  = _assetUrl('/assets/vitrina.css') + bust;
+  const jsUrl   = _assetUrl('/assets/vitrina.js') + bust;
   res.send(`<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Activos Digitales — Vitrina</title>
-<meta name="description" content="Explora y compra los mejores activos digitales: mini apps, infoproductos y contenido digital.">
+<title>Activos Digitales — Marketplace</title>
+<meta name="description" content="Marketplace de activos digitales: mini apps, infoproductos y contenido digital. Compra segura y acceso inmediato.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
@@ -2970,7 +2974,7 @@ function _serveVitrina(req, res) {
 <div class="vt-page">
   <header class="vt-header">
     <div class="vt-header-inner">
-      <a href="/vitrina" class="vt-brand">
+      <a href="/marketplace" class="vt-brand">
         <img src="${logoUrl}" alt="Activos Digitales" class="vt-brand-logo" />
         <span class="vt-brand-name">Activos Digitales</span>
       </a>
@@ -2979,8 +2983,8 @@ function _serveVitrina(req, res) {
 
   <main class="vt-main">
     <section class="vt-hero">
-      <h1 class="vt-hero-title">Explora los mejores activos digitales</h1>
-      <p class="vt-hero-sub">Mini apps, infoproductos y contenido digital listos para usar. Compra segura y acceso inmediato.</p>
+      <h1 class="vt-hero-title">Marketplace de Activos Digitales</h1>
+      <p class="vt-hero-sub">Explora mini apps, infoproductos y contenido digital listos para usar. Compra segura y acceso inmediato.</p>
     </section>
 
     <div class="vt-toolbar">
@@ -2998,13 +3002,13 @@ function _serveVitrina(req, res) {
     <div id="vt-status" class="vt-status" aria-live="polite">Cargando productos...</div>
     <div id="vt-grid" class="vt-grid" hidden></div>
     <div id="vt-empty" class="vt-empty" hidden>
-      <p class="vt-empty-title">Aun no hay productos en la vitrina</p>
+      <p class="vt-empty-title">Aun no hay productos en el marketplace</p>
       <p class="vt-empty-sub">Vuelve pronto — los creadores estan publicando nuevos activos digitales.</p>
     </div>
   </main>
 
   <footer class="vt-footer">
-    <p>Distribuido por <strong>EcommerceAgents</strong> · Activos digitales listos para usar</p>
+    <p>Distribuido por <strong>EcommerceAgents</strong> · Marketplace de activos digitales</p>
   </footer>
 </div>
 <script src="${jsUrl}"></script>
@@ -3012,7 +3016,10 @@ function _serveVitrina(req, res) {
 </html>`);
 }
 
-app.get('/vitrina', _serveVitrina);
+app.get('/marketplace', _serveMarketplace);
+app.get('/vitrina', function (req, res) {
+  res.redirect(301, '/marketplace');
+});
 
 // ── Catalogo mini apps (activos digitales para vendedores) ────────────────────
 
@@ -6795,8 +6802,9 @@ app.listen(PORT, () => {
   console.log(`[motor]   GET  http://localhost:${PORT}/api/admin/miniapps/comisiones-vendedores`);
   console.log(`[motor]   GET  http://localhost:${PORT}/mi-compra/:codigo`);
   console.log(`[motor]   GET  http://localhost:${PORT}/recuperar-compra`);
-  console.log(`[motor]   GET  http://localhost:${PORT}/vitrina`);
-  console.log(`[motor]   GET  http://localhost:${PORT}/api/vitrina`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/marketplace`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/vitrina  (redirect → /marketplace)`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/api/marketplace`);
   console.log(`[motor]   GET  http://localhost:${PORT}/assets/logo-activos.jpg`);
   console.log(`[motor]   GET  http://localhost:${PORT}/usar-miniapp/:codigo`);
   console.log(`[motor]   GET  http://localhost:${PORT}/descargar-pdf/:codigo`);
