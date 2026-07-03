@@ -48,6 +48,41 @@
     color: #1A1714;
   }
 
+  /* Halo dorado pequeño que sigue el cursor (landing vendedores) */
+  .landing-cursor-spotlight {
+    --spot-size: 96px;
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: var(--spot-size);
+    height: var(--spot-size);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 4;
+    opacity: 0;
+    transition: opacity 0.35s ease;
+    background: radial-gradient(
+      circle closest-side,
+      rgba(217, 193, 163, 0.32) 0%,
+      rgba(184, 147, 104, 0.12) 42%,
+      transparent 100%
+    );
+    filter: blur(9px);
+    will-change: transform;
+  }
+
+  .landing-cursor-spotlight.is-active {
+    opacity: 0.55;
+  }
+
+  @media (max-width: 768px), (pointer: coarse) {
+    .landing-cursor-spotlight { display: none; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .landing-cursor-spotlight { display: none; }
+  }
+
   .landing-bg {
     position: absolute;
     inset: 0;

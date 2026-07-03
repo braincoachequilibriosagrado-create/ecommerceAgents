@@ -5018,6 +5018,59 @@ function stopLandingSand() {
   _sandStarted = false;
 }
 
+function initLandingCursorSpotlight() {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if (window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 768) return;
+
+  var page = document.getElementById('page-home');
+  var spot = document.getElementById('landing-cursor-spotlight');
+  if (!page || !spot) return;
+
+  var tx = -9999;
+  var ty = -9999;
+  var cx = -9999;
+  var cy = -9999;
+  var raf = null;
+  var active = false;
+
+  function landingVisible() {
+    return page.classList.contains('active') && !page.hidden;
+  }
+
+  function tick() {
+    if (!active || !landingVisible()) {
+      raf = null;
+      return;
+    }
+    cx += (tx - cx) * 0.14;
+    cy += (ty - cy) * 0.14;
+    spot.style.transform = 'translate3d(' + cx + 'px,' + cy + 'px,0) translate(-50%,-50%)';
+    raf = requestAnimationFrame(tick);
+  }
+
+  document.addEventListener('mousemove', function (e) {
+    if (!landingVisible()) {
+      if (active) {
+        active = false;
+        spot.classList.remove('is-active');
+      }
+      return;
+    }
+    tx = e.clientX;
+    ty = e.clientY;
+    if (!active) {
+      active = true;
+      spot.classList.add('is-active');
+    }
+    if (!raf) raf = requestAnimationFrame(tick);
+  }, { passive: true });
+
+  document.addEventListener('mouseleave', function () {
+    active = false;
+    spot.classList.remove('is-active');
+  });
+}
+
 function initHeroShowcase() {
   var track = document.getElementById('hps-h-track');
   if (!track) return;
@@ -6914,6 +6967,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initHeroShowcase();    // mini-carrusel vertical en el mockup del hero
     initLandingCarousel(); // carrusel horizontal de productos en la sección inferior
     initLandingSand();     // partículas de arena en el fondo
+    initLandingCursorSpotlight(); // halo dorado pequeño que sigue el cursor
   }, 80);
 
   // Pre-rellenar usuario recordado si existe
