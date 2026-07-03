@@ -644,6 +644,36 @@ body.cr-body--auth #cr-auth-screen {
   box-shadow: 0 8px 24px rgba(20, 18, 60, 0.18);
 }
 
+a.cr-dash-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  text-decoration: none;
+}
+
+.cr-dash-tab--ext:hover {
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.22);
+}
+
+.cr-dash-tab-icon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+
+.cr-dash-tab-ext {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  opacity: 0.55;
+}
+
+.cr-dash-tab--ext:hover .cr-dash-tab-ext {
+  opacity: 0.85;
+}
+
 .cr-panel { display: block; }
 .cr-panel[hidden] { display: none !important; }
 
