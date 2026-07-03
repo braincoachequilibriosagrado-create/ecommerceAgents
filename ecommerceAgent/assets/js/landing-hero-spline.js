@@ -26,6 +26,10 @@
     var wrap = $('landing-robot-wrap');
     var fb = $('landing-hero-fallback');
     if (wrap) wrap.hidden = true;
+    if (isMobileViewport()) {
+      if (fb) fb.hidden = true;
+      return;
+    }
     if (fb) {
       fb.hidden = false;
       fb.classList.remove('is-hidden-by-robot');
@@ -152,8 +156,8 @@
     var spot = $('landing-hero-spotlight');
     if (!hero || !spot) return;
 
-    var tx = 62;
-    var ty = 42;
+    var tx = 28;
+    var ty = 48;
     var cx = tx;
     var cy = ty;
     var rafId = null;
@@ -175,8 +179,8 @@
     });
 
     hero.addEventListener('mouseleave', function () {
-      tx = 62;
-      ty = 42;
+      tx = 28;
+      ty = 48;
     });
 
     rafId = global.requestAnimationFrame(tick);

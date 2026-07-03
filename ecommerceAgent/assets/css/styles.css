@@ -188,29 +188,42 @@
     color: #1A1714;
   }
 
-  /* Hero: columna texto (como antes) + columna mockup */
+  /* Hero: robot izquierda + texto derecha */
   .landing-hero {
     position: relative;
     z-index: 2;
     flex: 1;
     display: flex;
     align-items: center;
-    padding: 32px 32px 48px;
+    padding: 32px 32px 56px;
     animation: fadeUp 1s 0.1s ease both;
+    overflow: hidden;
   }
   .landing-hero-inner {
-    max-width: 1280px;
+    max-width: 1320px;
     margin: 0 auto;
     width: 100%;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(340px, 1.35fr);
-    gap: 48px;
+    grid-template-columns: minmax(380px, 1.15fr) minmax(0, 1fr);
+    gap: 40px 56px;
     align-items: center;
+  }
+  .landing-hero-robot-col {
+    position: relative;
+    z-index: 2;
+    order: 1;
+    width: 100%;
+    min-height: 520px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
   .landing-hero-copy {
     position: relative;
-    z-index: 2;
-    max-width: 560px;
+    z-index: 3;
+    order: 2;
+    max-width: 580px;
+    justify-self: end;
     text-align: left;
   }
   .landing-badge {
@@ -327,57 +340,48 @@
   .landing-cta-arrow { font-size: 18px; transition: transform 0.3s; }
   .landing-cta:hover .landing-cta-arrow { transform: translateX(6px); }
 
-  /* Mockup: imagen única (catálogo + Mis ventas en el asset) */
-  .landing-hero-visual {
-    position: relative;
-    min-height: 480px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  /* Spotlight dorado que sigue el cursor en el hero */
+  /* Spotlight dorado — enfocado en zona del robot (izquierda) */
   .landing-hero-spotlight {
-    --spot-x: 62%;
-    --spot-y: 42%;
+    --spot-x: 28%;
+    --spot-y: 48%;
     position: absolute;
     inset: 0;
     z-index: 1;
     pointer-events: none;
     background:
       radial-gradient(
-        520px circle at var(--spot-x) var(--spot-y),
-        rgba(217, 193, 163, 0.28) 0%,
-        rgba(184, 147, 104, 0.12) 28%,
-        transparent 62%
+        560px circle at var(--spot-x) var(--spot-y),
+        rgba(217, 193, 163, 0.32) 0%,
+        rgba(184, 147, 104, 0.14) 30%,
+        transparent 65%
       );
-    opacity: 0.85;
-    transition: opacity 0.4s ease;
+    opacity: 0.9;
   }
 
-  /* Robot 3D Spline — area derecha del hero */
+  /* Robot 3D Spline — columna izquierda */
   .landing-robot-wrap {
     position: relative;
     z-index: 2;
     width: 100%;
-    min-height: 480px;
-    max-width: 620px;
-    margin: 0 auto;
+    min-height: 520px;
+    height: clamp(500px, 58vh, 620px);
+    max-width: 100%;
     border-radius: 22px;
     overflow: hidden;
     background:
-      radial-gradient(ellipse 85% 75% at 50% 55%, rgba(26, 23, 20, 0.22) 0%, transparent 68%),
-      linear-gradient(165deg, rgba(26, 23, 20, 0.06) 0%, rgba(250, 248, 244, 0.02) 100%);
+      radial-gradient(ellipse 90% 80% at 50% 52%, rgba(26, 23, 20, 0.28) 0%, rgba(26, 23, 20, 0.06) 55%, transparent 78%),
+      linear-gradient(165deg, rgba(26, 23, 20, 0.08) 0%, rgba(250, 248, 244, 0.02) 100%);
     box-shadow:
-      0 0 0 1px rgba(184, 147, 104, 0.14),
-      0 28px 64px rgba(26, 23, 20, 0.12);
+      0 0 0 1px rgba(184, 147, 104, 0.16),
+      0 32px 72px rgba(26, 23, 20, 0.14);
   }
 
   .landing-robot-stage {
     position: relative;
+    z-index: 2;
     width: 100%;
-    min-height: 480px;
-    height: clamp(420px, 52vh, 560px);
+    height: 100%;
+    min-height: inherit;
     opacity: 0;
     transition: opacity 0.55s ease;
   }
@@ -395,7 +399,6 @@
     background: transparent !important;
   }
 
-  /* Ocultar badge "Built with Spline" */
   .landing-robot-badge-cover {
     position: absolute;
     right: 0;
@@ -404,7 +407,7 @@
     height: 52px;
     pointer-events: none;
     z-index: 6;
-    background: linear-gradient(135deg, transparent 0%, rgba(250, 248, 244, 0.92) 42%);
+    background: linear-gradient(135deg, transparent 0%, rgba(26, 23, 20, 0.55) 42%);
   }
 
   spline-viewer #logo,
@@ -423,9 +426,9 @@
     align-items: center;
     justify-content: center;
     gap: 14px;
-    background: rgba(250, 248, 244, 0.72);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    background: rgba(26, 23, 20, 0.06);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
     transition: opacity 0.35s ease, visibility 0.35s ease;
   }
 
@@ -458,12 +461,80 @@
 
   .landing-hero-fallback {
     position: relative;
-    width: 100%;
     z-index: 1;
+    width: 100%;
+    min-height: 520px;
+    height: clamp(500px, 58vh, 620px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 22px;
+    background:
+      radial-gradient(ellipse 80% 70% at 50% 50%, rgba(26, 23, 20, 0.2) 0%, transparent 70%),
+      rgba(26, 23, 20, 0.04);
+    box-shadow: 0 0 0 1px rgba(184, 147, 104, 0.12);
   }
 
   .landing-hero-fallback.is-hidden-by-robot {
     display: none;
+  }
+
+  .landing-robot-fallback-art {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    color: var(--gold-muted);
+  }
+
+  .landing-robot-fallback-icon {
+    font-size: 48px;
+    color: var(--gold);
+    opacity: 0.55;
+  }
+
+  .landing-robot-fallback-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+
+  /* Stats dentro del hero (columna derecha) */
+  .landing-stats--hero {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 0;
+    width: 100%;
+    margin-top: 36px;
+    padding: 24px 0 0;
+    background: transparent;
+    border: none;
+    border-top: 1px solid rgba(221, 213, 200, 0.85);
+    animation: fadeUp 1.2s 0.9s ease both;
+  }
+
+  .landing-stats--hero .stat-item {
+    text-align: left;
+    padding: 0 28px 0 0;
+    position: relative;
+  }
+
+  .landing-stats--hero .stat-item:not(:first-child) {
+    padding-left: 28px;
+  }
+
+  .landing-stats--hero .stat-item:not(:first-child)::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 1px;
+    height: 36px;
+    background: #DDD5C8;
   }
 
   .landing-deco-shapes {
@@ -4837,15 +4908,26 @@
     }
     .landing-hero-inner {
       grid-template-columns: 1fr;
-      gap: 40px;
+      gap: 32px;
+    }
+    .landing-hero-robot-col {
+      order: 1;
+      min-height: 420px;
     }
     .landing-hero-copy {
+      order: 2;
       max-width: none;
+      justify-self: center;
       text-align: center;
     }
     .landing-subtitle-line { margin-left: auto; margin-right: auto; }
     .landing-tagline { margin-left: auto; margin-right: auto; }
-    .landing-hero-visual { min-height: 440px; }
+    .landing-stats--hero {
+      justify-content: center;
+    }
+    .landing-stats--hero .stat-item {
+      text-align: center;
+    }
   }
   @media (max-width: 768px) {
     .sidebar { width: 220px; }
@@ -4866,8 +4948,19 @@
       gap: 10px 14px;
     }
     .landing-hero { padding: 24px 20px 36px; }
+    .landing-hero-robot-col { display: none; }
     .landing-robot-wrap { display: none !important; }
-    .landing-hero-fallback.is-hidden-by-robot { display: block !important; }
+    .landing-hero-fallback { display: none !important; }
+    .landing-stats--hero {
+      margin-top: 28px;
+      padding-top: 20px;
+    }
+    .landing-stats--hero .stat-item {
+      padding: 0 16px;
+    }
+    .landing-stats--hero .stat-item:not(:first-child) {
+      padding-left: 16px;
+    }
     .mock-stack {
       max-width: none;
       padding-bottom: 4px;
@@ -4896,9 +4989,10 @@
     .lp-carousel-track, .landing-title span { animation: none !important; }
     .landing-title span { background: none; -webkit-text-fill-color: var(--gold); color: var(--gold); }
     .landing-hero-spotlight { display: none; }
+    .landing-hero-robot-col { display: none !important; }
     .landing-robot-wrap { display: none !important; }
+    .landing-hero-fallback { display: none !important; }
     .landing-robot-spinner { animation: none; }
-    .landing-hero-fallback.is-hidden-by-robot { display: block !important; }
   }
 
   /* ─── BOTÓN COPIAR LINK ───────────────────────── */
