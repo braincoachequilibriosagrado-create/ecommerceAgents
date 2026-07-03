@@ -24,7 +24,11 @@
   z-index: 0;
   pointer-events: none;
   overflow: hidden;
-  background: #05060f;
+  background-color: #05060f;
+  background-image:
+    radial-gradient(ellipse 90% 70% at 12% 18%, rgba(43, 58, 245, 0.42), transparent 55%),
+    radial-gradient(ellipse 70% 60% at 88% 22%, rgba(139, 47, 214, 0.38), transparent 52%),
+    radial-gradient(ellipse 80% 55% at 50% 98%, rgba(255, 106, 61, 0.3), transparent 58%);
 }
 
 .premium-hero--page .premium-hero-canvas {
@@ -32,13 +36,20 @@
   inset: 0;
   width: 100%;
   height: 100%;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+.premium-hero--page.premium-hero--ready .premium-hero-canvas {
+  opacity: 1;
 }
 
 .premium-hero-overlay--page {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(ellipse 80% 70% at 50% 40%, rgba(5, 6, 15, 0.5) 0%, rgba(5, 6, 15, 0.2) 50%, transparent 75%);
+    radial-gradient(ellipse 75% 65% at 50% 42%, rgba(5, 6, 15, 0.45) 0%, rgba(5, 6, 15, 0.15) 50%, transparent 75%);
+  pointer-events: none;
 }
 
 .premium-hero--viewport {
@@ -63,8 +74,14 @@
     radial-gradient(ellipse 80% 55% at 50% 98%, rgba(255, 106, 61, 0.3), transparent 58%);
 }
 
-body.ea-shader-page {
-  background: #05060f;
+body.ea-shader-page,
+body.cr-body--auth,
+body.cr-body--dash {
+  background-color: #05060f;
+  background-image:
+    radial-gradient(ellipse 90% 70% at 12% 18%, rgba(43, 58, 245, 0.42), transparent 55%),
+    radial-gradient(ellipse 70% 60% at 88% 22%, rgba(139, 47, 214, 0.38), transparent 52%),
+    radial-gradient(ellipse 80% 55% at 50% 98%, rgba(255, 106, 61, 0.3), transparent 58%);
 }
 
 body.ea-shader-page > *:not(#ea-page-shader):not(.premium-hero--page) {

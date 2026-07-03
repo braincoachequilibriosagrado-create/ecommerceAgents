@@ -2127,6 +2127,12 @@ body.cr-body--landing {
   height: 100%;
   z-index: 0;
   pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+.premium-hero--ready .premium-hero-canvas {
+  opacity: 1;
 }
 
 .premium-hero-overlay {
@@ -2152,7 +2158,10 @@ body.cr-body--landing {
     radial-gradient(ellipse 80% 55% at 50% 98%, rgba(255, 106, 61, 0.3), transparent 58%);
 }
 
-.premium-hero--static .premium-hero-canvas { display: none; }
+.premium-hero--static .premium-hero-canvas {
+  display: none;
+  opacity: 0;
+}
 
 .lp-hero-badge {
   display: inline-flex;

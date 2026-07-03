@@ -214,6 +214,13 @@ function _setView(view) {
   }
   if (pageShader && pageShader._premiumHero) {
     pageShader._premiumHero.setActive(view === CR_VIEW.AUTH || view === CR_VIEW.DASH);
+  } else if ((view === CR_VIEW.AUTH || view === CR_VIEW.DASH) && typeof initPremiumPageBg === 'function') {
+    setTimeout(function () {
+      var el = document.getElementById('ea-page-shader');
+      if (el && el._premiumHero) {
+        el._premiumHero.setActive(view === CR_VIEW.AUTH || view === CR_VIEW.DASH);
+      }
+    }, 100);
   }
 }
 

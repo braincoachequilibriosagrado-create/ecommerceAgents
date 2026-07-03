@@ -86,7 +86,7 @@
 
   PremiumHero.prototype.enableStatic = function () {
     this.staticMode = true;
-    this.heroEl.classList.add('premium-hero--static');
+    this.heroEl.classList.add('premium-hero--static', 'premium-hero--ready');
     this.stop();
     if (this.canvas) this.canvas.style.display = 'none';
   };
@@ -114,6 +114,9 @@
     if (!this.running || !this.renderer || !this.material) return;
     this.material.uniforms.uTime.value = this.clock.getElapsedTime();
     this.renderer.render(this.scene, this.camera);
+    if (!this.heroEl.classList.contains('premium-hero--ready')) {
+      this.heroEl.classList.add('premium-hero--ready');
+    }
     this.rafId = global.requestAnimationFrame(this.tick.bind(this));
   };
 
@@ -181,9 +184,10 @@
     this.renderer = new THREE.WebGLRenderer({
       canvas: this.canvas,
       antialias: false,
-      alpha: false,
+      alpha: true,
       powerPreference: 'high-performance'
     });
+    this.renderer.setClearColor(0x000000, 0);
     this.renderer.setPixelRatio(Math.min(global.devicePixelRatio || 1, 2));
     this.resize();
     global.addEventListener('resize', this._onResize);
@@ -217,7 +221,13 @@
     }
 
     loadThree()
-      .then(function (THREE) { instance.initShader(THREE); })
+      .then(function (THREE) {
+        try {
+          instance.initShader(THREE);
+        } catch (e) {
+          instance.enableStatic();
+        }
+      })
       .catch(function () { instance.enableStatic(); });
 
     return instance;
