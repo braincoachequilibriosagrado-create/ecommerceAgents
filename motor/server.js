@@ -66,15 +66,19 @@ const compraRateLimiter = rateLimit({
   message: { ok: false, error: RATE_LIMIT_MSG }
 });
 
-// URL pública base donde el motor sirve las páginas de venta
-const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || 'https://motor.ecommerceagents.store';
+// URL pública base del motor (API, checkout, páginas /p/, entrega, emails)
+const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || 'https://api.activosdigitales.click').replace(/\/$/, '');
+const MARKETPLACE_PUBLIC_URL = (process.env.MARKETPLACE_PUBLIC_URL || 'https://activosdigitales.click').replace(/\/$/, '');
+const API_PUBLIC_HOST = (function () {
+  try { return new URL(PUBLIC_BASE_URL).hostname; } catch (_) { return 'api.activosdigitales.click'; }
+})();
 const COMPRA_PRUEBA_ACTIVA = process.env.COMPRA_PRUEBA_ACTIVA === 'true';
 const STRIPE_SECRET_KEY       = process.env.STRIPE_SECRET_KEY || '';
 const STRIPE_WEBHOOK_SECRET   = process.env.STRIPE_WEBHOOK_SECRET || '';
 const STRIPE_PUBLISHABLE_KEY  = process.env.STRIPE_PUBLISHABLE_KEY || '';
 const RESEND_API_KEY          = process.env.RESEND_API_KEY || '';
 const RESEND_FROM_EMAIL       = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
-const CREADORES_PANEL_URL     = (process.env.CREADORES_PANEL_URL || 'https://ecommerce-creadores.vercel.app').replace(/\/$/, '');
+const CREADORES_PANEL_URL     = (process.env.CREADORES_PANEL_URL || 'https://app.activosdigitales.click').replace(/\/$/, '');
 
 let _resendClient = null;
 function _getResend() {
@@ -174,7 +178,8 @@ function _serveLegalPage(res, templatePath) {
       .replace(/\{\{LOGO_URL\}\}/g, _assetUrl('/assets/logo-activos.jpg'))
       .replace(/\{\{CSS_URL\}\}/g, _assetUrl('/assets/legal.css'))
       .replace(/\{\{PREMIUM_CSS_URL\}\}/g, _assetUrl('/assets/premium-platform.css'))
-      .replace(/\{\{HERO_JS_URL\}\}/g, _assetUrl('/assets/premium-hero.js'));
+      .replace(/\{\{HERO_JS_URL\}\}/g, _assetUrl('/assets/premium-hero.js'))
+      .replace(/\{\{MARKETPLACE_URL\}\}/g, MARKETPLACE_PUBLIC_URL);
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Cache-Control', 'public, max-age=3600');
     res.send(html);
@@ -324,19 +329,19 @@ const CREADOR_CATEGORIAS = ['infoproducto', 'contenido_digital', 'miniapp'];
 // ── CORS — lista blanca de orígenes permitidos ────────────────────────────────
 // Editar aquí para agregar dominios de producción / Vercel / staging.
 const ORIGENES_PERMITIDOS = [
-  'http://localhost:3000',  // app usuario (local)
-  'http://localhost:3001',  // admin       (local)
+  'http://localhost:3000',  // app vendedores (local)
+  'http://localhost:3001',  // admin (local)
   'http://localhost:3002',  // motor local
+  'http://localhost:3003',  // panel creadores (local)
+  'https://activosdigitales.click',
+  'https://www.activosdigitales.click',
+  'https://api.activosdigitales.click',
+  'https://app.activosdigitales.click',
+  'https://admin.activosdigitales.click',
+  // Vendedores fisicos (transitorio hasta Sistema Viral Pro)
   'https://ecommerceagents.store',
   'https://www.ecommerceagents.store',
-  'https://admin.ecommerceagents.store',
-  'https://motor.ecommerceagents.store',
-  'http://motor.ecommerceagents.store',
-  'https://ecommerce-agents-mauve.vercel.app',  // app usuario en Vercel
-  'https://ecommerce-admin-eta-ten.vercel.app', // admin en Vercel
-  'http://localhost:3003',  // panel creadores (local)
-  'https://ecommerce-creadores.vercel.app',     // panel creadores en Vercel
-  'https://activosdigitales.ecommerceagents.store',
+  'https://ecommerce-agents-mauve.vercel.app',
 ];
 
 const _corsOpts = {
@@ -3168,7 +3173,7 @@ app.post('/api/mis-productos/quitar', requireUsuario, async (req, res) => {
 });
 
 // ── Marketplace publico (Activos Digitales) ─────────────────────────────────────
-const MARKETPLACE_ASSET_BUST = '4';
+const MARKETPLACE_ASSET_BUST = '5';
 
 async function _apiMarketplace(req, res) {
   try {
@@ -3262,6 +3267,7 @@ function _serveMarketplace(req, res) {
     <p class="vt-footer-legal"><a href="/terminos">Terminos y Condiciones</a> · <a href="/privacidad">Politica de Privacidad</a></p>
   </footer>
 </div>
+<script>window.VT_API_BASE='${PUBLIC_BASE_URL.replace(/'/g, "\\'")}';</script>
 <script src="${heroJsUrl}"></script>
 <script src="${jsUrl}"></script>
 </body>
@@ -6973,7 +6979,7 @@ window.addEventListener('message', function(e) {
   if (!ok) {
     try {
       var u = new URL(url, window.location.origin);
-      ok = u.pathname === '/checkout' && (u.origin === window.location.origin || u.hostname === 'motor.ecommerceagents.store');
+      ok = u.pathname === '/checkout' && (u.origin === window.location.origin || u.hostname === '${API_PUBLIC_HOST}');
     } catch (_) { ok = false; }
   }
   if (!ok) return;

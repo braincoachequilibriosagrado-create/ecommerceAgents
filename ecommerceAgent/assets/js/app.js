@@ -83,8 +83,7 @@ function cargarDatosEnEstrategia() {
 // ══════════════════════════════════════════════════════
 
 // Dirección del motor backend. Cambiar aquí para apuntar a otro entorno.
-// TODO: cuando el dominio esté listo, cambiar por: https://motor.ecommerceagents.store
-const MOTOR_URL    = 'https://motor.ecommerceagents.store';
+const MOTOR_URL    = 'https://api.activosdigitales.click';
 // Comision vendedores en activos digitales desactivada. Reactivar para Sistema Viral Pro poniendo true.
 const COMISION_VENDEDORES_DIGITAL_ACTIVA = false;
 const MOTOR_IA_URL = MOTOR_URL; // alias para compatibilidad con llamadas de IA

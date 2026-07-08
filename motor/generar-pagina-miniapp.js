@@ -347,7 +347,7 @@ async function generarPaginaVentaMiniapp(miniapp, opts) {
   if (!supabase) throw new Error('Se requiere cliente Supabase.');
   if (!miniapp || !miniapp.slug) throw new Error('Mini app invalida.');
 
-  const baseUrl = publicBaseUrl || 'https://motor.ecommerceagents.store';
+  const baseUrl = publicBaseUrl || 'https://api.activosdigitales.click';
   const paginaSlug = miniapp.pagina_venta_slug || ('app-' + miniapp.slug);
   const categoria = miniapp.categoria || 'miniapp';
 

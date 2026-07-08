@@ -39,7 +39,7 @@ function adminLogin() {
   if (errEl) errEl.style.display = 'none';
   if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Verificando...'; }
 
-  fetch((window.MOTOR_URL_LOGIN || 'https://motor.ecommerceagents.store') + '/api/admin/login', {
+  fetch((window.MOTOR_URL_LOGIN || 'https://api.activosdigitales.click') + '/api/admin/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ password: pw })
@@ -1024,9 +1024,8 @@ function renderPaginas() {
    4. USUARIOS  — conectado a Supabase via motor (puerto 3002)
    ============================================================ */
 
-// TODO: cuando el dominio esté listo, cambiar por: https://motor.ecommerceagents.store
-var MOTOR_URL      = 'https://motor.ecommerceagents.store';
-var PUBLIC_BASE_URL = MOTOR_URL; // misma base; cambiar junto con MOTOR_URL cuando haya dominio
+var MOTOR_URL      = 'https://api.activosdigitales.click';
+var PUBLIC_BASE_URL = MOTOR_URL;
 // Comision vendedores en activos digitales desactivada. Reactivar para Sistema Viral Pro poniendo true.
 var COMISION_VENDEDORES_DIGITAL_ACTIVA = false;
 

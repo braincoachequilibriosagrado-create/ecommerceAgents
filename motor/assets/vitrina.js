@@ -122,7 +122,10 @@
 
   function load() {
     setStatus('Cargando productos...');
-    fetch('/api/marketplace', { cache: 'no-store' })
+    fetch((function () {
+      var b = (typeof window.VT_API_BASE === 'string' ? window.VT_API_BASE : '').replace(/\/$/, '');
+      return (b || '') + '/api/marketplace';
+    })(), { cache: 'no-store' })
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (!d.ok) throw new Error(d.error || 'Error al cargar');

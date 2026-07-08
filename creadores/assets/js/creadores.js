@@ -1,6 +1,7 @@
 'use strict';
 
-const MOTOR_URL = 'https://motor.ecommerceagents.store';
+const MOTOR_URL = 'https://api.activosdigitales.click';
+const MARKETPLACE_URL = 'https://activosdigitales.click';
 // Comision vendedores en activos digitales desactivada. Reactivar para Sistema Viral Pro poniendo true.
 const COMISION_VENDEDORES_DIGITAL_ACTIVA = false;
 
