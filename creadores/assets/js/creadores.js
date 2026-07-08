@@ -1,6 +1,8 @@
 'use strict';
 
 const MOTOR_URL = 'https://motor.ecommerceagents.store';
+// Comision vendedores en activos digitales desactivada. Reactivar para Sistema Viral Pro poniendo true.
+const COMISION_VENDEDORES_DIGITAL_ACTIVA = false;
 
 const CR_SESION_KEY = 'ea_creador_sesion';
 const CR_TOKEN_KEY = 'ea_creador_jwt';
@@ -663,8 +665,8 @@ async function publicarMiniapp() {
   var precioPromo = parseFloat(document.getElementById('cr-ma-precio-promo').value);
   var descripcion = (document.getElementById('cr-ma-desc').value || '').trim();
   var usa_ia = _categoriaActiva === 'miniapp' && document.getElementById('cr-ma-usa-ia').checked;
-  var disponible_vendedores = document.getElementById('cr-ma-vendedores').checked;
-  var comision_vendedor = parseFloat(document.getElementById('cr-ma-comision').value) || 0;
+  var disponible_vendedores = COMISION_VENDEDORES_DIGITAL_ACTIVA && document.getElementById('cr-ma-vendedores').checked;
+  var comision_vendedor = disponible_vendedores ? (parseFloat(document.getElementById('cr-ma-comision').value) || 0) : 0;
   var foto1Input = document.getElementById('cr-foto1');
   var foto2Input = document.getElementById('cr-foto2');
   var pdfInput = document.getElementById('cr-pdf');
@@ -799,7 +801,13 @@ async function cargarMiniappsLista() {
       var iaBadge = m.usa_ia
         ? '<span class="cr-product-tag cr-product-tag--ia">Usa IA</span>'
         : '';
-      var checked = m.disponible_vendedores ? ' checked' : '';
+      var checked = COMISION_VENDEDORES_DIGITAL_ACTIVA && m.disponible_vendedores ? ' checked' : '';
+      var toggleHtml = COMISION_VENDEDORES_DIGITAL_ACTIVA
+        ? '<label class="cr-product-toggle">' +
+            '<input type="checkbox"' + checked + ' onchange="toggleVendedores(\'' + m.id + '\', this.checked)" />' +
+            '<span>Disponible para vendedores</span>' +
+          '</label>'
+        : '';
 
       var precioHtml = '';
       if (m.precio_promocion && Number(m.precio_promocion) > 0) {
@@ -824,10 +832,7 @@ async function cargarMiniappsLista() {
               '<span class="cr-product-tag ' + tipoClass + '">' + tipoLabel + '</span>' +
               iaBadge +
             '</div>' +
-            '<label class="cr-product-toggle">' +
-              '<input type="checkbox"' + checked + ' onchange="toggleVendedores(\'' + m.id + '\', this.checked)" />' +
-              '<span>Disponible para vendedores</span>' +
-            '</label>' +
+            toggleHtml +
           '</div>' +
         '</article>'
       );
@@ -838,6 +843,7 @@ async function cargarMiniappsLista() {
 }
 
 async function toggleVendedores(miniappId, disponible) {
+  if (!COMISION_VENDEDORES_DIGITAL_ACTIVA) return;
   try {
     var r = await _creadorFetch(MOTOR_URL + '/api/creador/miniapps/toggle-vendedores', {
       method: 'POST',
@@ -1000,7 +1006,9 @@ async function cargarCatalogoCreador() {
               '<a class="cr-catalogo-link" href="' + _esc(ownerLink) + '" target="_blank" rel="noopener noreferrer">' + _esc(ownerLink) + '</a>' +
               '<button type="button" class="cr-btn-copy" data-copy-url="' + _esc(ownerLink) + '">Copiar</button>' +
             '</div>' +
-            '<p class="cr-catalogo-vendedores-note">Los vendedores usan su propio link con <code>?ref=</code> para ganar comision.</p>' +
+            (COMISION_VENDEDORES_DIGITAL_ACTIVA
+              ? '<p class="cr-catalogo-vendedores-note">Los vendedores usan su propio link con <code>?ref=</code> para ganar comision.</p>'
+              : '') +
           '</div>';
       }
 

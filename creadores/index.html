@@ -384,7 +384,7 @@
       <section id="cr-panel-cuentas" class="cr-panel active">
         <div class="cr-cuentas-intro">
           <h2 class="cr-section-title">Resumen de ganancias</h2>
-          <p class="cr-section-sub">Tu parte de cada venta pagada, tras la comision de plataforma (10%) y vendedores (si aplica).</p>
+          <p class="cr-section-sub">Tu parte de cada venta pagada, tras la comision de plataforma (10%).</p>
         </div>
         <div class="cr-stats-row cr-stats-row--cuentas" id="cr-cuentas-stats">
           <div class="cr-stat-card">
@@ -398,7 +398,7 @@
           <div class="cr-stat-card cr-stat-card--highlight">
             <div class="cr-stat-val" id="cr-stat-ganancia">—</div>
             <div class="cr-stat-lbl">Tus ganancias</div>
-            <p class="cr-stat-note">Tu parte tras comision de plataforma y vendedores. Se paga via Stripe.</p>
+            <p class="cr-stat-note">Tu parte tras comision de plataforma (90% para ti). Se paga via Stripe.</p>
           </div>
         </div>
         <div class="cr-card">
@@ -604,7 +604,7 @@
               <span class="cr-upload-icon cr-upload-icon--opts"></span>
               <div>
                 <h3 class="cr-upload-card-title">Opciones</h3>
-                <p class="cr-upload-card-desc">IA y venta por vendedores</p>
+                <p class="cr-upload-card-desc">Opciones de publicacion</p>
               </div>
             </div>
             <div class="cr-option-list">
@@ -615,7 +615,7 @@
                   <span class="cr-option-desc">El comprador pondra su propia API key</span>
                 </div>
               </label>
-              <label class="cr-option-item">
+              <label class="cr-option-item" id="cr-vend-digital-wrap" hidden data-vend-digital-off="1">
                 <input type="checkbox" id="cr-ma-vendedores" onchange="toggleComisionField()" />
                 <div class="cr-option-body">
                   <span class="cr-option-title">Disponible para vendedores</span>
@@ -623,7 +623,7 @@
                 </div>
               </label>
             </div>
-            <div class="cr-field cr-comision-field" id="cr-comision-wrap" hidden>
+            <div class="cr-field cr-comision-field" id="cr-comision-wrap" hidden data-vend-digital-off="1">
               <label class="cr-label" for="cr-ma-comision">Comision del vendedor (%)</label>
               <input type="number" id="cr-ma-comision" class="cr-input" placeholder="20" min="0" max="100" step="0.1" />
             </div>
@@ -700,7 +700,7 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="assets/js/premium-hero.js?v=4"></script>
-  <script src="assets/js/creadores.js?v=27"></script>
+  <script src="assets/js/creadores.js?v=28"></script>
   <script>
     function initCrShaders() {
       if (typeof initAllPremiumHeroes === 'function') initAllPremiumHeroes();

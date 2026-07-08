@@ -85,6 +85,8 @@ function cargarDatosEnEstrategia() {
 // Dirección del motor backend. Cambiar aquí para apuntar a otro entorno.
 // TODO: cuando el dominio esté listo, cambiar por: https://motor.ecommerceagents.store
 const MOTOR_URL    = 'https://motor.ecommerceagents.store';
+// Comision vendedores en activos digitales desactivada. Reactivar para Sistema Viral Pro poniendo true.
+const COMISION_VENDEDORES_DIGITAL_ACTIVA = false;
 const MOTOR_IA_URL = MOTOR_URL; // alias para compatibilidad con llamadas de IA
 
 function getProductData() {
@@ -1644,6 +1646,7 @@ function _fmtPrecioMiniapp(n) {
 }
 
 function switchCatalogoSubTab(tabId) {
+  if (!COMISION_VENDEDORES_DIGITAL_ACTIVA && tabId === 'digitales') tabId = 'fisicos';
   _catalogoSubTabActivo = tabId;
   ['fisicos', 'digitales'].forEach(function (id) {
     var panel = document.getElementById('cat-sub-' + id);
@@ -1743,6 +1746,7 @@ function switchCatalogoMiniappsFiltro(cat) {
 }
 
 function renderCatalogoMiniappsGrid() {
+  if (!COMISION_VENDEDORES_DIGITAL_ACTIVA) return;
   var gridEl = document.getElementById('agent-grid-miniapps');
   if (!gridEl) return;
 
@@ -1868,6 +1872,7 @@ function quitarMiniappDeMisProductos(miniappId) {
 }
 
 function renderMisMiniappsGrid() {
+  if (!COMISION_VENDEDORES_DIGITAL_ACTIVA) return;
   var uid     = _getUsuarioId();
   var emptyEl = document.getElementById('agent-mis-miniapps-empty');
   var gridEl  = document.getElementById('agent-grid-mis-miniapps');
@@ -1934,6 +1939,7 @@ function renderMisMiniappsGrid() {
 }
 
 function _precargarMisMiniapps() {
+  if (!COMISION_VENDEDORES_DIGITAL_ACTIVA) return;
   var uid = _getUsuarioId();
   if (!uid || !_getJwtToken()) return;
   _motorFetch(MOTOR_URL + '/api/mis-miniapps/' + encodeURIComponent(uid))
@@ -2124,6 +2130,7 @@ const CUENTAS_SUB_TAB_IDS = ['ventas'];
 const VENTAS_TIPO_TAB_IDS = ['productos', 'digitales'];
 
 function switchVentasTipoTab(tipoId) {
+  if (!COMISION_VENDEDORES_DIGITAL_ACTIVA && tipoId === 'digitales') tipoId = 'productos';
   VENTAS_TIPO_TAB_IDS.forEach(function (id) {
     var panel = document.getElementById('ventas-tipo-' + id);
     var btn   = document.getElementById('ventas-tipo-btn-' + id);
@@ -2274,6 +2281,7 @@ function eaMiniappsComisionesRenderTabla(detalle) {
 }
 
 function eaMiniappsComisionesRender() {
+  if (!COMISION_VENDEDORES_DIGITAL_ACTIVA) return;
   var uid = _getUsuarioId();
   var wrap = document.getElementById('ma-com-tabla-wrap');
   var elTotal  = document.getElementById('ma-com-total');

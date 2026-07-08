@@ -1027,6 +1027,8 @@ function renderPaginas() {
 // TODO: cuando el dominio esté listo, cambiar por: https://motor.ecommerceagents.store
 var MOTOR_URL      = 'https://motor.ecommerceagents.store';
 var PUBLIC_BASE_URL = MOTOR_URL; // misma base; cambiar junto con MOTOR_URL cuando haya dominio
+// Comision vendedores en activos digitales desactivada. Reactivar para Sistema Viral Pro poniendo true.
+var COMISION_VENDEDORES_DIGITAL_ACTIVA = false;
 
 // Cache en memoria para no recargar en cada re-render dentro de la misma sesión
 var _usrCache = null;
@@ -2014,7 +2016,7 @@ function _maCardHtml(m, modo) {
     _maCategoriaLabel(m.categoria || 'miniapp') + '</span>';
   tags += ' <span class="adm-badge adm-badge--html">' + tipo + '</span>';
   if (m.usa_ia) tags += ' <span class="adm-badge adm-badge--pagina">Usa IA</span>';
-  if (m.disponible_vendedores) {
+  if (m.disponible_vendedores && COMISION_VENDEDORES_DIGITAL_ACTIVA) {
     tags += ' <span class="adm-badge adm-badge--afiliado">Vendedores ' + Number(m.comision_vendedor || 0) + '%</span>';
   }
 
@@ -2114,7 +2116,9 @@ function renderMaCuentas() {
   var wrapVend = document.getElementById('ma-comisiones-vendedores-wrap');
   if (!wrap) return;
   wrap.innerHTML = '<p class="adm-empty-text" style="padding:28px">Cargando cuentas...</p>';
-  if (wrapVend) wrapVend.innerHTML = '<p class="adm-empty-text" style="padding:28px">Cargando comisiones a vendedores...</p>';
+  if (wrapVend && COMISION_VENDEDORES_DIGITAL_ACTIVA) {
+    wrapVend.innerHTML = '<p class="adm-empty-text" style="padding:28px">Cargando comisiones a vendedores...</p>';
+  }
 
   _adminFetch(MOTOR_URL + '/api/admin/miniapps/cuentas')
     .then(function (r) { return r.json(); })
@@ -2146,7 +2150,7 @@ function renderMaCuentas() {
       wrap.innerHTML = '<p class="adm-empty-text" style="color:#c0392b">Error: ' + _esc(e.message) + '</p>';
     });
 
-  if (!wrapVend) return;
+  if (!wrapVend || !COMISION_VENDEDORES_DIGITAL_ACTIVA) return;
 
   _adminFetch(MOTOR_URL + '/api/admin/miniapps/comisiones-vendedores')
     .then(function (r) { return r.json(); })

@@ -2210,6 +2210,15 @@ const CREADOR_PARTE_PLATAFORMA_DEFAULT = 10;
 const MINIAPP_PLATAFORMA_PCT = 10;
 /** ref=directo (venta del dueño / creador): sin vendedor, reparto 90% creador / 10% plataforma */
 const REF_VENTA_DIRECTA = 'DIRECTO';
+// Comision vendedores en activos digitales desactivada. Reactivar para Sistema Viral Pro poniendo true.
+const COMISION_VENDEDORES_DIGITAL_ACTIVA = false;
+
+async function _refVendedorCompraDigital(ref) {
+  if (!COMISION_VENDEDORES_DIGITAL_ACTIVA) {
+    return { vendedor_id: null, ref_vendedor: null };
+  }
+  return _resolverRefVendedorCompra(ref);
+}
 
 function _roundMoney(n) {
   return Math.round(Number(n) * 100) / 100;
@@ -2371,7 +2380,7 @@ async function _registrarCompraDigital(opts) {
     mini = Object.assign({}, miniapp, data);
   }
 
-  const refRes       = await _resolverRefVendedorCompra(ref);
+  const refRes       = await _refVendedorCompraDigital(ref);
   const monto        = _miniappPrecioVenta(mini);
   const codigo       = await _generarCodigoAccesoUnico();
   const descargas_max = await _calcDescargasMaxMiniapp(mini);
@@ -2563,7 +2572,7 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
   const precioNum       = Number(body.precio);
   const precioPromoNum  = Number(body.precio_promocion);
   const usa_ia          = _boolForm(body.usa_ia);
-  const dispVendedores  = _boolForm(body.disponible_vendedores);
+  const dispVendedores  = COMISION_VENDEDORES_DIGITAL_ACTIVA ? _boolForm(body.disponible_vendedores) : false;
   const comisionNum     = dispVendedores ? Math.max(0, Number(body.comision_vendedor) || 0) : 0;
 
   if (!CREADOR_CATEGORIAS.includes(categoria)) {
@@ -2837,6 +2846,9 @@ app.get('/api/creador/miniapps', requireCreador, async (req, res) => {
 
 // POST /api/creador/miniapps/toggle-vendedores
 app.post('/api/creador/miniapps/toggle-vendedores', requireCreador, async (req, res) => {
+  if (!COMISION_VENDEDORES_DIGITAL_ACTIVA) {
+    return res.status(403).json({ ok: false, error: 'Red de vendedores en activos digitales desactivada temporalmente.' });
+  }
   const { miniapp_id, disponible } = req.body || {};
   if (!miniapp_id) {
     return res.status(400).json({ ok: false, error: 'Se requiere miniapp_id.' });
@@ -3272,6 +3284,9 @@ app.get('/privacidad', function (req, res) {
 
 // GET /api/catalogo/miniapps
 app.get('/api/catalogo/miniapps', async (req, res) => {
+  if (!COMISION_VENDEDORES_DIGITAL_ACTIVA) {
+    return res.json({ ok: true, miniapps: [] });
+  }
   try {
     const { data, error } = await supabase
       .from('miniapps')
@@ -3290,6 +3305,9 @@ app.get('/api/catalogo/miniapps', async (req, res) => {
 
 // POST /api/mis-miniapps/agregar
 app.post('/api/mis-miniapps/agregar', requireUsuario, async (req, res) => {
+  if (!COMISION_VENDEDORES_DIGITAL_ACTIVA) {
+    return res.status(403).json({ ok: false, error: 'La promocion de activos digitales por vendedores esta desactivada temporalmente.' });
+  }
   const { miniapp_id } = req.body || {};
   const usuario_id = req.usuario_id;
   if (!miniapp_id) {
@@ -3344,6 +3362,9 @@ app.post('/api/mis-miniapps/agregar', requireUsuario, async (req, res) => {
 
 // GET /api/mis-miniapps/:usuario_id
 app.get('/api/mis-miniapps/:usuario_id', requireUsuario, async (req, res) => {
+  if (!COMISION_VENDEDORES_DIGITAL_ACTIVA) {
+    return res.json({ ok: true, miniapps: [] });
+  }
   const { usuario_id } = req.params;
   if (!_forbidUnlessSelf(req, res, usuario_id)) return;
   try {
@@ -3372,6 +3393,9 @@ app.get('/api/mis-miniapps/:usuario_id', requireUsuario, async (req, res) => {
 
 // POST /api/mis-miniapps/quitar
 app.post('/api/mis-miniapps/quitar', requireUsuario, async (req, res) => {
+  if (!COMISION_VENDEDORES_DIGITAL_ACTIVA) {
+    return res.status(403).json({ ok: false, error: 'La promocion de activos digitales por vendedores esta desactivada temporalmente.' });
+  }
   const { miniapp_id } = req.body || {};
   const usuario_id = req.usuario_id;
   if (!miniapp_id) {
@@ -6228,6 +6252,9 @@ app.get('/api/admin/miniapps/cuentas', async (req, res) => {
 
 // GET /api/admin/miniapps/comisiones-vendedores — resumen de comisiones a pagar manualmente
 app.get('/api/admin/miniapps/comisiones-vendedores', async (req, res) => {
+  if (!COMISION_VENDEDORES_DIGITAL_ACTIVA) {
+    return res.json({ ok: true, total_general: 0, vendedores: [] });
+  }
   try {
     const { data: compras, error: cErr } = await supabase
       .from('miniapp_compras')
@@ -6497,6 +6524,9 @@ app.get('/api/ventas/usuario/:usuario_id', requireUsuario, async (req, res) => {
 
 // GET /api/vendedor/miniapps-comisiones — comisiones acumuladas del vendedor autenticado
 app.get('/api/vendedor/miniapps-comisiones', requireUsuario, async (req, res) => {
+  if (!COMISION_VENDEDORES_DIGITAL_ACTIVA) {
+    return res.json({ ok: true, total_ventas: 0, total_comision: 0, detalle: [] });
+  }
   const usuario_id = req.usuario_id;
   if (req.query.usuario_id && !_forbidUnlessSelf(req, res, req.query.usuario_id)) return;
 

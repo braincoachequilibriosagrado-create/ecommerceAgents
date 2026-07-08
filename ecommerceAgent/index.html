@@ -623,7 +623,7 @@
             <button type="button" class="mon-subtab active" id="cat-subtab-btn-fisicos" role="tab" aria-selected="true" aria-controls="cat-sub-fisicos" onclick="switchCatalogoSubTab('fisicos')">
               <span class="mon-subtab-label">Productos Fisicos</span>
             </button>
-            <button type="button" class="mon-subtab" id="cat-subtab-btn-digitales" role="tab" aria-selected="false" aria-controls="cat-sub-digitales" onclick="switchCatalogoSubTab('digitales')">
+            <button type="button" class="mon-subtab" id="cat-subtab-btn-digitales" role="tab" aria-selected="false" aria-controls="cat-sub-digitales" onclick="switchCatalogoSubTab('digitales')" hidden data-vend-digital-off="1">
               <span class="mon-subtab-label">Activos Digitales</span>
             </button>
           </nav>
@@ -631,7 +631,7 @@
         <div id="cat-sub-fisicos" class="cat-sub-panel active" role="tabpanel">
           <div id="agent-grid-catalogo" class="products-grid"></div>
         </div>
-        <div id="cat-sub-digitales" class="cat-sub-panel" role="tabpanel" hidden>
+        <div id="cat-sub-digitales" class="cat-sub-panel" role="tabpanel" hidden data-vend-digital-off="1">
           <div class="ea-cat-filtro" id="cat-miniapps-filtro-wrap" role="tablist" aria-label="Filtrar por categoria">
             <button type="button" class="ea-cat-chip active" id="cat-miniapps-filtro-todos" onclick="switchCatalogoMiniappsFiltro('')">Todos</button>
             <button type="button" class="ea-cat-chip" id="cat-miniapps-filtro-infoproducto" onclick="switchCatalogoMiniappsFiltro('infoproducto')">Infoproductos</button>
@@ -648,7 +648,7 @@
           <p id="agent-mis-productos-empty" class="agent-empty-state" hidden>Aun no has anadido productos fisicos. Ve al Catalogo y elige los que quieras vender.</p>
           <div id="agent-grid-mis-productos" class="products-grid"></div>
         </div>
-        <div class="mis-prod-section mis-prod-section--digitales">
+        <div class="mis-prod-section mis-prod-section--digitales" hidden data-vend-digital-off="1">
           <h3 class="mis-prod-section-title">Activos digitales</h3>
           <p id="agent-mis-miniapps-empty" class="agent-empty-state" hidden>Aun no has anadido mini apps. Ve al Catalogo, pestana Activos Digitales.</p>
           <div id="agent-grid-mis-miniapps" class="products-grid"></div>
@@ -1560,7 +1560,7 @@
                 <button type="button" class="mon-subtab active" id="ventas-tipo-btn-productos" role="tab" aria-selected="true" aria-controls="ventas-tipo-productos" onclick="switchVentasTipoTab('productos')">
                   <span class="mon-subtab-label">Ventas Productos</span>
                 </button>
-                <button type="button" class="mon-subtab" id="ventas-tipo-btn-digitales" role="tab" aria-selected="false" aria-controls="ventas-tipo-digitales" onclick="switchVentasTipoTab('digitales')">
+                <button type="button" class="mon-subtab" id="ventas-tipo-btn-digitales" role="tab" aria-selected="false" aria-controls="ventas-tipo-digitales" onclick="switchVentasTipoTab('digitales')" hidden data-vend-digital-off="1">
                   <span class="mon-subtab-label">Ventas Digitales</span>
                 </button>
               </nav>
@@ -1614,7 +1614,7 @@
             </div>
 
             <!-- ===== VENTAS DIGITALES (mini apps) ===== -->
-            <div id="ventas-tipo-digitales" class="ventas-tipo-panel" role="tabpanel" hidden>
+            <div id="ventas-tipo-digitales" class="ventas-tipo-panel" role="tabpanel" hidden data-vend-digital-off="1">
 
               <p class="ventas-tipo-nota">Estas comisiones se pagan de forma manual desde la empresa.</p>
 
@@ -2058,7 +2058,7 @@
 </div>
 
 <script src="assets/js/premium-hero.js?v=2"></script>
-<script src="assets/js/app.js?v=28"></script>
+<script src="assets/js/app.js?v=29"></script>
 <script>
   (function () {
     function bootShader() {
