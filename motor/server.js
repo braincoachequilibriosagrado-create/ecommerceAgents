@@ -3224,7 +3224,7 @@ function _serveMarketplace(req, res) {
 <div class="vt-page">
   <header class="vt-header">
     <div class="vt-header-inner">
-      <a href="/marketplace" class="vt-brand">
+      <a href="/" class="vt-brand">
         <img src="${logoUrl}" alt="Activos Digitales" class="vt-brand-logo" />
         <span class="vt-brand-name">Activos Digitales</span>
       </a>
@@ -3274,6 +3274,7 @@ function _serveMarketplace(req, res) {
 </html>`);
 }
 
+app.get('/', _serveMarketplace);
 app.get('/marketplace', _serveMarketplace);
 app.get('/vitrina', function (req, res) {
   res.redirect(301, '/marketplace');
@@ -7264,6 +7265,7 @@ app.listen(PORT, () => {
   console.log(`[motor]   GET  http://localhost:${PORT}/recuperar-compra`);
   console.log(`[motor]   GET  http://localhost:${PORT}/terminos`);
   console.log(`[motor]   GET  http://localhost:${PORT}/privacidad`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/  (marketplace)`);
   console.log(`[motor]   GET  http://localhost:${PORT}/marketplace`);
   console.log(`[motor]   GET  http://localhost:${PORT}/vitrina  (redirect → /marketplace)`);
   console.log(`[motor]   GET  http://localhost:${PORT}/api/marketplace`);
