@@ -3201,6 +3201,28 @@ async function _apiMarketplace(req, res) {
 app.get('/api/marketplace', _apiMarketplace);
 app.get('/api/vitrina', _apiMarketplace);
 
+function _reqHostname(req) {
+  const raw = String(req.headers['x-forwarded-host'] || req.headers.host || req.hostname || '')
+    .split(',')[0].trim().toLowerCase();
+  return raw.replace(/:\d+$/, '');
+}
+
+function _isMarketplacePublicHost(hostname) {
+  return hostname === 'activosdigitales.click' || hostname === 'www.activosdigitales.click';
+}
+
+function _serveApiRoot(req, res) {
+  res.json({ status: 'ok', service: 'activos-digitales-api' });
+}
+
+function _serveRoot(req, res) {
+  const host = _reqHostname(req);
+  if (_isMarketplacePublicHost(host)) {
+    return _serveMarketplace(req, res);
+  }
+  return _serveApiRoot(req, res);
+}
+
 function _serveMarketplace(req, res) {
   _setNoCacheHtml(res);
   const bust    = '&mp=' + MARKETPLACE_ASSET_BUST;
@@ -3274,7 +3296,7 @@ function _serveMarketplace(req, res) {
 </html>`);
 }
 
-app.get('/', _serveMarketplace);
+app.get('/', _serveRoot);
 app.get('/marketplace', _serveMarketplace);
 app.get('/vitrina', function (req, res) {
   res.redirect(301, '/marketplace');
@@ -7265,7 +7287,7 @@ app.listen(PORT, () => {
   console.log(`[motor]   GET  http://localhost:${PORT}/recuperar-compra`);
   console.log(`[motor]   GET  http://localhost:${PORT}/terminos`);
   console.log(`[motor]   GET  http://localhost:${PORT}/privacidad`);
-  console.log(`[motor]   GET  http://localhost:${PORT}/  (marketplace)`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/  (marketplace en activosdigitales.click; JSON neutro en api)`);
   console.log(`[motor]   GET  http://localhost:${PORT}/marketplace`);
   console.log(`[motor]   GET  http://localhost:${PORT}/vitrina  (redirect → /marketplace)`);
   console.log(`[motor]   GET  http://localhost:${PORT}/api/marketplace`);
