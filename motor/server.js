@@ -3173,7 +3173,7 @@ app.post('/api/mis-productos/quitar', requireUsuario, async (req, res) => {
 });
 
 // ── Marketplace publico (Activos Digitales) ─────────────────────────────────────
-const MARKETPLACE_ASSET_BUST = '5';
+const MARKETPLACE_ASSET_BUST = '6';
 
 async function _apiMarketplace(req, res) {
   try {
@@ -3229,7 +3229,6 @@ function _serveMarketplace(req, res) {
   const logoUrl = _assetUrl('/assets/logo-activos.jpg') + bust;
   const cssUrl  = _assetUrl('/assets/vitrina.css') + bust;
   const jsUrl   = _assetUrl('/assets/vitrina.js') + bust;
-  const heroJsUrl = _assetUrl('/assets/premium-hero.js') + bust;
   res.send(`<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -3244,20 +3243,12 @@ function _serveMarketplace(req, res) {
 </head>
 <body>
 <div class="vt-page">
-  <header class="vt-header">
-    <div class="vt-header-inner">
-      <a href="/" class="vt-brand">
-        <img src="${logoUrl}" alt="Activos Digitales" class="vt-brand-logo" />
-        <span class="vt-brand-name">Activos Digitales</span>
-      </a>
-    </div>
-  </header>
-
   <main class="vt-main">
-    <section class="vt-hero premium-hero" id="vt-hero">
-      <canvas class="premium-hero-canvas" aria-hidden="true"></canvas>
-      <div class="premium-hero-overlay" aria-hidden="true"></div>
-      <div class="premium-hero-content vt-hero-content">
+    <section class="vt-hero vt-hero--grad" id="vt-hero">
+      <div class="vt-hero-content">
+        <a href="/" class="vt-hero-brand">
+          <img src="${logoUrl}" alt="Activos Digitales" class="vt-hero-logo" />
+        </a>
         <p class="vt-hero-badge"><span class="vt-hero-badge-dot" aria-hidden="true"></span> Marketplace oficial</p>
         <h1 class="vt-hero-title">Marketplace de Activos Digitales</h1>
         <p class="vt-hero-sub">Explora mini apps, infoproductos y contenido digital listos para usar. Compra segura y acceso inmediato.</p>
@@ -3290,7 +3281,6 @@ function _serveMarketplace(req, res) {
   </footer>
 </div>
 <script>window.VT_API_BASE='${PUBLIC_BASE_URL.replace(/'/g, "\\'")}';</script>
-<script src="${heroJsUrl}"></script>
 <script src="${jsUrl}"></script>
 </body>
 </html>`);

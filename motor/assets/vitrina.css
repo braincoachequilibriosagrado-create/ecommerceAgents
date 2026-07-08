@@ -1,18 +1,22 @@
 :root {
-  --c-blue: #2b3af5;
-  --c-purple: #8b2fd6;
-  --c-orange: #ff6a3d;
+  --c1: #2f86ff;
+  --c2: #7c3aed;
+  --c3: #ff5a3c;
+  --c-blue: var(--c1);
+  --c-purple: var(--c2);
+  --c-orange: var(--c3);
   --c-magenta: #c02d9e;
-  --ink: #0f1222;
-  --ink-soft: #5a5f74;
-  --ink-mist: #8b90a4;
-  --line: #eef0f6;
+  --ink: #0d1117;
+  --ink-soft: #5f6571;
+  --ink-mist: #8b919e;
+  --line: #e4e7eb;
+  --paper: #f5f7fb;
   --white: #ffffff;
-  --grad-bg: linear-gradient(135deg, #2b3af5 0%, #6a28d9 45%, #b02d8f 72%, #ff6a2b 100%);
-  --grad-btn: linear-gradient(120deg, var(--c-blue) 0%, var(--c-purple) 55%, var(--c-orange) 100%);
+  --grad-bg: linear-gradient(120deg, var(--c1), var(--c2), var(--c3));
+  --grad-btn: var(--grad-bg);
   --font-display: 'Sora', system-ui, sans-serif;
   --font-ui: 'Inter', system-ui, -apple-system, sans-serif;
-  --shadow-card: 0 16px 40px rgba(15, 18, 34, 0.12);
+  --shadow-card: 0 20px 60px rgba(13, 17, 23, 0.12);
   --radius: 18px;
 }
 
@@ -25,8 +29,8 @@ body {
   color: var(--ink);
   min-height: 100vh;
   background:
-    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(43, 58, 245, 0.08), transparent 55%),
-    linear-gradient(180deg, #f4f6fc 0%, #eef1f8 100%);
+    radial-gradient(800px 400px at 50% -5%, rgba(124, 58, 237, 0.10), transparent 60%),
+    var(--paper);
 }
 
 .vt-page {
@@ -83,10 +87,88 @@ body {
   max-width: 1200px;
   width: 100%;
   margin: 0 auto;
-  padding: 0 20px 48px;
+  padding: 24px 20px 48px;
 }
 
-/* ── Premium hero (shader) ─────────────────────────────── */
+/* ── Hero (mismo tono que recuperar-compra) ───────────────── */
+.vt-hero.vt-hero--grad {
+  position: relative;
+  overflow: hidden;
+  background: var(--grad-bg);
+  color: #fff;
+  text-align: center;
+  padding: 40px 20px 48px;
+  margin: 0 -20px 28px;
+  border-radius: 0 0 24px 24px;
+  box-shadow: 0 16px 48px rgba(124, 58, 237, 0.22);
+}
+
+.vt-hero-content {
+  position: relative;
+  z-index: 2;
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.vt-hero-brand {
+  display: inline-block;
+  margin-bottom: 18px;
+  text-decoration: none;
+}
+
+.vt-hero-logo {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+  margin: 0 auto;
+  border: 3px solid rgba(255, 255, 255, 0.55);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+}
+
+.vt-hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 16px;
+  margin-bottom: 16px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+.vt-hero-badge-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.85);
+}
+
+.vt-hero-title {
+  font-family: var(--font-display);
+  font-size: clamp(26px, 5vw, 38px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  margin-bottom: 10px;
+  color: #fff;
+}
+
+.vt-hero-sub {
+  font-size: clamp(15px, 2.5vw, 16px);
+  color: rgba(255, 255, 255, 0.92);
+  max-width: 560px;
+  margin: 0 auto;
+  line-height: 1.55;
+}
+
+/* ── Hero legacy (shader) — ya no usado en marketplace ───── */
 .vt-hero.premium-hero {
   position: relative;
   overflow: hidden;
@@ -182,12 +264,12 @@ body {
 
 /* ── Toolbar ────────────────────────────────────────────── */
 .vt-toolbar {
-  background: linear-gradient(160deg, #fff 0%, #fafbff 100%);
-  border: 1px solid rgba(15, 18, 34, 0.06);
-  border-radius: var(--radius);
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 20px;
   padding: 16px;
   margin-bottom: 24px;
-  box-shadow: 0 8px 32px rgba(15, 18, 34, 0.08);
+  box-shadow: var(--shadow-card);
 }
 
 .vt-search-wrap {
@@ -208,8 +290,8 @@ body {
 }
 
 .vt-search:focus {
-  border-color: var(--c-purple);
-  box-shadow: 0 0 0 3px rgba(139, 47, 214, 0.12);
+  border-color: var(--c2);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12);
 }
 
 .vt-filters {
@@ -232,15 +314,15 @@ body {
 }
 
 .vt-chip:hover {
-  border-color: var(--c-purple);
-  color: var(--c-purple);
+  border-color: var(--c2);
+  color: var(--c2);
 }
 
 .vt-chip--active {
-  background: var(--grad-btn);
+  background: var(--grad-bg);
   border-color: transparent;
   color: var(--white);
-  box-shadow: 0 6px 20px rgba(43, 58, 245, 0.28);
+  box-shadow: 0 12px 32px rgba(124, 58, 237, 0.28);
 }
 
 .vt-chip--active:hover {
@@ -305,11 +387,11 @@ body {
 
 /* ── Card ─────────────────────────────────────────────── */
 .vt-card {
-  background: linear-gradient(160deg, #fff 0%, #fafbff 100%);
-  border-radius: var(--radius);
+  background: var(--white);
+  border-radius: 20px;
   overflow: hidden;
-  box-shadow: 0 8px 32px rgba(15, 18, 34, 0.08);
-  border: 1px solid rgba(15, 18, 34, 0.06);
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--line);
   display: flex;
   flex-direction: column;
   transition: transform 0.25s ease, box-shadow 0.25s ease;
@@ -452,46 +534,21 @@ body {
   position: relative;
   overflow: hidden;
   isolation: isolate;
-  background: linear-gradient(
-    120deg,
-    #2b3af5 0%,
-    #8b2fd6 33%,
-    #ff6a3d 66%,
-    #2b3af5 100%
-  ) !important;
-  background-size: 250% 100% !important;
-  animation: premium-grad-shift 6s ease infinite;
-  box-shadow:
-    0 10px 32px rgba(43, 58, 245, 0.35),
-    0 4px 16px rgba(139, 47, 214, 0.25) !important;
-  transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+  background: var(--grad-bg) !important;
+  background-size: 100% 100% !important;
+  animation: none;
+  box-shadow: 0 12px 32px rgba(124, 58, 237, 0.28) !important;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease !important;
 }
 
 .premium-btn::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -120%;
-  width: 60%;
-  height: 100%;
-  background: linear-gradient(
-    105deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.45) 48%,
-    transparent 100%
-  );
-  transform: skewX(-18deg);
-  animation: premium-shine 4.5s ease-in-out infinite;
-  pointer-events: none;
-  z-index: 1;
+  display: none;
 }
 
 .premium-btn:hover {
   transform: translateY(-2px) !important;
-  box-shadow:
-    0 16px 40px rgba(43, 58, 245, 0.45),
-    0 8px 24px rgba(255, 106, 61, 0.3) !important;
-  filter: brightness(1.06);
+  box-shadow: 0 16px 40px rgba(124, 58, 237, 0.35) !important;
+  filter: brightness(1.04);
   color: var(--white);
 }
 
