@@ -778,7 +778,7 @@ function showAiLoading(section, message) {
   div.innerHTML =
     '<div class="ai-loading">' +
     '<div class="ai-spinner"></div>' +
-    '<p>' + message + '</p></div>';
+    '<p>' + _esc(message) + '</p></div>';
 }
 
 function downloadImage(src) {
@@ -1443,7 +1443,7 @@ function renderMisProductosGrid() {
       }).join('');
     })
     .catch(function (e) {
-      gridEl.innerHTML = '<p style="padding:32px;color:#c0392b;font-size:13px;">Error al cargar: ' + e.message + '</p>';
+      gridEl.innerHTML = '<p style="padding:32px;color:#c0392b;font-size:13px;">Error al cargar: ' + _esc(e.message) + '</p>';
       gridEl.hidden = false;
     });
 }
@@ -4131,7 +4131,7 @@ function handleContenidoOrganico() {
         _mostrarSinCreditos(alertEl, err);
         if (resultEl) resultEl.innerHTML = '';
       } else if (resultEl) {
-        resultEl.innerHTML = '<p class="mon-result-placeholder" style="color:#c0392b;">Error: ' + err.message + '</p>';
+        resultEl.innerHTML = '<p class="mon-result-placeholder" style="color:#c0392b;">Error: ' + _esc(err.message) + '</p>';
       }
       console.error('[contenido/organico] Error:', err.message);
     })
@@ -4213,7 +4213,7 @@ function handleContenidoAnuncio() {
         _mostrarSinCreditos(alertEl, err);
         if (resultEl) resultEl.innerHTML = '';
       } else if (resultEl) {
-        resultEl.innerHTML = '<p class="mon-result-placeholder" style="color:#c0392b;">Error: ' + err.message + '</p>';
+        resultEl.innerHTML = '<p class="mon-result-placeholder" style="color:#c0392b;">Error: ' + _esc(err.message) + '</p>';
       }
       console.error('[contenido/anuncio] Error:', err.message);
     })
@@ -4322,7 +4322,7 @@ function handleContenidoAvatar(subtab) {
         _mostrarSinCreditos(alertEl, err);
         if (resultEl) resultEl.innerHTML = '';
       } else if (resultEl) {
-        resultEl.innerHTML = '<p class="mon-result-placeholder" style="color:#c0392b;">Error: ' + err.message + '</p>';
+        resultEl.innerHTML = '<p class="mon-result-placeholder" style="color:#c0392b;">Error: ' + _esc(err.message) + '</p>';
       }
       console.error('[contenido/avatar] Error:', err.message);
     })
@@ -4581,7 +4581,7 @@ function handleMonetizacionModularVideo() {
         _mostrarSinCreditos(alertEl, err);
         if (resultEl) resultEl.innerHTML = '';
       } else if (resultEl) {
-        resultEl.innerHTML = '<p class="mon-result-placeholder" style="color:#c0392b;">Error: ' + err.message + '</p>';
+        resultEl.innerHTML = '<p class="mon-result-placeholder" style="color:#c0392b;">Error: ' + _esc(err.message) + '</p>';
       }
       console.error('[EcommerceAgent] Error al modular video:', err.message);
     })
@@ -4817,7 +4817,7 @@ function procesarVideoEditor() {
         _mostrarSinCreditos(alertEl, err);
         if (resultEl) resultEl.innerHTML = '';
       } else if (resultEl) {
-        resultEl.innerHTML = '<p class="mon-result-placeholder" style="color:#c0392b;">Error: ' + err.message + '</p>';
+        resultEl.innerHTML = '<p class="mon-result-placeholder" style="color:#c0392b;">Error: ' + _esc(err.message) + '</p>';
       }
       console.error('[editor] Error procesando video:', err.message);
     })
@@ -4890,7 +4890,7 @@ function procesarReaccionEditor() {
         _mostrarSinCreditos(alertEl, err);
         if (resultEl) resultEl.innerHTML = '';
       } else if (resultEl) {
-        resultEl.innerHTML = '<p class="mon-result-placeholder" style="color:#c0392b;">Error: ' + err.message + '</p>';
+        resultEl.innerHTML = '<p class="mon-result-placeholder" style="color:#c0392b;">Error: ' + _esc(err.message) + '</p>';
       }
       console.error('[editor] Error procesando reaccion:', err.message);
     })

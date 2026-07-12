@@ -25,6 +25,7 @@ const supabase           = require('./supabase');
 const { subirArchivo, obtenerArchivo, obtenerArchivoBuffer, generarUrlFirmada, R2_PRESIGNED_EXPIRES_SEC } = require('./r2');
 const { generarPaginaVentaMiniapp } = require('./generar-pagina-miniapp');
 const miniappSeg = require('./miniapp-seguridad');
+const archivoVal = require('./archivo-validacion');
 const jwtAuth    = require('./jwt-auth');
 const rateLimit = require('express-rate-limit');
 const ipKeyGenerator = rateLimit.ipKeyGenerator;
@@ -38,6 +39,36 @@ app.set('trust proxy', 1);
 
 const RATE_LIMIT_MSG   = 'Demasiados intentos, espera unos minutos.';
 const CLIENT_ERROR_MSG = 'Ocurrio un error, intenta de nuevo.';
+const IA_CLIENT_ERROR_MSG = 'Error al procesar. Intenta de nuevo.';
+
+function _usuarioIaRateLimit(max, windowMs) {
+  return rateLimit({
+    windowMs: windowMs || 60 * 1000,
+    max:      max || 15,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: function (req) {
+      if (req.usuario_id) return 'ia-uid:' + String(req.usuario_id);
+      return 'ia-ip:' + (req.ip ? ipKeyGenerator(req.ip) : 'unknown');
+    },
+    message: { ok: false, error: RATE_LIMIT_MSG }
+  });
+}
+
+const iaRateProxy    = _usuarioIaRateLimit(25, 60 * 1000);
+const iaRateMotor    = _usuarioIaRateLimit(12, 60 * 1000);
+const iaRateFfmpeg   = _usuarioIaRateLimit(6, 60 * 1000);
+
+function _logIaError(prefix, err) {
+  console.error(prefix, err && err.message ? err.message : err);
+}
+
+function _respondIaError(res, status, prefix, err) {
+  _logIaError(prefix, err);
+  if (!res.headersSent) {
+    res.status(status || 500).json({ ok: false, error: IA_CLIENT_ERROR_MSG });
+  }
+}
 
 const authRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -410,37 +441,53 @@ const CREADOR_CATEGORIAS = ['infoproducto', 'contenido_digital', 'miniapp'];
 // ── CORS — lista blanca de orígenes permitidos ────────────────────────────────
 // Editar aquí para agregar dominios de producción / Vercel / staging.
 const ORIGENES_PERMITIDOS = [
-  'http://localhost:3000',  // app vendedores (local)
-  'http://localhost:3001',  // admin (local)
-  'http://localhost:3002',  // motor local
-  'http://localhost:3003',  // panel creadores (local)
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:3002',
+  'http://localhost:3003',
   'https://activosdigitales.click',
   'https://www.activosdigitales.click',
   'https://api.activosdigitales.click',
   'https://app.activosdigitales.click',
   'https://admin.activosdigitales.click',
-  // Vendedores fisicos (transitorio hasta Sistema Viral Pro)
   'https://ecommerceagents.store',
-  'https://www.ecommerceagents.store',
-  'https://ecommerce-agents-mauve.vercel.app',
+  'https://www.ecommerceagents.store'
 ];
 
 const _corsOpts = {
   origin: function (origin, callback) {
-    // Sin origen = petición directa de browser (barra de URL), curl, Postman, etc.
-    // Permitirla para que las páginas HTML públicas (/p/:slug, /checkout) carguen bien.
     if (!origin) return callback(null, true);
     if (ORIGENES_PERMITIDOS.includes(origin)) return callback(null, true);
-    callback(new Error('Origen no permitido por CORS: ' + origin));
+    console.warn('[cors] Origen rechazado:', origin);
+    callback(new Error('CORS: origen no permitido'));
   },
-  credentials: true // permite enviar cookies / headers de auth en peticiones cross-origin
+  credentials: true
 };
+
+function _apiRechazarSinOriginConCredenciales(req, res, next) {
+  if (req.headers.origin) return next();
+  if (!req.path.startsWith('/api/')) return next();
+  const hasAuth = !!(req.headers.authorization && String(req.headers.authorization).trim());
+  if (hasAuth) {
+    console.warn('[cors] API autenticada sin Origin:', req.method, req.path);
+    return res.status(403).json({ ok: false, error: CLIENT_ERROR_MSG });
+  }
+  next();
+}
 
 // ── Middleware ────────────────────────────────────────────────────────────────
 // Stripe webhook: raw body ANTES de express.json (verificacion de firma)
 app.post('/api/checkout/webhook', express.raw({ type: 'application/json' }), _handleStripeWebhook);
 
+app.use(_apiRechazarSinOriginConCredenciales);
 app.use(cors(_corsOpts));
+app.use(function (err, req, res, next) {
+  if (err && String(err.message || '').indexOf('CORS') === 0) {
+    console.warn('[cors]', err.message);
+    return res.status(403).json({ ok: false, error: CLIENT_ERROR_MSG });
+  }
+  next(err);
+});
 
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
@@ -802,7 +849,7 @@ async function generarCopyParaVideo(outVideoPath, redSocial, anthropicKey, tempF
 }
 
 // ── Endpoint: POST /api/monetizacion/tendencias ───────────────────────────────
-app.post('/api/monetizacion/tendencias', requireUsuario, async (req, res) => {
+app.post('/api/monetizacion/tendencias', requireUsuario, iaRateMotor, async (req, res) => {
   const costo = COSTO_MOTOR_IA['viral-tendencias'];
   let _credRest = null;
   try {
@@ -896,18 +943,18 @@ app.post('/api/monetizacion/tendencias', requireUsuario, async (req, res) => {
 });
 
 // ── Endpoint: POST /api/monetizacion/desarrollar ─────────────────────────────
-app.post('/api/monetizacion/desarrollar', requireUsuario, async (req, res) => {
+app.post('/api/monetizacion/desarrollar', requireUsuario, iaRateMotor, async (req, res) => {
   // costo 0: incluido en viral-tendencias; solo requiere autenticacion
   const { titular, boceto, gancho, formato, relacionDeAspecto, duracion, numeroEscenas } = req.body;
 
   if (!titular || !boceto) {
-    return res.status(400).json({ error: 'Faltan campos obligatorios: titular y boceto son requeridos.' });
+    return res.status(400).json({ ok: false, error: 'Faltan campos obligatorios.' });
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
-    console.error('[motor] ERROR: ANTHROPIC_API_KEY no esta configurada en .env');
-    return res.status(500).json({ error: 'El servidor no tiene API key configurada.' });
+    console.error('[motor] ANTHROPIC_API_KEY no configurada');
+    return res.status(500).json({ ok: false, error: IA_CLIENT_ERROR_MSG });
   }
 
   const duracionTexto = duracion          ? `${duracion} segundos` : 'no especificada';
@@ -941,21 +988,18 @@ app.post('/api/monetizacion/desarrollar', requireUsuario, async (req, res) => {
       })
     });
   } catch (fetchErr) {
-    console.error('[motor] Error de red al llamar a Anthropic:', fetchErr.message);
-    return res.status(502).json({ error: 'No se pudo conectar con la API de Anthropic.' });
+    return _respondIaError(res, 502, '[motor/desarrollar] red Anthropic:', fetchErr);
   }
 
   if (!anthropicRes.ok) {
     const errText = await anthropicRes.text().catch(() => '');
-    console.error(`[motor] Anthropic respondio ${anthropicRes.status}:`, errText);
-    return res.status(502).json({ error: `La API de Anthropic respondio con error ${anthropicRes.status}.` });
+    return _respondIaError(res, 502, '[motor/desarrollar] Anthropic HTTP ' + anthropicRes.status + ':', errText);
   }
 
   let anthropicData;
   try { anthropicData = await anthropicRes.json(); }
   catch (jsonErr) {
-    console.error('[motor] Error parseando respuesta de Anthropic:', jsonErr.message);
-    return res.status(502).json({ error: 'respuesta invalida del motor' });
+    return _respondIaError(res, 502, '[motor/desarrollar] JSON Anthropic:', jsonErr);
   }
 
   if (anthropicData.usage) {
@@ -964,21 +1008,17 @@ app.post('/api/monetizacion/desarrollar', requireUsuario, async (req, res) => {
 
   const bloques = (anthropicData.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
   if (!bloques) {
-    console.error('[motor] La respuesta no contiene bloques de texto:', JSON.stringify(anthropicData.content));
-    return res.status(502).json({ error: 'respuesta invalida del motor' });
+    return _respondIaError(res, 502, '[motor/desarrollar] sin texto:', JSON.stringify(anthropicData.content));
   }
 
   let desarrolloData;
   try { desarrolloData = JSON.parse(limpiarJSON(bloques)); }
   catch (parseErr) {
-    console.error('[motor] Error parseando JSON del modelo:', parseErr.message);
-    console.error('[motor] Texto recibido:', bloques.slice(0, 500));
-    return res.status(502).json({ error: 'respuesta invalida del motor' });
+    return _respondIaError(res, 502, '[motor/desarrollar] parse JSON:', parseErr);
   }
 
   if (!desarrolloData.guion || !desarrolloData.miniatura || !Array.isArray(desarrolloData.escenas) || !desarrolloData.copy) {
-    console.error('[motor] JSON de desarrollo incompleto:', JSON.stringify(desarrolloData).slice(0, 300));
-    return res.status(502).json({ error: 'respuesta invalida del motor' });
+    return _respondIaError(res, 502, '[motor/desarrollar] JSON incompleto:', JSON.stringify(desarrolloData).slice(0, 300));
   }
 
   console.log(`[motor] OK — desarrollo generado con ${desarrolloData.escenas.length} escenas.`);
@@ -993,7 +1033,7 @@ app.post('/api/monetizacion/desarrollar', requireUsuario, async (req, res) => {
 // ── Endpoint: POST /api/monetizacion/modular ──────────────────────────────────
 // Archivos gestionados: video subido + hasta 20 frames JPG + audio MP3
 // Limpieza: SIEMPRE en finally, incluido el caso de error parcial de ffmpeg.
-app.post('/api/monetizacion/modular', requireUsuario, function (req, res, next) {
+app.post('/api/monetizacion/modular', requireUsuario, iaRateFfmpeg, function (req, res, next) {
   uploadModular(req, res, function (err) {
     if (err) {
       if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ error: 'El video es demasiado grande. Maximo 500 MB.' });
@@ -1183,7 +1223,7 @@ app.post('/api/monetizacion/modular', requireUsuario, function (req, res, next) 
 // ── Endpoint: POST /api/editor/procesar-video ─────────────────────────────────
 // OBJETIVO 2: -map_metadata -1 en todos los outputs ffmpeg para limpiar metadata.
 // OBJETIVO 1: limpiarArchivos() en finally con lista pre-registrada.
-app.post('/api/editor/procesar-video', requireUsuario, function (req, res, next) {
+app.post('/api/editor/procesar-video', requireUsuario, iaRateFfmpeg, function (req, res, next) {
   uploadEditorFields(req, res, function (err) {
     if (err) return res.status(400).json({ ok: false, error: 'Error al subir archivo.' });
     next();
@@ -1385,7 +1425,7 @@ app.post('/api/editor/procesar-video', requireUsuario, function (req, res, next)
 // ── Endpoint: POST /api/editor/procesar-reaccion ──────────────────────────────
 // OBJETIVO 2: -map_metadata -1 en el output.
 // OBJETIVO 1: limpiarArchivos() garantizado en finally.
-app.post('/api/editor/procesar-reaccion', requireUsuario, function (req, res, next) {
+app.post('/api/editor/procesar-reaccion', requireUsuario, iaRateFfmpeg, function (req, res, next) {
   uploadReaccionFields(req, res, function (err) {
     if (err) return res.status(400).json({ ok: false, error: 'Error al subir archivo.' });
     next();
@@ -1628,7 +1668,7 @@ async function buscarProductoInternet(producto, anthropicKey) {
 }
 
 // ── Endpoint: POST /api/contenido/organico ────────────────────────────────────
-app.post('/api/contenido/organico', requireUsuario, function (req, res, next) {
+app.post('/api/contenido/organico', requireUsuario, iaRateMotor, function (req, res, next) {
   uploadContenidoImg(req, res, function (err) {
     if (err) return res.status(400).json({ ok: false, error: 'Error al subir imagen.' });
     next();
@@ -1719,15 +1759,14 @@ app.post('/api/contenido/organico', requireUsuario, function (req, res, next) {
     return res.json(respuesta);
 
   } catch (err) {
-    console.error('[contenido/organico] Error:', err.message);
-    if (!res.headersSent) return res.status(502).json({ ok: false, error: CLIENT_ERROR_MSG });
+    _respondIaError(res, 502, '[contenido/organico]', err);
   } finally {
     limpiarArchivos(tempFiles, 'contenido/organico');
   }
 });
 
 // ── Endpoint: POST /api/contenido/anuncio ─────────────────────────────────────
-app.post('/api/contenido/anuncio', requireUsuario, function (req, res, next) {
+app.post('/api/contenido/anuncio', requireUsuario, iaRateMotor, function (req, res, next) {
   uploadContenidoImg(req, res, function (err) {
     if (err) return res.status(400).json({ ok: false, error: 'Error al subir imagen.' });
     next();
@@ -1816,8 +1855,7 @@ app.post('/api/contenido/anuncio', requireUsuario, function (req, res, next) {
     });
 
   } catch (err) {
-    console.error('[contenido/anuncio] Error:', err.message);
-    if (!res.headersSent) return res.status(502).json({ ok: false, error: CLIENT_ERROR_MSG });
+    _respondIaError(res, 502, '[contenido/anuncio]', err);
   } finally {
     limpiarArchivos(tempFiles, 'contenido/anuncio');
   }
@@ -1858,7 +1896,7 @@ async function analizarImagenAvatar(imagePath, anthropicKey) {
 }
 
 // ── Endpoint: POST /api/contenido/avatar ──────────────────────────────────────
-app.post('/api/contenido/avatar', requireUsuario, function (req, res, next) {
+app.post('/api/contenido/avatar', requireUsuario, iaRateMotor, function (req, res, next) {
   uploadAvatarFields(req, res, function (err) {
     if (err) return res.status(400).json({ ok: false, error: 'Error al subir imagen.' });
     next();
@@ -1945,8 +1983,7 @@ app.post('/api/contenido/avatar', requireUsuario, function (req, res, next) {
     });
 
   } catch (err) {
-    console.error('[avatar] Error:', err.message);
-    if (!res.headersSent) return res.status(502).json({ ok: false, error: CLIENT_ERROR_MSG });
+    _respondIaError(res, 502, '[contenido/avatar]', err);
   } finally {
     limpiarArchivos(tempFiles, 'contenido/avatar');
   }
@@ -2825,20 +2862,6 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
     return res.status(400).json({ ok: false, error: 'La foto 1 del producto es obligatoria.' });
   }
 
-  const ext1 = _extImagen(foto1.mimetype, foto1.originalname);
-  if (!ext1) {
-    return res.status(400).json({ ok: false, error: 'Foto 1: solo se permiten JPG, PNG o WebP.' });
-  }
-  if (foto1.size > 5 * 1024 * 1024) {
-    return res.status(400).json({ ok: false, error: 'Foto 1 supera el limite de 5 MB.' });
-  }
-
-  if (foto2) {
-    const ext2 = _extImagen(foto2.mimetype, foto2.originalname);
-    if (!ext2) return res.status(400).json({ ok: false, error: 'Foto 2: solo se permiten JPG, PNG o WebP.' });
-    if (foto2.size > 5 * 1024 * 1024) return res.status(400).json({ ok: false, error: 'Foto 2 supera el limite de 5 MB.' });
-  }
-
   let r2Key = null;
   let pdfKey = null;
   let packKey = null;
@@ -2862,21 +2885,13 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
       });
     }
     htmlContent = miniappSeg.sanitizeMiniappHtml(htmlContent);
-    if (pdfFile) {
-      if (pdfFile.mimetype !== 'application/pdf' && !String(pdfFile.originalname || '').toLowerCase().endsWith('.pdf')) {
-        return res.status(400).json({ ok: false, error: 'El archivo PDF debe ser .pdf valido.' });
-      }
-      if (pdfFile.size > 50 * 1024 * 1024) {
-        return res.status(400).json({ ok: false, error: 'El PDF supera el limite de 50 MB.' });
-      }
+    if (pdfFile && pdfFile.size > 50 * 1024 * 1024) {
+      return res.status(400).json({ ok: false, error: 'El PDF supera el limite de 50 MB.' });
     }
     tipo_producto = pdfFile ? 'html_pdf' : 'html';
   } else if (categoria === 'infoproducto') {
     if (!pdfFile) {
       return res.status(400).json({ ok: false, error: 'El PDF es obligatorio para un infoproducto.' });
-    }
-    if (pdfFile.mimetype !== 'application/pdf' && !String(pdfFile.originalname || '').toLowerCase().endsWith('.pdf')) {
-      return res.status(400).json({ ok: false, error: 'El archivo debe ser un PDF valido.' });
     }
     if (pdfFile.size > 50 * 1024 * 1024) {
       return res.status(400).json({ ok: false, error: 'El PDF supera el limite de 50 MB.' });
@@ -2889,31 +2904,51 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
     if (videoFiles.length > 30) {
       return res.status(400).json({ ok: false, error: 'Maximo 30 videos por producto.' });
     }
-    for (let vi = 0; vi < videoFiles.length; vi++) {
-      const vf = videoFiles[vi];
-      const vExt = _extVideo(vf.mimetype, vf.originalname);
-      if (!vExt) {
-        return res.status(400).json({ ok: false, error: 'Video ' + (vi + 1) + ': solo se permiten mp4, mov o webm.' });
-      }
-      if (vf.size > 100 * 1024 * 1024) {
-        return res.status(400).json({ ok: false, error: 'Video ' + (vi + 1) + ' supera el limite de 100 MB.' });
-      }
-    }
     tipo_producto = 'videos';
   }
 
   try {
+    const foto1Val = await archivoVal.validarImagenSubida(_readUploadFile(foto1));
+    if (!foto1Val.ok) {
+      return res.status(400).json({ ok: false, error: 'Foto 1: ' + foto1Val.error });
+    }
+    let foto2Val = null;
+    if (foto2) {
+      foto2Val = await archivoVal.validarImagenSubida(_readUploadFile(foto2));
+      if (!foto2Val.ok) {
+        return res.status(400).json({ ok: false, error: 'Foto 2: ' + foto2Val.error });
+      }
+    }
+
+    let pdfVal = null;
+    if (pdfFile) {
+      pdfVal = await archivoVal.validarPdfSubida(_readUploadFile(pdfFile));
+      if (!pdfVal.ok) {
+        return res.status(400).json({ ok: false, error: pdfVal.error });
+      }
+    }
+
+    const videoVals = [];
+    if (categoria === 'contenido_digital') {
+      for (let vi = 0; vi < videoFiles.length; vi++) {
+        const vVal = await archivoVal.validarVideoSubida(_readUploadFile(videoFiles[vi]), 100 * 1024 * 1024);
+        if (!vVal.ok) {
+          return res.status(400).json({ ok: false, error: 'Video ' + (vi + 1) + ': ' + vVal.error });
+        }
+        videoVals.push(vVal);
+      }
+    }
+
     const slug     = await _generarSlugMiniappUnico(nombreVal.nombre);
+    const ext1     = foto1Val.ext;
     const foto1Key = 'miniapps/' + slug + '/foto1.' + ext1;
     let foto2Key   = null;
 
-    const foto1Buf = _readUploadFile(foto1);
-    await subirArchivo(foto1Key, foto1Buf, foto1.mimetype || 'image/jpeg');
+    await subirArchivo(foto1Key, foto1Val.buffer, foto1Val.mime);
 
-    if (foto2) {
-      const ext2 = _extImagen(foto2.mimetype, foto2.originalname);
-      foto2Key = 'miniapps/' + slug + '/foto2.' + ext2;
-      await subirArchivo(foto2Key, _readUploadFile(foto2), foto2.mimetype || 'image/jpeg');
+    if (foto2Val) {
+      foto2Key = 'miniapps/' + slug + '/foto2.' + foto2Val.ext;
+      await subirArchivo(foto2Key, foto2Val.buffer, foto2Val.mime);
     }
 
     const videoRows = [];
@@ -2921,19 +2956,18 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
     if (categoria === 'miniapp') {
       r2Key = 'miniapps/' + slug + '/app.html';
       await subirArchivo(r2Key, htmlContent, 'text/html');
-      if (pdfFile) {
+      if (pdfVal) {
         pdfKey = 'miniapps/' + slug + '/producto.pdf';
-        await subirArchivo(pdfKey, _readUploadFile(pdfFile), 'application/pdf');
+        await subirArchivo(pdfKey, pdfVal.buffer, pdfVal.mime);
       }
     } else if (categoria === 'infoproducto') {
       pdfKey = 'miniapps/' + slug + '/producto.pdf';
-      await subirArchivo(pdfKey, _readUploadFile(pdfFile), 'application/pdf');
+      await subirArchivo(pdfKey, pdfVal.buffer, pdfVal.mime);
     } else if (categoria === 'contenido_digital') {
       for (let vi = 0; vi < videoFiles.length; vi++) {
-        const vf = videoFiles[vi];
-        const vExt = _extVideo(vf.mimetype, vf.originalname);
-        const videoKey = 'miniapps/' + slug + '/videos/' + (vi + 1) + '.' + vExt;
-        await subirArchivo(videoKey, _readUploadFile(vf), _mimeVideoExt(vExt));
+        const vVal = videoVals[vi];
+        const videoKey = 'miniapps/' + slug + '/videos/' + (vi + 1) + '.' + vVal.ext;
+        await subirArchivo(videoKey, vVal.buffer, vVal.mime);
         videoRows.push({
           video_key: videoKey,
           nombre: path.basename(vf.originalname || '') || ('Video ' + (vi + 1)),
@@ -4364,6 +4398,37 @@ async function _fulfillStripeCheckoutSession(session) {
   return result;
 }
 
+async function _stripeEventYaProcesado(eventId) {
+  const id = String(eventId || '').trim();
+  if (!id) return false;
+  const { data, error } = await supabase
+    .from('stripe_events')
+    .select('event_id')
+    .eq('event_id', id)
+    .maybeSingle();
+  if (error) {
+    if (/stripe_events|relation|schema cache|does not exist/i.test(String(error.message || ''))) {
+      console.warn('[stripe/webhook] tabla stripe_events ausente — idempotencia desactivada');
+      return false;
+    }
+    throw error;
+  }
+  return !!data;
+}
+
+async function _registrarStripeEvent(event) {
+  const id = String(event && event.id || '').trim();
+  if (!id) return;
+  const { error } = await supabase.from('stripe_events').insert({
+    event_id:     id,
+    event_type:   String(event.type || '').slice(0, 128),
+    processed_at: new Date().toISOString()
+  });
+  if (error && !/duplicate|unique|23505/i.test(String(error.message || ''))) {
+    console.warn('[stripe/webhook] no se pudo registrar evento:', error.message);
+  }
+}
+
 async function _handleStripeWebhook(req, res) {
   const stripe = _getStripe();
   if (!stripe || !STRIPE_WEBHOOK_SECRET) {
@@ -4386,6 +4451,13 @@ async function _handleStripeWebhook(req, res) {
   }
 
   try {
+    if (await _stripeEventYaProcesado(event.id)) {
+      console.log('[stripe/webhook] Evento duplicado ignorado id=' + event.id);
+      return res.json({ received: true, duplicate: true });
+    }
+
+    let marcarEvento = false;
+
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object;
       if (session.payment_status !== 'paid') {
@@ -4393,19 +4465,24 @@ async function _handleStripeWebhook(req, res) {
           (session.payment_status || 'unknown') + ' session=' + session.id);
         return res.json({ received: true });
       }
-      await _fulfillStripeCheckoutSession(session);
+      const r = await _fulfillStripeCheckoutSession(session);
+      if (r && r.ok) marcarEvento = true;
     } else if (event.type === 'checkout.session.async_payment_succeeded') {
       const session = event.data.object;
       if (session.payment_status !== 'paid') {
         console.warn('[stripe/webhook] async_payment_succeeded sin paid session=' + session.id);
         return res.json({ received: true });
       }
-      await _fulfillStripeCheckoutSession(session);
+      const r = await _fulfillStripeCheckoutSession(session);
+      if (r && r.ok) marcarEvento = true;
     } else if (event.type === 'checkout.session.async_payment_failed') {
       const session = event.data.object;
       console.warn('[stripe/webhook] async_payment_failed session=' + (session.id || '') +
         ' codigo=' + (session.metadata && session.metadata.codigo ? session.metadata.codigo : ''));
+      marcarEvento = true;
     }
+
+    if (marcarEvento) await _registrarStripeEvent(event);
   } catch (e) {
     console.error('[stripe/webhook] Error procesando evento:', e.message);
     return res.status(500).send('Webhook handler error');
@@ -7239,7 +7316,7 @@ function _injectCheckoutScript(html, slug, ref) {
 '    if (_ref) url += "&ref=" + encodeURIComponent(_ref);\n' +
 '    try {\n' +
 '      if (window.parent && window.parent !== window) {\n' +
-'        window.parent.postMessage({ ea_checkout_url: url }, "*");\n' +
+'        window.parent.postMessage({ ea_checkout_url: url }, window.location.origin);\n' +
 '        return;\n' +
 '      }\n' +
 '    } catch (err) {}\n' +
@@ -7322,11 +7399,15 @@ app.get('/p/:slug', async (req, res) => {
 ></iframe>
 <script>
 // Recibe el mensaje del botón de compra dentro del iframe sandbox y navega la ventana real.
-// El iframe usa sandbox sin allow-same-origin → postMessage llega con origin "null"/""; validar por e.source.
+// Sandbox sin allow-same-origin → origin "null"; validar siempre por e.source del iframe.
 window.addEventListener('message', function(e) {
   var pf = document.getElementById('pf');
   var fromIframe = pf && pf.contentWindow && e.source === pf.contentWindow;
-  if (!fromIframe && e.origin !== window.location.origin) return;
+  if (!fromIframe) {
+    if (e.origin !== window.location.origin) return;
+  } else if (e.origin !== 'null' && e.origin !== window.location.origin) {
+    return;
+  }
   var d = e.data;
   if (!d || typeof d.ea_checkout_url !== 'string') return;
   var url = d.ea_checkout_url;
@@ -7390,7 +7471,7 @@ function _fechaHoyYYYYMMDD() {
 // Recibe { prompt?, messages?, system?, max_tokens?, temperature?, es_chat_agents? }
 // es_chat_agents=true aplica limite diario (chat_uso_diario). Otros motores IA no se limitan.
 // Llama a Groq con la key del .env y devuelve { ok:true, texto }
-app.post('/api/ia/groq', requireUsuario, async (req, res) => {
+app.post('/api/ia/groq', requireUsuario, iaRateProxy, async (req, res) => {
   const { prompt, messages, system, max_tokens, temperature, es_chat_agents } = req.body || {};
   const usuario_id = req.usuario_id;
   const esChatAgents = es_chat_agents === true;
@@ -7449,8 +7530,8 @@ app.post('/api/ia/groq', requireUsuario, async (req, res) => {
     });
     const data = await resp.json();
     if (!data.choices || !data.choices[0]) {
-      const errMsg = data.error?.message || 'Respuesta invalida de Groq';
-      return res.status(502).json({ ok: false, error: errMsg });
+      _logIaError('[ia/groq] respuesta invalida:', data.error?.message || data);
+      return res.status(502).json({ ok: false, error: IA_CLIENT_ERROR_MSG });
     }
 
     if (esChatAgents) {
@@ -7471,18 +7552,20 @@ app.post('/api/ia/groq', requireUsuario, async (req, res) => {
 
     res.json({ ok: true, texto: data.choices[0].message.content });
   } catch (e) {
-    console.error('[ia/groq]', e.message);
-    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
+    _respondIaError(res, 500, '[ia/groq]', e);
   }
 });
 
 // POST /api/ia/gemini-imagen
 // Recibe { prompt } — prueba los modelos de imagen de Gemini/Imagen en orden
 // Devuelve { ok:true, imagen } donde imagen es un data URL base64
-app.post('/api/ia/gemini-imagen', requireUsuario, async (req, res) => {
+app.post('/api/ia/gemini-imagen', requireUsuario, iaRateProxy, async (req, res) => {
   const { prompt } = req.body || {};
   if (!prompt) return res.status(400).json({ ok: false, error: 'Falta prompt' });
-  if (!GEMINI_API_KEY) return res.status(500).json({ ok: false, error: 'GEMINI_API_KEY no configurada en el motor' });
+  if (!GEMINI_API_KEY) {
+    console.error('[ia/gemini-imagen] GEMINI_API_KEY no configurada');
+    return res.status(500).json({ ok: false, error: IA_CLIENT_ERROR_MSG });
+  }
 
   const models = [
     {
@@ -7525,16 +7608,20 @@ app.post('/api/ia/gemini-imagen', requireUsuario, async (req, res) => {
       }
     } catch (e) { continue; }
   }
-  res.status(502).json({ ok: false, error: 'No se pudo generar la imagen con ninguno de los modelos disponibles' });
+  _logIaError('[ia/gemini-imagen] todos los modelos fallaron', '');
+  res.status(502).json({ ok: false, error: IA_CLIENT_ERROR_MSG });
 });
 
 // POST /api/ia/gemini-vision
 // Recibe { contents, system_instruction?, generationConfig? } — formato nativo de Gemini
 // Llama a gemini-2.5-flash y devuelve { ok:true, texto }
-app.post('/api/ia/gemini-vision', requireUsuario, async (req, res) => {
+app.post('/api/ia/gemini-vision', requireUsuario, iaRateProxy, async (req, res) => {
   const { contents, system_instruction, generationConfig } = req.body || {};
   if (!contents) return res.status(400).json({ ok: false, error: 'Falta contents' });
-  if (!GEMINI_API_KEY) return res.status(500).json({ ok: false, error: 'GEMINI_API_KEY no configurada en el motor' });
+  if (!GEMINI_API_KEY) {
+    console.error('[ia/gemini-vision] GEMINI_API_KEY no configurada');
+    return res.status(500).json({ ok: false, error: IA_CLIENT_ERROR_MSG });
+  }
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
   try {
@@ -7548,12 +7635,14 @@ app.post('/api/ia/gemini-vision', requireUsuario, async (req, res) => {
       body: JSON.stringify(body)
     });
     const data = await resp.json();
-    if (data.error) return res.status(502).json({ ok: false, error: data.error.message || 'Error de Gemini' });
+    if (data.error) {
+      _logIaError('[ia/gemini-vision] API error:', data.error.message || data.error);
+      return res.status(502).json({ ok: false, error: IA_CLIENT_ERROR_MSG });
+    }
     const texto = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
     res.json({ ok: true, texto });
   } catch (e) {
-    console.error('[ia/gemini-vision]', e.message);
-    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
+    _respondIaError(res, 500, '[ia/gemini-vision]', e);
   }
 });
 
