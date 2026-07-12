@@ -278,12 +278,23 @@ function switchAuthTab(tab) {
   _showAuthPanel(tab === 'registro' ? 'registro' : 'login');
 }
 
+function _setReferrerPolicyRestablecer(activo) {
+  var meta = document.querySelector('meta[name="referrer"]');
+  if (!meta) {
+    meta = document.createElement('meta');
+    meta.name = 'referrer';
+    document.head.appendChild(meta);
+  }
+  meta.content = activo ? 'no-referrer' : 'strict-origin-when-cross-origin';
+}
+
 function _showAuthPanel(panel) {
   var panels = ['login', 'registro', 'recuperar', 'restablecer'];
   panels.forEach(function (p) {
     var el = document.getElementById('cr-panel-' + p);
     if (el) el.hidden = p !== panel;
   });
+  _setReferrerPolicyRestablecer(panel === 'restablecer');
   var tabsEl = document.getElementById('cr-auth-tabs');
   if (tabsEl) tabsEl.hidden = panel !== 'login' && panel !== 'registro';
   var isLogin = panel === 'login';

@@ -2238,10 +2238,15 @@ function maAprobar(id) {
     extra = '\n\nATENCION: esta mini app tiene alertas de seguridad. Revisa el escaneo antes de aprobar.';
   }
   if (!confirm('Aprobar la mini app "' + nombre + '"? Podra venderse una vez aprobada.' + extra)) return;
+  var payload = { miniapp_id: id };
+  if (m && m.requiere_revision_seguridad) {
+    if (!confirm('Confirmas que revisaste manualmente las alertas de seguridad y aceptas aprobar esta mini app de todos modos?')) return;
+    payload.confirmar_revision_seguridad = true;
+  }
   _adminFetch(MOTOR_URL + '/api/admin/miniapps/aprobar', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ miniapp_id: id })
+    body: JSON.stringify(payload)
   })
     .then(function (r) { return r.json(); })
     .then(function (d) {

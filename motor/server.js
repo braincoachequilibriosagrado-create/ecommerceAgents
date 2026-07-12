@@ -1,6 +1,8 @@
 require('dotenv').config();
 const express       = require('express');
 const cors          = require('cors');
+const helmet        = require('helmet');
+const dns           = require('dns').promises;
 const path          = require('path');
 const fs            = require('fs');
 const crypto        = require('crypto');
@@ -259,7 +261,39 @@ function _forbidUnlessSelf(req, res, targetId) {
   return true;
 }
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
+const ADMIN_PASSWORD      = process.env.ADMIN_PASSWORD || '';
+const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH || '';
+const LOGIN_MSG_INVALIDO  = 'Credenciales invalidas. Verifica tus datos o contacta al administrador si el problema continua.';
+
+let _bcryptDummyHashPromise = bcrypt.hash('__dummy_timing_pad__', 12);
+
+function _timingSafeEqualStr(a, b) {
+  const ba = Buffer.from(String(a));
+  const bb = Buffer.from(String(b));
+  if (ba.length !== bb.length) {
+    crypto.timingSafeEqual(ba, ba);
+    return false;
+  }
+  return crypto.timingSafeEqual(ba, bb);
+}
+
+async function _dummyBcryptCompare(plain) {
+  const hash = await _bcryptDummyHashPromise;
+  return bcrypt.compare(String(plain || ''), hash);
+}
+
+async function _verificarAdminPassword(password) {
+  const pass = String(password || '');
+  if (!pass) return false;
+  if (ADMIN_PASSWORD_HASH) {
+    return bcrypt.compare(pass, ADMIN_PASSWORD_HASH);
+  }
+  if (ADMIN_PASSWORD) {
+    return _timingSafeEqualStr(pass, ADMIN_PASSWORD);
+  }
+  await _dummyBcryptCompare(pass);
+  return false;
+}
 
 // Verifica y descuenta créditos de Supabase.
 // Si costo <= 0 resuelve sin tocar la BD. Devuelve { ok, creditos_restantes } o { ok:false, error }.
@@ -407,6 +441,96 @@ const _corsOpts = {
 app.post('/api/checkout/webhook', express.raw({ type: 'application/json' }), _handleStripeWebhook);
 
 app.use(cors(_corsOpts));
+
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  frameguard: false,
+  hsts: IS_PRODUCTION ? { maxAge: 31536000, includeSubDomains: true, preload: false } : false,
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  xContentTypeOptions: true
+}));
+
+function _pathPermiteIframe(pathname) {
+  const p = String(pathname || '');
+  return /^\/p-inner\//.test(p) ||
+    /^\/usar-miniapp\/[^/]+\/app$/.test(p) ||
+    p === '/checkout';
+}
+
+app.use(function (req, res, next) {
+  if (_pathPermiteIframe(req.path)) {
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  } else {
+    res.setHeader('X-Frame-Options', 'DENY');
+  }
+  next();
+});
+
+const _CSP_API_ORIGIN = (function () {
+  try { return new URL(PUBLIC_BASE_URL).origin; } catch (_) { return PUBLIC_BASE_URL; }
+})();
+
+function _aplicarCspPorRuta(req, res, next) {
+  const p = req.path;
+  if (p.startsWith('/api/')) return next();
+
+  if (p === '/marketplace' || p === '/vitrina' || (p === '/' && req.hostname !== API_PUBLIC_HOST)) {
+    res.setHeader('Content-Security-Policy', [
+      "default-src 'self'",
+      "script-src 'self'",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' https://fonts.gstatic.com data:",
+      "img-src 'self' data: blob: https:",
+      "connect-src 'self' " + _CSP_API_ORIGIN,
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "form-action 'self'"
+    ].join('; '));
+  } else if (/^\/p\/[^/]+$/.test(p)) {
+    res.setHeader('Content-Security-Policy', [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline'",
+      "frame-src 'self'",
+      "frame-ancestors 'none'"
+    ].join('; '));
+  } else if (p === '/checkout') {
+    res.setHeader('Content-Security-Policy', [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: https:",
+      "connect-src 'self'",
+      "frame-ancestors 'self'"
+    ].join('; '));
+  } else if (p.startsWith('/mi-compra/') || p.startsWith('/usar-miniapp/')) {
+    res.setHeader('Content-Security-Policy', [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: https:",
+      "media-src 'self' https:",
+      "connect-src 'self'",
+      "frame-src 'self'"
+    ].join('; '));
+  } else if (p === '/terminos' || p === '/privacidad') {
+    res.setHeader('Content-Security-Policy', [
+      "default-src 'self'",
+      "script-src 'self'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data:",
+      "font-src 'self' data:"
+    ].join('; '));
+  }
+  return next();
+}
+
+app.use(_aplicarCspPorRuta);
+
 app.use(express.json({ limit: '50mb' })); // 50 MB para soportar imagenes base64
 app.use('/assets', express.static(MOTOR_ASSETS_DIR, {
   setHeaders: function (res) {
@@ -505,15 +629,49 @@ function _isPrivateIpv4(ip) {
   return false;
 }
 
+function _isPrivateIpv6(ip) {
+  const s = String(ip || '').toLowerCase();
+  if (s === '::1') return true;
+  if (s.startsWith('fc') || s.startsWith('fd')) return true;
+  if (s.startsWith('fe80')) return true;
+  return false;
+}
+
+function _ipBloqueadaParaDescarga(ip) {
+  const addr = String(ip || '').replace(/^\[|\]$/g, '');
+  if (!addr) return true;
+  if (addr === '169.254.169.254' || addr === 'metadata.google.internal') return true;
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(addr)) return _isPrivateIpv4(addr);
+  return _isPrivateIpv6(addr);
+}
+
 function _hostnameBloqueadoParaDescarga(hostname) {
   const host = String(hostname || '').toLowerCase().replace(/^\[|\]$/g, '');
   if (!host || host === 'localhost' || host.endsWith('.localhost')) return true;
   if (host === '::1' || host === '0:0:0:0:0:0:0:1') return true;
+  if (host === '169.254.169.254' || host === 'metadata.google.internal') return true;
   if (/^\d+\.\d+\.\d+\.\d+$/.test(host)) return _isPrivateIpv4(host);
   return false;
 }
 
-function validateDownloadVideoUrl(urlStr) {
+const VIDEO_DOWNLOAD_HOST_ALLOWLIST = [
+  'youtube.com', 'youtu.be', 'youtube-nocookie.com', 'm.youtube.com', 'music.youtube.com',
+  'tiktok.com', 'vm.tiktok.com',
+  'instagram.com',
+  'twitter.com', 'x.com',
+  'facebook.com', 'fb.watch',
+  'vimeo.com',
+  'dailymotion.com'
+];
+
+function _hostnameEnAllowlistVideo(hostname) {
+  const h = String(hostname || '').toLowerCase();
+  return VIDEO_DOWNLOAD_HOST_ALLOWLIST.some(function (allowed) {
+    return h === allowed || h.endsWith('.' + allowed);
+  });
+}
+
+async function validateDownloadVideoUrl(urlStr) {
   let parsed;
   try {
     parsed = new URL(String(urlStr || '').trim());
@@ -526,11 +684,25 @@ function validateDownloadVideoUrl(urlStr) {
   if (_hostnameBloqueadoParaDescarga(parsed.hostname)) {
     throw new Error('URL no permitida (red privada o localhost).');
   }
+  if (!_hostnameEnAllowlistVideo(parsed.hostname)) {
+    throw new Error('Dominio no permitido. Usa enlaces de YouTube, TikTok, Instagram u otras plataformas soportadas.');
+  }
+  let addresses;
+  try {
+    addresses = await dns.lookup(parsed.hostname, { all: true });
+  } catch {
+    throw new Error('No se pudo resolver el dominio del video.');
+  }
+  for (let i = 0; i < addresses.length; i++) {
+    if (_ipBloqueadaParaDescarga(addresses[i].address)) {
+      throw new Error('URL no permitida (resuelve a red privada o metadata).');
+    }
+  }
   return parsed.href;
 }
 
 async function downloadVideo(url, outputBase) {
-  const safeUrl = validateDownloadVideoUrl(url);
+  const safeUrl = await validateDownloadVideoUrl(url);
   const outputTemplate = `${outputBase}.%(ext)s`;
   try {
     await execFileAsync('yt-dlp', [
@@ -1877,11 +2049,15 @@ app.post('/api/ventas/probar-telegram', requireAdmin, async (req, res) => {
 
 // POST /api/login
 // Valida codigo + codigoSeguridad contra Supabase tabla `usuarios`.
-// POST /api/admin/login — verifica la contraseña de admin y devuelve la API key
-app.post('/api/admin/login', authRateLimiter, (req, res) => {
+// POST /api/admin/login — verifica la contraseña de admin y devuelve JWT
+app.post('/api/admin/login', authRateLimiter, async (req, res) => {
   const { password } = req.body || {};
-  if (!password || !ADMIN_PASSWORD || password !== ADMIN_PASSWORD) {
-    return res.status(401).json({ ok: false, error: 'Contraseña incorrecta' });
+  const ok = await _verificarAdminPassword(password);
+  if (!ok) {
+    return res.status(401).json({ ok: false, error: LOGIN_MSG_INVALIDO });
+  }
+  if (!ADMIN_PASSWORD_HASH && !ADMIN_PASSWORD) {
+    return res.status(503).json({ ok: false, error: 'Servidor de autenticacion no configurado.' });
   }
   try {
     const token = jwtAuth.signAdminToken();
@@ -1912,15 +2088,16 @@ app.post('/api/login', authRateLimiter, async (req, res) => {
     if (error) throw error;
 
     if (!data) {
-      return res.json({ ok: false, error: 'Credenciales invalidas.' });
+      await _dummyBcryptCompare(codigoSeguridad);
+      return res.json({ ok: false, error: LOGIN_MSG_INVALIDO });
     }
     const codigoOk = await _verificarCodigoSeguridadVendedor(data.codigo_seguridad, codigoSeguridad);
     if (!codigoOk) {
-      return res.json({ ok: false, error: 'Credenciales invalidas.' });
+      return res.json({ ok: false, error: LOGIN_MSG_INVALIDO });
     }
     await _rehashCodigoSeguridadVendedorSiLegacy(data.id, data.codigo_seguridad, codigoSeguridad);
     if (!data.activo) {
-      return res.json({ ok: false, error: 'Tu cuenta aun no esta activa. Contacta al administrador.' });
+      return res.json({ ok: false, error: LOGIN_MSG_INVALIDO });
     }
 
     let token;
@@ -2065,16 +2242,17 @@ app.post('/api/creador/login', authRateLimiter, async (req, res) => {
     if (error) throw error;
 
     if (!data) {
-      return res.status(401).json({ ok: false, error: 'Email o contraseña incorrectos.' });
+      await _dummyBcryptCompare(pass);
+      return res.status(401).json({ ok: false, error: LOGIN_MSG_INVALIDO });
     }
 
     const match = await bcrypt.compare(pass, data.password_hash);
     if (!match) {
-      return res.status(401).json({ ok: false, error: 'Email o contraseña incorrectos.' });
+      return res.status(401).json({ ok: false, error: LOGIN_MSG_INVALIDO });
     }
 
     if (data.estado !== 'activo') {
-      return res.status(403).json({ ok: false, error: 'Tu cuenta no esta activa. Contacta al administrador.' });
+      return res.status(401).json({ ok: false, error: LOGIN_MSG_INVALIDO });
     }
 
     console.log('[creador/login] ok:', data.email);
@@ -4264,7 +4442,9 @@ const ENTREGA_MSG_INVALIDO          = 'Acceso no valido';
 const ENTREGA_MSG_LIMITE            = 'Limite de accesos alcanzado. Contacta soporte.';
 const ENTREGA_MSG_RATE              = 'Demasiados intentos. Intenta de nuevo en unos minutos.';
 const LIMITE_DESCARGAS_VIDEO        = 3;
-const ENTREGA_MSG_VIDEO_DL_LIMITE   = 'Alcanzaste el limite de descargas de este video (3). Puedes verlo online cuando quieras.';
+const LIMITE_STREAMS_VIDEO          = 15;
+const ENTREGA_MSG_VIDEO_DL_LIMITE   = 'Alcanzaste el limite de descargas de este video (3).';
+const ENTREGA_MSG_VIDEO_STREAM_LIMITE = 'Alcanzaste el limite de reproducciones online de este video (15).';
 
 const _entregaRateMap = new Map();
 
@@ -4505,6 +4685,43 @@ async function _incrementarDescargaVideo(compra, videoId, req) {
 
 function _denegarVideoDescarga(res, message) {
   return res.status(403).send(message || ENTREGA_MSG_VIDEO_DL_LIMITE);
+}
+
+function _denegarVideoStream(res, message) {
+  return res.status(403).send(message || ENTREGA_MSG_VIDEO_STREAM_LIMITE);
+}
+
+async function _contarStreamsVideoUsados(compraId, videoId) {
+  const vid = String(videoId || '').trim();
+  const { count, error } = await supabase
+    .from('miniapp_accesos_log')
+    .select('*', { count: 'exact', head: true })
+    .eq('compra_id', compraId)
+    .eq('recurso', 'video-stream:' + vid);
+  if (error) {
+    if (/miniapp_accesos_log|column|schema cache/.test(String(error.message || ''))) {
+      return { ok: false, failClosed: true };
+    }
+    throw error;
+  }
+  return { ok: true, usados: Number(count) || 0 };
+}
+
+async function _verificarLimiteStreamVideo(compraId, videoId) {
+  const r = await _contarStreamsVideoUsados(compraId, videoId);
+  if (!r.ok) return { ok: false, failClosed: true };
+  const restantes = LIMITE_STREAMS_VIDEO - r.usados;
+  if (restantes <= 0) {
+    return { ok: false, reason: 'video_stream_limit', message: ENTREGA_MSG_VIDEO_STREAM_LIMITE };
+  }
+  return { ok: true, usadas: r.usados, restantes };
+}
+
+async function _incrementarStreamVideo(compra, videoId, req) {
+  const prev = await _verificarLimiteStreamVideo(compra.id, videoId);
+  if (!prev.ok) return prev;
+  await _logAccesoEntrega(compra, 'video-stream:' + String(videoId).trim(), _getClientIp(req));
+  return { ok: true, restantes: Math.max(0, prev.restantes - 1) };
 }
 
 function _r2ContentDisposition(filename, inline) {
@@ -5878,7 +6095,7 @@ app.get('/usar-miniapp/:codigo/app', _entregaCodigoGate, async (req, res) => {
     contenido = miniappSeg.sanitizeMiniappHtml(contenido);
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Cache-Control', 'private, no-store');
-    res.setHeader('Content-Security-Policy', miniappSeg.MINIAPP_CSP);
+    res.setHeader('Content-Security-Policy', miniappSeg.buildMiniappCsp(PUBLIC_BASE_URL));
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.send(contenido);
@@ -5995,6 +6212,17 @@ app.get('/descargar-video/:codigo/:video_id', _entregaCodigoGate, async (req, re
       if (!consumo.ok) {
         if (consumo.failClosed) return res.status(503).send(ENTREGA_MSG_INVALIDO);
         return _denegarVideoDescarga(res, consumo.message);
+      }
+    } else {
+      const limiteStream = await _verificarLimiteStreamVideo(compra.id, videoId);
+      if (!limiteStream.ok) {
+        if (limiteStream.failClosed) return res.status(503).send(ENTREGA_MSG_INVALIDO);
+        return _denegarVideoStream(res, limiteStream.message);
+      }
+      const consumoStream = await _incrementarStreamVideo(compra, videoId, req);
+      if (!consumoStream.ok) {
+        if (consumoStream.failClosed) return res.status(503).send(ENTREGA_MSG_INVALIDO);
+        return _denegarVideoStream(res, consumoStream.message);
       }
     }
 
@@ -6457,12 +6685,29 @@ app.get('/api/admin/miniapps/:slug/html', async (req, res) => {
 
 // POST /api/admin/miniapps/aprobar
 app.post('/api/admin/miniapps/aprobar', async (req, res) => {
-  const { miniapp_id } = req.body || {};
+  const { miniapp_id, confirmar_revision_seguridad } = req.body || {};
   if (!miniapp_id) {
     return res.status(400).json({ ok: false, error: 'Se requiere miniapp_id.' });
   }
 
   try {
+    const { data: existente, error: selErr } = await supabase
+      .from('miniapps')
+      .select('id, nombre, slug, requiere_revision_seguridad, escaneo_seguridad, estado_aprobacion')
+      .eq('id', miniapp_id)
+      .maybeSingle();
+    if (selErr) throw selErr;
+    if (!existente) return res.status(404).json({ ok: false, error: 'Mini app no encontrada.' });
+
+    if (existente.requiere_revision_seguridad && !confirmar_revision_seguridad) {
+      return res.status(409).json({
+        ok: false,
+        error: 'Esta mini app requiere revision de seguridad manual. Confirma que revisaste las alertas antes de aprobar.',
+        requiere_confirmacion_seguridad: true,
+        escaneo_seguridad: existente.escaneo_seguridad || []
+      });
+    }
+
     const { data, error } = await supabase
       .from('miniapps')
       .update({
@@ -6476,7 +6721,7 @@ app.post('/api/admin/miniapps/aprobar', async (req, res) => {
     if (error) throw error;
     if (!data) return res.status(404).json({ ok: false, error: 'Mini app no encontrada.' });
 
-    console.log('[admin/miniapps/aprobar] id=' + miniapp_id);
+    console.log('[admin/miniapps/aprobar] id=' + miniapp_id + (confirmar_revision_seguridad ? ' (revision seguridad confirmada)' : ''));
     res.json({ ok: true, miniapp: data });
   } catch (e) {
     console.error('[admin/miniapps/aprobar]', e.message);
