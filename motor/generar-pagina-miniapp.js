@@ -6,7 +6,7 @@ const { obtenerArchivoBuffer } = require('./r2');
 
 const TEMPLATE_PATH = path.join(__dirname, 'templates', 'template-venta-pro.html');
 const CLAUDE_MODEL  = 'claude-sonnet-4-6';
-const GROQ_MODEL    = 'openai/gpt-oss-120b';
+const groqChat = require('./groq-chat');
 
 const DEFAULT_PALETTE = {
   bg:           '#0d0b1f',
@@ -313,12 +313,11 @@ async function generarTextosGroq(nombre, descripcion, categoria, groqKey) {
         'Content-Type': 'application/json',
         Authorization: 'Bearer ' + groqKey
       },
-      body: JSON.stringify({
-        model: GROQ_MODEL,
+      body: JSON.stringify(groqChat.buildGroqChatBody({
         messages: [{ role: 'user', content: prompt }],
         max_tokens: 4500,
         temperature: 0.72
-      })
+      }))
     });
 
     const data = await res.json();
@@ -327,7 +326,7 @@ async function generarTextosGroq(nombre, descripcion, categoria, groqKey) {
       return fallback;
     }
 
-    const parsed = JSON.parse(limpiarJSON(data.choices[0].message.content || ''));
+    const parsed = JSON.parse(limpiarJSON(groqChat.extractGroqText(data) || ''));
     return mergeTextos(parsed, fallback);
   } catch (e) {
     console.warn('[generar-pagina] Groq fallo:', e.message);

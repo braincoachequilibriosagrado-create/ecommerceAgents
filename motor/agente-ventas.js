@@ -3,8 +3,9 @@
 const path = require('path');
 const fs   = require('fs');
 
+const groqChat = require('./groq-chat');
+
 const GROQ_URL    = 'https://api.groq.com/openai/v1/chat/completions';
-const GROQ_MODEL  = 'llama-3.3-70b-versatile';
 const AUTH_DIR    = path.join(__dirname, 'baileys-auth');
 const CONFIG_PATH = path.join(__dirname, 'ventas-config.json');
 const MAX_HIST    = 24;
@@ -64,15 +65,14 @@ async function llamarGroq(cfg, historial) {
     const res = await fetch(GROQ_URL, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${groqKey}` },
-      body: JSON.stringify({
-        model:       GROQ_MODEL,
-        max_tokens:  400,
-        temperature: 0.78,
+      body: JSON.stringify(groqChat.buildGroqChatBody({
         messages: [
           { role: 'system', content: buildSystemVentas(cfg) },
           ...historial.slice(-MAX_HIST)
-        ]
-      })
+        ],
+        max_tokens:  400,
+        temperature: 0.78
+      }))
     });
     if (!res.ok) {
       const err = await res.text();
@@ -80,7 +80,7 @@ async function llamarGroq(cfg, historial) {
       return { mensaje: 'Un momento, vuelvo enseguida.', interes_compra: false };
     }
     const data    = await res.json();
-    const content = (data.choices?.[0]?.message?.content || '').trim();
+    const content = groqChat.extractGroqText(data);
 
     // Try JSON parse
     const jsonMatch = content.match(/\{[\s\S]*\}/);

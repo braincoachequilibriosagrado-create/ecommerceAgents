@@ -25,7 +25,7 @@ const supabase           = require('./supabase');
 const { subirArchivo, obtenerArchivo, obtenerArchivoBuffer, generarUrlFirmada, R2_PRESIGNED_EXPIRES_SEC } = require('./r2');
 const { generarPaginaVentaMiniapp } = require('./generar-pagina-miniapp');
 const miniappSeg = require('./miniapp-seguridad');
-const archivoVal = require('./archivo-validacion');
+const groqChat = require('./groq-chat');
 const jwtAuth    = require('./jwt-auth');
 const rateLimit = require('express-rate-limit');
 const ipKeyGenerator = rateLimit.ipKeyGenerator;
@@ -7459,7 +7459,7 @@ app.get('/p-inner/:slug', async (req, res) => {
 // IA PROXY — endpoints que reenvían al modelo sin exponer la API key al frontend
 // ════════════════════════════════════════════════════════════════════════════
 
-const GROQ_MODEL_DEFAULT  = 'llama-3.3-70b-versatile';
+const GROQ_MODEL_DEFAULT  = groqChat.GROQ_CHAT_MODEL;
 const GEMINI_API_KEY      = process.env.GEMINI_API_KEY || '';
 const CHAT_AGENTS_LIMITE_DIARIO = 30;
 
@@ -7521,16 +7521,21 @@ app.post('/api/ia/groq', requireUsuario, iaRateProxy, async (req, res) => {
         'Content-Type': 'application/json',
         Authorization: 'Bearer ' + process.env.GROQ_API_KEY
       },
-      body: JSON.stringify({
-        model: GROQ_MODEL_DEFAULT,
+      body: JSON.stringify(groqChat.buildGroqChatBody({
         messages: groqMessages,
         max_tokens: max_tokens || 1500,
         temperature: temperature != null ? temperature : 0.8
-      })
+      }))
     });
     const data = await resp.json();
     if (!data.choices || !data.choices[0]) {
       _logIaError('[ia/groq] respuesta invalida:', data.error?.message || data);
+      return res.status(502).json({ ok: false, error: IA_CLIENT_ERROR_MSG });
+    }
+
+    const textoGroq = groqChat.extractGroqText(data);
+    if (!textoGroq) {
+      _logIaError('[ia/groq] contenido vacio:', data);
       return res.status(502).json({ ok: false, error: IA_CLIENT_ERROR_MSG });
     }
 
@@ -7550,7 +7555,7 @@ app.post('/api/ia/groq', requireUsuario, iaRateProxy, async (req, res) => {
       }
     }
 
-    res.json({ ok: true, texto: data.choices[0].message.content });
+    res.json({ ok: true, texto: textoGroq });
   } catch (e) {
     _respondIaError(res, 500, '[ia/groq]', e);
   }
