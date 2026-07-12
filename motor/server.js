@@ -290,6 +290,53 @@ const TEMP_DIR    = path.join(__dirname, 'temp');
 const OUTPUTS_DIR = path.join(__dirname, 'outputs');
 [TEMP_DIR, OUTPUTS_DIR].forEach(d => { if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true }); });
 
+function _editorSafeUserId(usuarioId) {
+  return String(usuarioId || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64) || 'unknown';
+}
+
+function _editorOutputName(usuarioId, prefix) {
+  const safePrefix = String(prefix || 'out').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 32) || 'out';
+  return 'u_' + _editorSafeUserId(usuarioId) + '_' + safePrefix + '_' + Date.now() + '.mp4';
+}
+
+function _editorFilenameOwnedBy(filename, usuarioId) {
+  const base = path.basename(String(filename || ''));
+  if (!base || base.includes('..') || !base.endsWith('.mp4')) return false;
+  return base.startsWith('u_' + _editorSafeUserId(usuarioId) + '_');
+}
+
+function _validarNombreProductoSeguro(nombre) {
+  const s = String(nombre || '').trim();
+  if (!s) return { ok: false, error: 'El nombre es obligatorio.' };
+  if (s.length > 200) return { ok: false, error: 'El nombre no puede superar 200 caracteres.' };
+  if (/[<>\u0000-\u001f]/.test(s)) {
+    return { ok: false, error: 'El nombre no puede contener etiquetas HTML ni caracteres especiales.' };
+  }
+  if (/<\s*\/?\s*script/i.test(s) || /javascript\s*:/i.test(s) || /on\w+\s*=/i.test(s)) {
+    return { ok: false, error: 'El nombre contiene contenido no permitido.' };
+  }
+  return { ok: true, nombre: s };
+}
+
+function _sanitizeHexColor(value, fallback) {
+  const s = String(value || '').trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(s)) return s.toLowerCase();
+  const fb = String(fallback || '#2f86ff').trim();
+  return /^#[0-9a-fA-F]{6}$/.test(fb) ? fb.toLowerCase() : '#2f86ff';
+}
+
+function _requireCompraPruebaAuth(req, res, next) {
+  if (!COMPRA_PRUEBA_ACTIVA) {
+    return res.status(403).json({ ok: false, error: 'Funcion no disponible' });
+  }
+  const envSecret = process.env.COMPRA_PRUEBA_SECRET || '';
+  const headerSecret = String(req.headers['x-compra-prueba-secret'] || '').trim();
+  if (envSecret && headerSecret && headerSecret === envSecret) {
+    return next();
+  }
+  return requireAdmin(req, res, next);
+}
+
 // ── Multer: storage compartido ────────────────────────────────────────────────
 const storage = multer.diskStorage({
   destination: TEMP_DIR,
@@ -1039,7 +1086,7 @@ app.post('/api/editor/procesar-video', requireUsuario, function (req, res, next)
       else if (audio_opcion === 'abajo') audioArg = '-map 1:a?';
       else if (audio_opcion === 'sin')   audioArg = '-an';
 
-      const outName   = `split_vertical_${Date.now()}.mp4`;
+      const outName   = _editorOutputName(req.usuario_id, 'split_vertical');
       const outPath   = path.join(OUTPUTS_DIR, outName);
       const halfScale = 'scale=1080:960:force_original_aspect_ratio=decrease,pad=1080:960:(ow-iw)/2:(oh-ih)/2';
       const filterCx  = `[0:v]${halfScale}[v0];[1:v]${halfScale}[v1];[v0][v1]vstack=inputs=2[v]`;
@@ -1080,7 +1127,7 @@ app.post('/api/editor/procesar-video', requireUsuario, function (req, res, next)
       else if (audio_opcion === 'abajo') audioArg = '-map 1:a?';
       else if (audio_opcion === 'sin')   audioArg = '-an';
 
-      const outName  = `split_mitad_${Date.now()}.mp4`;
+      const outName  = _editorOutputName(req.usuario_id, 'split_mitad');
       const outPath  = path.join(OUTPUTS_DIR, outName);
       // Cada video → 540×1920 manteniendo AR, relleno negro si no encaja exacto
       const halfScale = 'scale=540:1920:force_original_aspect_ratio=decrease,pad=540:1920:(ow-iw)/2:(oh-ih)/2';
@@ -1117,7 +1164,7 @@ app.post('/api/editor/procesar-video', requireUsuario, function (req, res, next)
           if (startSec + clipDur > dur1) startSec = Math.max(0, dur1 - clipDur);
         }
 
-        const outName = `clip${i + 1}_${Date.now()}.mp4`;
+        const outName = _editorOutputName(req.usuario_id, 'clip' + (i + 1));
         const outPath = path.join(OUTPUTS_DIR, outName);
 
         // -map_metadata -1 limpia metadata del clip generado
@@ -1137,7 +1184,7 @@ app.post('/api/editor/procesar-video', requireUsuario, function (req, res, next)
 
     // ── ACCION: descargar ─────────────────────────────────────────────────────
     if (accion === 'descargar') {
-      const outName = `descarga_${Date.now()}.mp4`;
+      const outName = _editorOutputName(req.usuario_id, 'descarga');
       const outPath = path.join(OUTPUTS_DIR, outName);
 
       // -map_metadata -1 elimina metadata incluso en copia de stream
@@ -1256,7 +1303,7 @@ app.post('/api/editor/procesar-reaccion', requireUsuario, function (req, res, ne
       audioMapArg = '-map "[a]"';
     }
 
-    const outName       = `reaccion_${Date.now()}.mp4`;
+    const outName       = _editorOutputName(req.usuario_id, 'reaccion');
     const outPath       = path.join(OUTPUTS_DIR, outName);
     const filterComplex = `[1:v]scale=${boxW}:-2,colorkey=0x00FF00:0.4:0.1[meme];[0:v][meme]overlay=${overlayPos}:shortest=1[v]${audioFilter}`;
 
@@ -1281,8 +1328,11 @@ app.post('/api/editor/procesar-reaccion', requireUsuario, function (req, res, ne
 // ── Endpoint: GET /api/editor/preview/:filename ───────────────────────────────
 // Sirve el video con soporte Range para que <video> pueda seekear.
 // El archivo en outputs/ NO se borra aqui; se borra al descargar.
-app.get('/api/editor/preview/:filename', (req, res) => {
-  const filename = path.basename(req.params.filename); // prevenir path traversal
+app.get('/api/editor/preview/:filename', requireUsuario, (req, res) => {
+  const filename = path.basename(req.params.filename);
+  if (!_editorFilenameOwnedBy(filename, req.usuario_id)) {
+    return res.status(403).json({ error: 'No autorizado.' });
+  }
   const filePath = path.join(OUTPUTS_DIR, filename);
 
   if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Archivo no encontrado.' });
@@ -1312,8 +1362,11 @@ app.get('/api/editor/preview/:filename', (req, res) => {
 // ── Endpoint: GET /api/editor/descargar/:filename ─────────────────────────────
 // OBJETIVO 1 (outputs/): Envia el archivo como descarga y lo borra al terminar,
 // tanto si la descarga completa (finish) como si el cliente corta (close).
-app.get('/api/editor/descargar/:filename', (req, res) => {
+app.get('/api/editor/descargar/:filename', requireUsuario, (req, res) => {
   const filename = path.basename(req.params.filename);
+  if (!_editorFilenameOwnedBy(filename, req.usuario_id)) {
+    return res.status(403).json({ error: 'No autorizado.' });
+  }
   const filePath = path.join(OUTPUTS_DIR, filename);
 
   if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Archivo no encontrado.' });
@@ -2350,7 +2403,6 @@ async function _registrarCompraDigital(opts) {
     miniapp,
     ref,
     email,
-    estado_pago,
     stripe_session_id,
     stripe_payment_intent_id
   } = opts || {};
@@ -2362,12 +2414,6 @@ async function _registrarCompraDigital(opts) {
   }
 
   const emailOpcional = _emailCompradorOpcional(email);
-  const estado = String(estado_pago || 'pendiente').toLowerCase();
-  if (estado !== 'pendiente' && estado !== 'pagado') {
-    const err = new Error('estado_pago invalido.');
-    err.statusCode = 400;
-    throw err;
-  }
 
   let mini = miniapp;
   if (mini.comision_vendedor === undefined) {
@@ -2399,7 +2445,7 @@ async function _registrarCompraDigital(opts) {
     ref_vendedor:            refRes.ref_vendedor,
     vendedor_id:             refRes.vendedor_id,
     monto,
-    estado_pago:             estado,
+    estado_pago:             'pendiente',
     descargas_count:         0,
     descargas_max,
     comision_plataforma_pct: reparto.comision_plataforma_pct,
@@ -2414,9 +2460,6 @@ async function _registrarCompraDigital(opts) {
   }
   if (stripe_payment_intent_id) {
     insertPayload.stripe_payment_intent_id = String(stripe_payment_intent_id).slice(0, 255);
-  }
-  if (estado === 'pagado') {
-    insertPayload.pagado_en = new Date().toISOString();
   }
 
   const { data: compra, error: insErr } = await supabase
@@ -2593,6 +2636,10 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
   if (!nombreTrim) {
     return res.status(400).json({ ok: false, error: 'El nombre es obligatorio.' });
   }
+  const nombreVal = _validarNombreProductoSeguro(nombreTrim);
+  if (!nombreVal.ok) {
+    return res.status(400).json({ ok: false, error: nombreVal.error });
+  }
   if (!precioNum || precioNum <= 0) {
     return res.status(400).json({ ok: false, error: 'El precio normal es obligatorio y debe ser mayor a 0.' });
   }
@@ -2678,7 +2725,7 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
   }
 
   try {
-    const slug     = await _generarSlugMiniappUnico(nombreTrim);
+    const slug     = await _generarSlugMiniappUnico(nombreVal.nombre);
     const foto1Key = 'miniapps/' + slug + '/foto1.' + ext1;
     let foto2Key   = null;
 
@@ -2719,7 +2766,7 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
 
     const insertRow = {
         creador_id:            req.creador_id,
-        nombre:                nombreTrim,
+        nombre:                nombreVal.nombre,
         slug,
         descripcion:           descripcion || null,
         precio:                precioNum,
@@ -3887,10 +3934,23 @@ function _processTemplateBlock(html, blockName, include) {
   return html.replace(re, include ? '$1' : '');
 }
 
-function _replaceTemplateMarkers(html, map) {
+function _replaceTemplateMarkers(html, map, rawKeys) {
+  const raw = rawKeys || { VIDEOS_HTML: true };
   let out = html;
   Object.keys(map).forEach(function (key) {
-    out = out.split('{{' + key + '}}').join(String(map[key] != null ? map[key] : ''));
+    let val = map[key] != null ? map[key] : '';
+    if (raw[key]) {
+      out = out.split('{{' + key + '}}').join(String(val));
+      return;
+    }
+    if (key.indexOf('COLOR_') === 0) {
+      const fb = DEFAULT_MINIAPP_COLORS['color_' + key.replace('COLOR_', '').toLowerCase()] ||
+        DEFAULT_MINIAPP_COLORS.color_1;
+      val = _sanitizeHexColor(val, fb);
+    } else {
+      val = _escapeHtmlEntrega(val);
+    }
+    out = out.split('{{' + key + '}}').join(String(val));
   });
   return out;
 }
@@ -3989,9 +4049,24 @@ async function _marcarCompraPagadaStripe(compra, session) {
     return { ok: true, idempotent: true };
   }
 
-  const amountPaid = session.amount_total != null ? Number(session.amount_total) / 100 : null;
+  if (session.payment_status && session.payment_status !== 'paid') {
+    console.error('[stripe/webhook] payment_status no es paid: ' + session.payment_status +
+      ' codigo=' + (compra.codigo_acceso || compra.id));
+    return { ok: false, reason: 'payment_not_paid' };
+  }
+
+  const amountPaidCents = session.amount_total;
+  if (amountPaidCents == null || !Number.isFinite(Number(amountPaidCents))) {
+    console.error('[stripe/webhook] amount_total ausente o invalido codigo=' + (compra.codigo_acceso || compra.id));
+    return { ok: false, reason: 'amount_missing' };
+  }
+  const amountPaid = Number(amountPaidCents) / 100;
   const expected   = Number(compra.monto);
-  if (amountPaid != null && Number.isFinite(expected) && Math.abs(amountPaid - expected) > 0.02) {
+  if (!Number.isFinite(expected)) {
+    console.error('[stripe/webhook] monto esperado invalido codigo=' + (compra.codigo_acceso || compra.id));
+    return { ok: false, reason: 'amount_missing' };
+  }
+  if (Math.abs(amountPaid - expected) > 0.02) {
     console.error('[stripe/webhook] Monto no coincide codigo=' + compra.codigo_acceso +
       ' pagado=' + amountPaid + ' esperado=' + expected);
     return { ok: false, reason: 'amount_mismatch' };
@@ -4051,6 +4126,66 @@ async function _marcarCompraPagadaStripe(compra, session) {
   return { ok: true, idempotent: false, compra: data };
 }
 
+async function _marcarCompraPagadaPruebaAdmin(compra) {
+  if (!compra || !compra.id) {
+    const err = new Error('Compra invalida.');
+    err.statusCode = 400;
+    throw err;
+  }
+  if (compra.estado_pago === 'pagado') {
+    return compra;
+  }
+  const { data, error } = await supabase
+    .from('miniapp_compras')
+    .update({
+      estado_pago: 'pagado',
+      pagado_en:   new Date().toISOString()
+    })
+    .eq('id', compra.id)
+    .eq('estado_pago', 'pendiente')
+    .select('id, codigo_acceso, estado_pago, monto')
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) {
+    const { data: again } = await supabase
+      .from('miniapp_compras')
+      .select('id, codigo_acceso, estado_pago, monto')
+      .eq('id', compra.id)
+      .maybeSingle();
+    if (again && again.estado_pago === 'pagado') return again;
+    const err = new Error('No se pudo confirmar la compra de prueba.');
+    err.statusCode = 500;
+    throw err;
+  }
+  console.log('[miniapp/comprar-prueba] Compra marcada pagada codigo=' + data.codigo_acceso);
+  return data;
+}
+
+async function _fulfillStripeCheckoutSession(session) {
+  const codigoMeta = session.metadata && session.metadata.codigo
+    ? String(session.metadata.codigo).trim().toUpperCase()
+    : '';
+
+  let compra = null;
+  if (codigoMeta) {
+    compra = await _buscarCompraPorCodigo(codigoMeta);
+  }
+  if (!compra && session.id) {
+    compra = await _buscarCompraPorStripeSessionId(session.id);
+  }
+
+  if (!compra) {
+    console.error('[stripe/webhook] Compra no encontrada session=' + session.id + ' codigo=' + codigoMeta);
+    return { ok: false, reason: 'not_found' };
+  }
+
+  const result = await _marcarCompraPagadaStripe(compra, session);
+  if (!result.ok && result.reason === 'amount_mismatch') {
+    console.error('[stripe/webhook] Pago rechazado por monto — NO se marca pagada');
+  }
+  return result;
+}
+
 async function _handleStripeWebhook(req, res) {
   const stripe = _getStripe();
   if (!stripe || !STRIPE_WEBHOOK_SECRET) {
@@ -4075,27 +4210,23 @@ async function _handleStripeWebhook(req, res) {
   try {
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object;
-      const codigoMeta = session.metadata && session.metadata.codigo
-        ? String(session.metadata.codigo).trim().toUpperCase()
-        : '';
-
-      let compra = null;
-      if (codigoMeta) {
-        compra = await _buscarCompraPorCodigo(codigoMeta);
-      }
-      if (!compra && session.id) {
-        compra = await _buscarCompraPorStripeSessionId(session.id);
-      }
-
-      if (!compra) {
-        console.error('[stripe/webhook] Compra no encontrada session=' + session.id + ' codigo=' + codigoMeta);
+      if (session.payment_status !== 'paid') {
+        console.warn('[stripe/webhook] checkout.session.completed sin payment_status=paid: ' +
+          (session.payment_status || 'unknown') + ' session=' + session.id);
         return res.json({ received: true });
       }
-
-      const result = await _marcarCompraPagadaStripe(compra, session);
-      if (!result.ok && result.reason === 'amount_mismatch') {
-        console.error('[stripe/webhook] Pago rechazado por monto — NO se marca pagada');
+      await _fulfillStripeCheckoutSession(session);
+    } else if (event.type === 'checkout.session.async_payment_succeeded') {
+      const session = event.data.object;
+      if (session.payment_status !== 'paid') {
+        console.warn('[stripe/webhook] async_payment_succeeded sin paid session=' + session.id);
+        return res.json({ received: true });
       }
+      await _fulfillStripeCheckoutSession(session);
+    } else if (event.type === 'checkout.session.async_payment_failed') {
+      const session = event.data.object;
+      console.warn('[stripe/webhook] async_payment_failed session=' + (session.id || '') +
+        ' codigo=' + (session.metadata && session.metadata.codigo ? session.metadata.codigo : ''));
     }
   } catch (e) {
     console.error('[stripe/webhook] Error procesando evento:', e.message);
@@ -4463,8 +4594,7 @@ app.get('/api/checkout/info', async (req, res) => {
         imagen,
         color_principal: colores.color_1,
         miniapp_slug: miniapp.slug,
-        stripe_activo: !!STRIPE_SECRET_KEY,
-        compra_prueba_activa: COMPRA_PRUEBA_ACTIVA
+        stripe_activo: !!STRIPE_SECRET_KEY
       });
     }
 
@@ -4504,7 +4634,7 @@ app.get('/checkout-miniapp.js', (req, res) => {
   res.send(
 '(function(){\n' +
 '"use strict";\n' +
-'var _slug="", _ref="", _precio=0, _stripeActivo=false, _modoPrueba=false;\n' +
+'var _slug="", _ref="", _precio=0, _stripeActivo=false;\n' +
 '\n' +
 'function _coEmailOk(v){\n' +
 '  var s=String(v||"").trim();\n' +
@@ -4519,7 +4649,6 @@ app.get('/checkout-miniapp.js', (req, res) => {
 'function _coBtnLabel(){\n' +
 '  var fmt=_coFmtPrecio();\n' +
 '  if(_stripeActivo) return "Pagar "+fmt;\n' +
-'  if(_modoPrueba) return "Pagar "+fmt+" (prueba)";\n' +
 '  return "Pagar "+fmt;\n' +
 '}\n' +
 '\n' +
@@ -4554,24 +4683,6 @@ app.get('/checkout-miniapp.js', (req, res) => {
 '  return true;\n' +
 '}\n' +
 '\n' +
-'function _coPagarPrueba(btn, payload){\n' +
-'  fetch("/api/miniapp/comprar-prueba",{\n' +
-'    method:"POST",\n' +
-'    headers:{"Content-Type":"application/json"},\n' +
-'    body:JSON.stringify(payload)\n' +
-'  })\n' +
-'    .then(function(r){return r.json();})\n' +
-'    .then(function(d){\n' +
-'      if(!d.ok) throw new Error(d.error||"No se pudo completar la compra.");\n' +
-'      if(d.link_unico){window.location.href=d.link_unico;return;}\n' +
-'      throw new Error("Respuesta invalida del servidor.");\n' +
-'    })\n' +
-'    .catch(function(e){\n' +
-'      _coMostrarErr((e&&e.message)||"Error al procesar la compra.");\n' +
-'      _coResetBtn();\n' +
-'    });\n' +
-'}\n' +
-'\n' +
 'function _coPagarStripe(btn, payload){\n' +
 '  fetch("/api/checkout/crear-sesion",{\n' +
 '    method:"POST",\n' +
@@ -4582,10 +4693,6 @@ app.get('/checkout-miniapp.js', (req, res) => {
 '    .then(function(res){\n' +
 '      var d=res.data;\n' +
 '      if(d.ok&&d.url){window.location.href=d.url;return;}\n' +
-'      if(res.status===503&&_modoPrueba){\n' +
-'        _coPagarPrueba(btn,payload);\n' +
-'        return;\n' +
-'      }\n' +
 '      throw new Error((d&&d.error)||"No se pudo iniciar el pago.");\n' +
 '    })\n' +
 '    .catch(function(e){\n' +
@@ -4602,17 +4709,13 @@ app.get('/checkout-miniapp.js', (req, res) => {
 '  _coMostrarErr("");\n' +
 '  if(!_coValidarEmail(pack.email,pack.emailEl)) return false;\n' +
 '  if(!btn||btn.disabled) return false;\n' +
-'  if(!_stripeActivo&&!_modoPrueba){\n' +
+'  if(!_stripeActivo){\n' +
 '    _coMostrarErr("Pagos no disponibles en este momento.");\n' +
 '    return false;\n' +
 '  }\n' +
 '  btn.disabled=true;\n' +
 '  btn.textContent="Procesando...";\n' +
-'  if(_stripeActivo){\n' +
-'    _coPagarStripe(btn,pack.payload);\n' +
-'  }else{\n' +
-'    _coPagarPrueba(btn,pack.payload);\n' +
-'  }\n' +
+'  _coPagarStripe(btn,pack.payload);\n' +
 '  return false;\n' +
 '}\n' +
 'window.eaCoPagar=eaCoPagar;\n' +
@@ -4648,11 +4751,9 @@ app.get('/checkout-miniapp.js', (req, res) => {
 '      }\n' +
 '      _precio=d.precio||0;\n' +
 '      _stripeActivo=!!d.stripe_activo;\n' +
-'      _modoPrueba=!!d.compra_prueba_activa;\n' +
 '      var badge=document.getElementById("co-badge");\n' +
 '      if(badge){\n' +
 '        if(_stripeActivo) badge.textContent="Pago seguro · Stripe";\n' +
-'        else if(_modoPrueba) badge.textContent="Modo prueba — sin cobro real";\n' +
 '        else badge.style.display="none";\n' +
 '      }\n' +
 '      var accent=(d.color_principal&&/^#[0-9a-fA-F]{6}$/.test(d.color_principal))?d.color_principal:"#2f86ff";\n' +
@@ -5427,8 +5528,7 @@ app.post('/api/checkout/crear-sesion', compraRateLimiter, async (req, res) => {
     const result = await _registrarCompraDigital({
       miniapp,
       ref,
-      email: emailOpcional,
-      estado_pago: 'pendiente'
+      email: emailOpcional
     });
 
     const codigo = result.codigo;
@@ -5493,12 +5593,8 @@ app.post('/api/checkout/crear-sesion', compraRateLimiter, async (req, res) => {
   }
 });
 
-// ── Compra de prueba mini apps (sin Stripe) ───────────────────────────────────
-app.post('/api/miniapp/comprar-prueba', compraRateLimiter, async (req, res) => {
-  if (!COMPRA_PRUEBA_ACTIVA) {
-    return res.status(403).json({ ok: false, error: 'Funcion no disponible' });
-  }
-
+// ── Compra de prueba mini apps (solo admin/dev; nunca en checkout publico) ─────
+app.post('/api/miniapp/comprar-prueba', compraRateLimiter, _requireCompraPruebaAuth, async (req, res) => {
   const { slug_pagina, ref, comprador_email, email } = req.body || {};
   const slug = String(slug_pagina || '').trim();
   if (!slug) {
@@ -5534,9 +5630,10 @@ app.post('/api/miniapp/comprar-prueba', compraRateLimiter, async (req, res) => {
     const result = await _registrarCompraDigital({
       miniapp,
       ref,
-      email: emailOpcional,
-      estado_pago: 'pagado'
+      email: emailOpcional
     });
+
+    await _marcarCompraPagadaPruebaAdmin(result.compra);
 
     console.log('[miniapp/comprar-prueba] slug=' + slug + ' codigo=' + result.codigo + ' monto=' + result.compra.monto);
     res.json({ ok: true, codigo: result.codigo, link_unico: result.link_unico });

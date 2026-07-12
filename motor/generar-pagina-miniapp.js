@@ -64,10 +64,39 @@ function fmtPrecioUsd(n) {
   return '$' + fmtPrecio(n);
 }
 
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function sanitizeHexColor(value, fallback) {
+  const s = String(value || '').trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(s)) return s.toLowerCase();
+  const fb = String(fallback || '#0d0b1f').trim();
+  return /^#[0-9a-fA-F]{6}$/.test(fb) ? fb.toLowerCase() : '#0d0b1f';
+}
+
 function replaceAll(html, map) {
   let out = html;
   Object.keys(map).forEach(function (key) {
-    out = out.split('{{' + key + '}}').join(String(map[key] != null ? map[key] : ''));
+    let val = map[key] != null ? map[key] : '';
+    if (key.indexOf('COLOR_') === 0) {
+      const fbKey = key.replace('COLOR_', '').toLowerCase();
+      const fbMap = {
+        bg: DEFAULT_PALETTE.bg,
+        bg2: DEFAULT_PALETTE.bg2,
+        ink: DEFAULT_PALETTE.ink,
+        ink_dim: DEFAULT_PALETTE.ink_dim,
+        brand: DEFAULT_PALETTE.brand,
+        brand_bright: DEFAULT_PALETTE.brand_bright,
+        accent: DEFAULT_PALETTE.accent
+      };
+      val = sanitizeHexColor(val, fbMap[fbKey] || DEFAULT_PALETTE.brand);
+    } else {
+      val = escapeHtml(val);
+    }
+    out = out.split('{{' + key + '}}').join(String(val));
   });
   return out;
 }
@@ -98,13 +127,13 @@ async function leerImagenBase64(key) {
 function normalizarPaleta(parsed) {
   const p = parsed || {};
   return {
-    bg:           p.bg           || DEFAULT_PALETTE.bg,
-    bg2:          p.bg2          || DEFAULT_PALETTE.bg2,
-    ink:          p.ink          || DEFAULT_PALETTE.ink,
-    ink_dim:      p.ink_dim      || DEFAULT_PALETTE.ink_dim,
-    brand:        p.brand        || DEFAULT_PALETTE.brand,
-    brand_bright: p.brand_bright || DEFAULT_PALETTE.brand_bright,
-    accent:       p.accent       || DEFAULT_PALETTE.accent
+    bg:           sanitizeHexColor(p.bg,           DEFAULT_PALETTE.bg),
+    bg2:          sanitizeHexColor(p.bg2,          DEFAULT_PALETTE.bg2),
+    ink:          sanitizeHexColor(p.ink,          DEFAULT_PALETTE.ink),
+    ink_dim:      sanitizeHexColor(p.ink_dim,      DEFAULT_PALETTE.ink_dim),
+    brand:        sanitizeHexColor(p.brand,        DEFAULT_PALETTE.brand),
+    brand_bright: sanitizeHexColor(p.brand_bright, DEFAULT_PALETTE.brand_bright),
+    accent:       sanitizeHexColor(p.accent,       DEFAULT_PALETTE.accent)
   };
 }
 
