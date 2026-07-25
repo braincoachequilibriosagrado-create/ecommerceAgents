@@ -28,15 +28,18 @@ body {
   font-family: var(--font-ui);
   color: var(--ink);
   min-height: 100vh;
-  background:
-    radial-gradient(800px 400px at 50% -5%, rgba(124, 58, 237, 0.10), transparent 60%),
-    var(--paper);
+}
+
+body.ea-premium-bg {
+  /* fondo viene de premium-platform.css */
 }
 
 .vt-page {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  position: relative;
+  z-index: 1;
 }
 
 /* ── Header ─────────────────────────────────────────────── */
@@ -334,9 +337,10 @@ body {
 .vt-status {
   text-align: center;
   padding: 40px 20px;
-  color: var(--ink-soft);
+  color: rgba(255, 255, 255, 0.92);
   font-size: 15px;
   font-weight: 500;
+  text-shadow: 0 1px 8px rgba(15, 18, 34, 0.25);
 }
 
 .vt-status--err {
@@ -576,11 +580,13 @@ body {
   text-align: center;
   padding: 24px 20px 32px;
   font-size: 13px;
-  color: var(--ink-soft);
+  color: rgba(255, 255, 255, 0.88);
+  text-shadow: 0 1px 8px rgba(15, 18, 34, 0.2);
 }
 
 .vt-footer strong {
   font-weight: 700;
+  color: #fff;
 }
 
 .vt-footer-legal {
@@ -590,7 +596,7 @@ body {
 }
 
 .vt-footer-legal a {
-  color: var(--c-purple);
+  color: #fff;
   text-decoration: underline;
   text-underline-offset: 2px;
 }

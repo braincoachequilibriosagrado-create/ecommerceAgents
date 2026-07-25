@@ -545,7 +545,7 @@ function _aplicarCspPorRuta(req, res, next) {
       "frame-src 'self'",
       "frame-ancestors 'none'"
     ].join('; '));
-  } else if (p === '/checkout') {
+  } else if (p === '/checkout' || p === '/recuperar-compra') {
     res.setHeader('Content-Security-Policy', [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline'",
@@ -2834,7 +2834,7 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
   const descripcion     = String(body.descripcion || '').trim();
   const precioNum       = Number(body.precio);
   const precioPromoNum  = Number(body.precio_promocion);
-  const usa_ia          = _boolForm(body.usa_ia);
+  const usa_ia          = categoria === 'miniapp' ? _boolForm(body.usa_ia) : false;
   const dispVendedores  = COMISION_VENDEDORES_DIGITAL_ACTIVA ? _boolForm(body.disponible_vendedores) : false;
   const comisionNum     = dispVendedores ? Math.max(0, Number(body.comision_vendedor) || 0) : 0;
 
@@ -2867,7 +2867,7 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
   let packKey = null;
   let tipo_producto = 'html';
   let escaneoHtml = null;
-  const usaIaFinal = categoria === 'miniapp' ? usa_ia : false;
+  const usaIaFinal = !!usa_ia;
 
   if (categoria === 'miniapp') {
     if (!htmlContent) {
@@ -2876,7 +2876,7 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
     if (Buffer.byteLength(htmlContent, 'utf8') > 5 * 1024 * 1024) {
       return res.status(400).json({ ok: false, error: 'El HTML supera el limite de 5 MB.' });
     }
-    escaneoHtml = miniappSeg.analizarHtmlMiniapp(htmlContent);
+    escaneoHtml = miniappSeg.analizarHtmlMiniapp(htmlContent, { usaIa: usaIaFinal });
     if (escaneoHtml.rechazar) {
       return res.status(400).json({
         ok: false,
@@ -3432,7 +3432,7 @@ app.post('/api/mis-productos/quitar', requireUsuario, async (req, res) => {
 });
 
 // ── Marketplace publico (Activos Digitales) ─────────────────────────────────────
-const MARKETPLACE_ASSET_BUST = '6';
+const MARKETPLACE_ASSET_BUST = '7';
 
 async function _apiMarketplace(req, res) {
   try {
@@ -3487,6 +3487,7 @@ function _serveMarketplace(req, res) {
   const bust    = '&mp=' + MARKETPLACE_ASSET_BUST;
   const logoUrl = _assetUrl('/assets/logo-activos.jpg') + bust;
   const cssUrl  = _assetUrl('/assets/vitrina.css') + bust;
+  const premiumCss = _assetUrl('/assets/premium-platform.css') + bust;
   const jsUrl   = _assetUrl('/assets/vitrina.js') + bust;
   res.send(`<!DOCTYPE html>
 <html lang="es">
@@ -3498,9 +3499,10 @@ function _serveMarketplace(req, res) {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="${premiumCss}">
 <link rel="stylesheet" href="${cssUrl}">
 </head>
-<body>
+<body class="ea-premium-bg ea-premium-bg--animated">
 <div class="vt-page">
   <main class="vt-main">
     <section class="vt-hero vt-hero--grad" id="vt-hero">
@@ -5090,6 +5092,7 @@ function _serveCheckoutMiniapp(req, res) {
   const badgeText = STRIPE_SECRET_KEY
     ? 'Pago seguro · Stripe'
     : (COMPRA_PRUEBA_ACTIVA ? 'Modo prueba — sin cobro real' : 'Checkout');
+  const premiumCss = _assetUrl('/assets/premium-platform.css');
   _setNoCacheHtml(res);
   res.send(`<!DOCTYPE html>
 <html lang="es">
@@ -5097,15 +5100,16 @@ function _serveCheckoutMiniapp(req, res) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Comprar mini app · EcommerceAgents</title>
+<link rel="stylesheet" href="${premiumCss}">
 <style>
-:root{--c1:#2f86ff;--c2:#7c3aed;--c3:#ff5a3c;--grad:linear-gradient(120deg,var(--c1),var(--c2),var(--c3));--ink:#0d1117;--slate:#5f6571;--line:#e4e7eb;--paper:#f5f7fb;--white:#fff;--err:#c0392b}
+:root{--c1:#2f86ff;--c2:#7c3aed;--c3:#ff5a3c;--grad:linear-gradient(120deg,var(--c1),var(--c2),var(--c3));--ink:#0d1117;--slate:#5f6571;--line:#e4e7eb;--white:#fff;--err:#c0392b}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;background:radial-gradient(700px 350px at 50% -5%,rgba(124,58,237,.10),transparent 60%),var(--paper);color:var(--ink);min-height:100vh;padding:32px 16px 48px}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;color:var(--ink);min-height:100vh;padding:32px 16px 48px}
 .wrap{max-width:480px;margin:0 auto}
 .badge{display:inline-flex;align-items:center;gap:6px;background:#fff8e6;border:1px solid #ffe7a3;color:#8a6d1a;font-size:12px;font-weight:700;padding:6px 12px;border-radius:999px;margin-bottom:18px}
-.card{background:var(--white);border:1px solid var(--line);border-radius:20px;overflow:hidden;box-shadow:0 20px 60px rgba(13,17,23,.10)}
+.card{background:var(--white);border:1px solid rgba(255,255,255,.65);border-radius:20px;overflow:hidden;box-shadow:0 20px 50px rgba(20,18,60,.22)}
 .hero{padding:28px 24px 22px;text-align:center;border-bottom:1px solid var(--line)}
-.hero img{width:100%;max-height:220px;object-fit:cover;border-radius:14px;margin-bottom:18px;background:var(--paper)}
+.hero img{width:100%;max-height:220px;object-fit:cover;border-radius:14px;margin-bottom:18px;background:#f5f7fb}
 .hero h1{font-size:24px;font-weight:800;line-height:1.25;margin-bottom:8px}
 .hero p{font-size:14px;color:var(--slate);line-height:1.5}
 .price{font-size:32px;font-weight:800;background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin-top:14px}
@@ -5121,16 +5125,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;ba
 .co-note{margin-top:14px;font-size:12.5px;color:var(--slate);text-align:center;line-height:1.55}
 .co-legal{margin-top:12px;font-size:11.5px;color:var(--slate);text-align:center;line-height:1.55}
 .co-legal a{color:var(--c2);font-weight:600;text-decoration:underline}
-.load{text-align:center;padding:48px 16px;color:var(--slate)}
-.spin{width:28px;height:28px;border:2.5px solid var(--line);border-top-color:var(--c2);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 12px}
+.load{text-align:center;padding:48px 16px;color:rgba(255,255,255,.9)}
+.spin{width:28px;height:28px;border:2.5px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 12px}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
-<body>
+<body class="ea-premium-bg ea-premium-bg--animated">
 <div class="wrap">
   <div class="badge" id="co-badge">${badgeText}</div>
   <div id="load" class="load"><div class="spin"></div>Cargando producto...</div>
-  <div id="card" class="card">
+  <div id="card" class="card ea-premium-card">
     <div class="hero">
       <div id="img-wrap"></div>
       <h1 id="nombre">Mini app</h1>
@@ -5160,6 +5164,7 @@ app.get('/checkout', (req, res) => {
   if (_isMiniappCheckoutSlug(slug)) {
     return _serveCheckoutMiniapp(req, res);
   }
+  const premiumCss = _assetUrl('/assets/premium-platform.css');
   _setNoCacheHtml(res);
   res.send(`<!DOCTYPE html>
 <html lang="es">
@@ -5167,11 +5172,12 @@ app.get('/checkout', (req, res) => {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Confirmar pedido · EcommerceAgents</title>
+<link rel="stylesheet" href="${premiumCss}">
 <style>
 :root{--accent:#b89368;--accent-dk:#9a7850;--accent-shadow:rgba(184,147,104,.13);--bg:#f7f5f1;--white:#fff;--txt:#1a1714;--txt-mid:#5a4f44;--txt-lt:#8a7a68;--bd:#e0d8cc;--suc:#2d7a3a;--err:#c0392b;--r:6px}
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif;background:var(--bg);color:var(--txt);min-height:100vh;font-size:15px}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif;color:var(--txt);min-height:100vh;font-size:15px}
 /* ─── Header ─────────────────────────────── */
 .ck-hd{background:#1a1714;padding:0 20px}
 .ck-hd-in{max-width:980px;margin:0 auto;height:54px;display:flex;align-items:center;justify-content:space-between}
@@ -5300,7 +5306,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-seri
 @media(max-width:380px){.ck-g2,.ck-g2z{grid-template-columns:1fr}}
 </style>
 </head>
-<body>
+<body class="ea-premium-bg ea-premium-bg--animated">
 
 <!-- ── Header ──────────────────────────────────────────────────────── -->
 <header class="ck-hd">
@@ -5948,6 +5954,7 @@ function _serveRecuperarCompra(req, res) {
   const c1 = DEFAULT_MINIAPP_COLORS.color_1;
   const c2 = DEFAULT_MINIAPP_COLORS.color_2;
   const c3 = DEFAULT_MINIAPP_COLORS.color_3;
+  const premiumCss = _assetUrl('/assets/premium-platform.css');
   _setNoCacheHtml(res);
   res.send(`<!DOCTYPE html>
 <html lang="es">
@@ -5955,11 +5962,12 @@ function _serveRecuperarCompra(req, res) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Recupera tu compra · EcommerceAgents</title>
+<link rel="stylesheet" href="${premiumCss}">
 <style>
-:root{--c1:${c1};--c2:${c2};--c3:${c3};--grad:linear-gradient(120deg,var(--c1),var(--c2),var(--c3));--ink:#0d1117;--slate:#5f6571;--line:#e4e7eb;--paper:#f5f7fb;--white:#fff;--err:#c0392b}
+:root{--c1:${c1};--c2:${c2};--c3:${c3};--grad:linear-gradient(120deg,var(--c1),var(--c2),var(--c3));--ink:#0d1117;--slate:#5f6571;--line:#e4e7eb;--white:#fff;--err:#c0392b}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;background:radial-gradient(800px 400px at 50% -5%,rgba(124,58,237,.10),transparent 60%),var(--paper);color:var(--ink);min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:40px 20px}
-.card{background:var(--white);border:1px solid var(--line);border-radius:20px;box-shadow:0 20px 60px rgba(13,17,23,.12);width:100%;max-width:480px;overflow:hidden}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;color:var(--ink);min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:40px 20px}
+.card{background:var(--white);border:1px solid rgba(255,255,255,.65);border-radius:20px;box-shadow:0 20px 50px rgba(20,18,60,.22);width:100%;max-width:480px;overflow:hidden}
 .top{background:var(--grad);color:#fff;padding:36px 28px 28px;text-align:center}
 .brand-logo{width:80px;height:80px;border-radius:50%;object-fit:cover;display:block;margin:0 auto 16px;border:3px solid rgba(255,255,255,.55);box-shadow:0 6px 20px rgba(0,0,0,.18)}
 .top h1{font-size:26px;font-weight:800;margin-bottom:8px}
@@ -5976,8 +5984,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;ba
 .err{display:none;color:var(--err);font-size:13px;margin-bottom:12px;padding:10px 12px;background:#fef5f5;border:1px solid #f5c6c6;border-radius:10px}
 </style>
 </head>
-<body>
-<div class="card">
+<body class="ea-premium-bg ea-premium-bg--animated">
+<div class="card ea-premium-card">
   <div class="top">
     <img src="${_assetUrl('/assets/logo-activos.jpg')}" alt="Activos Digitales" class="brand-logo" />
     <h1>Recupera tu compra</h1>
@@ -6124,7 +6132,8 @@ app.get('/mi-compra/:codigo', _entregaCodigoGate, async (req, res) => {
       COLOR_2:           colores.color_2,
       COLOR_3:           colores.color_3,
       RECUPERAR_URL:     PUBLIC_BASE_URL + '/recuperar-compra',
-      LOGO_URL:          _assetUrl('/assets/logo-activos.jpg')
+      LOGO_URL:          _assetUrl('/assets/logo-activos.jpg'),
+      PREMIUM_CSS_URL:   _assetUrl('/assets/premium-platform.css')
     });
 
     _setNoCacheHtml(res);
@@ -6145,7 +6154,7 @@ async function _validarAccesoMiniappCompra(codigo) {
 
   const { data: miniapp, error: mErr } = await supabase
     .from('miniapps')
-    .select('r2_key, nombre, categoria')
+    .select('r2_key, nombre, categoria, usa_ia')
     .eq('id', compra.miniapp_id)
     .maybeSingle();
   if (mErr || !miniapp || !miniapp.r2_key) {
@@ -6170,9 +6179,10 @@ app.get('/usar-miniapp/:codigo/app', _entregaCodigoGate, async (req, res) => {
 
     let contenido = await obtenerArchivo(acc.miniapp.r2_key);
     contenido = miniappSeg.sanitizeMiniappHtml(contenido);
+    const usaIa = !!acc.miniapp.usa_ia;
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Cache-Control', 'private, no-store');
-    res.setHeader('Content-Security-Policy', miniappSeg.buildMiniappCsp(PUBLIC_BASE_URL));
+    res.setHeader('Content-Security-Policy', miniappSeg.buildMiniappCsp(PUBLIC_BASE_URL, usaIa));
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.send(contenido);
@@ -6194,7 +6204,7 @@ app.get('/usar-miniapp/:codigo', _entregaCodigoGate, async (req, res) => {
     res.setHeader('Cache-Control', 'private, no-store');
     res.setHeader('X-Frame-Options', 'SAMEORIGIN');
     res.setHeader('Referrer-Policy', 'no-referrer');
-    res.send(miniappSeg.htmlContenedorSandbox(codigo, acc.miniapp.nombre || 'Mini app'));
+    res.send(miniappSeg.htmlContenedorSandbox(codigo, acc.miniapp.nombre || 'Mini app', !!acc.miniapp.usa_ia));
   } catch (e) {
     console.error('[usar-miniapp]', e.message);
     res.status(500).send(ENTREGA_MSG_INVALIDO);

@@ -14,20 +14,33 @@ const MINIAPP_CDN_PERMITIDOS = [
   'cdn.tailwindcss.com'
 ];
 
+const DOMINIOS_IA_PERMITIDOS = [
+  'https://api.groq.com',
+  'https://api.openai.com',
+  'https://api.anthropic.com',
+  'https://generativelanguage.googleapis.com'
+];
+
+const MSG_FETCH_IA_NO_AUTORIZADO =
+  'Solo se permiten llamadas a proveedores de IA autorizados: Groq, OpenAI, Anthropic y Google';
+
 /** img-src restringido: self, data/blob, CDNs conocidos y host del API (fotos de venta) */
-function buildMiniappCsp(apiOrigin) {
+function buildMiniappCsp(apiOrigin, usaIa) {
   const apiHost = (function () {
     try { return new URL(apiOrigin || 'https://api.activosdigitales.click').hostname; } catch (_) {
       return 'api.activosdigitales.click';
     }
   })();
+  const connectSrc = usaIa
+    ? "connect-src 'self' " + DOMINIOS_IA_PERMITIDOS.join(' ')
+    : "connect-src 'self'";
   return [
     "default-src 'self'",
     "script-src 'unsafe-inline' 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com https://ajax.googleapis.com https://code.jquery.com https://cdn.tailwindcss.com",
     "style-src 'unsafe-inline' 'self' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com",
     "font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net",
     "img-src 'self' data: blob: https://" + apiHost + " https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com https://fonts.gstatic.com",
-    "connect-src 'self'",
+    connectSrc,
     "frame-src 'none'",
     "object-src 'none'",
     "base-uri 'self'",
@@ -35,7 +48,7 @@ function buildMiniappCsp(apiOrigin) {
   ].join('; ');
 }
 
-const MINIAPP_CSP = buildMiniappCsp(process.env.PUBLIC_BASE_URL || 'https://api.activosdigitales.click');
+const MINIAPP_CSP = buildMiniappCsp(process.env.PUBLIC_BASE_URL || 'https://api.activosdigitales.click', false);
 
 function _idAmenaza(codigo, severidad, mensaje, bloqueaSubida) {
   return {
@@ -62,6 +75,19 @@ function _esCdnPermitido(hostname) {
   const h = hostname.toLowerCase();
   return MINIAPP_CDN_PERMITIDOS.some(function (cdn) {
     return h === cdn || h.endsWith('.' + cdn);
+  });
+}
+
+function _esHostIaPermitido(hostname) {
+  const h = String(hostname || '').toLowerCase();
+  if (!h) return false;
+  return DOMINIOS_IA_PERMITIDOS.some(function (origin) {
+    try {
+      const allowed = new URL(origin).hostname.toLowerCase();
+      return h === allowed || h.endsWith('.' + allowed);
+    } catch (_) {
+      return false;
+    }
   });
 }
 
@@ -104,7 +130,7 @@ function _detectarInlineHandlers(html) {
   return /\s(on[a-z]+\s*=)/i.test(html);
 }
 
-function _detectarScriptsInline(html) {
+function _detectarScriptsInline(html, usaIa) {
   const amenazas = [];
   const re = /<script\b(?![^>]*\ssrc\s*=)[^>]*>([\s\S]*?)<\/script>/gi;
   let m;
@@ -113,6 +139,8 @@ function _detectarScriptsInline(html) {
     if (!body.trim()) continue;
     if (/\beval\s*\(|\bnew\s+Function\s*\(|document\.write\s*\(|javascript:|\.innerHTML\s*=|document\.cookie/i.test(body)) {
       amenazas.push(_idAmenaza('script_inline_peligroso', 'alta', 'Script inline con codigo potencialmente peligroso', true));
+    } else if (usaIa) {
+      // Con IA se permite JS inline seguro (fetch a Groq en click); no bloquea subida
     } else {
       amenazas.push(_idAmenaza('script_inline', 'media', 'Script inline detectado (usa archivos .js externos)', true));
     }
@@ -121,10 +149,51 @@ function _detectarScriptsInline(html) {
 }
 
 /**
- * Escanea HTML de mini app. Devuelve:
- * { amenazas, tieneAlta, tieneMedia, rechazar, requiere_revision_seguridad }
+ * Detecta fetch/XHR automaticos (no disparados por click/submit del usuario).
+ * Solo aplica cuando usaIa = true.
  */
-function analizarHtmlMiniapp(html) {
+function _detectarFetchAutomatico(html) {
+  const re = /<script\b(?![^>]*\ssrc\s*=)[^>]*>([\s\S]*?)<\/script>/gi;
+  let m;
+  while ((m = re.exec(html)) !== null) {
+    const body = m[1] || '';
+    if (!/fetch\s*\(|XMLHttpRequest|\.open\s*\(/i.test(body)) continue;
+
+    // DOMContentLoaded / load / onload
+    if (/addEventListener\s*\(\s*["'](?:DOMContentLoaded|load)["']/i.test(body) &&
+        /fetch\s*\(|XMLHttpRequest|\.open\s*\(/i.test(body)) {
+      return true;
+    }
+    if (/\.onload\s*=|onload\s*=\s*function/i.test(body) &&
+        /fetch\s*\(|XMLHttpRequest/i.test(body)) {
+      return true;
+    }
+    // setInterval / setTimeout periodico con fetch
+    if (/setInterval\s*\(/i.test(body) && /fetch\s*\(|XMLHttpRequest/i.test(body)) {
+      return true;
+    }
+    // Bucles for/while con fetch
+    if (/\b(?:for|while)\s*\(/i.test(body) && /fetch\s*\(|XMLHttpRequest/i.test(body)) {
+      return true;
+    }
+  }
+  // Tambien en HTML completo (scripts externos no, pero codigo suelto)
+  if (/addEventListener\s*\(\s*["'](?:DOMContentLoaded|load)["'][\s\S]{0,800}?fetch\s*\(/i.test(html)) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Escanea HTML de mini app.
+ * @param {string} html
+ * @param {boolean|object} [opts] - usaIa boolean, o { usaIa: boolean }
+ * @returns {{ amenazas, tieneAlta, tieneMedia, rechazar, requiere_revision_seguridad }}
+ */
+function analizarHtmlMiniapp(html, opts) {
+  const usaIa = typeof opts === 'boolean'
+    ? opts
+    : !!(opts && (opts.usaIa === true || opts.usa_ia === true));
   const src = String(html || '');
   const amenazas = [];
 
@@ -151,7 +220,7 @@ function analizarHtmlMiniapp(html) {
     amenazas.push(_idAmenaza('inline_handler', 'media', 'Atributos de evento inline (onclick, onerror, etc.) no permitidos', true));
   }
 
-  _detectarScriptsInline(src).forEach(function (a) { amenazas.push(a); });
+  _detectarScriptsInline(src, usaIa).forEach(function (a) { amenazas.push(a); });
 
   _extraerFormActions(src).forEach(function (action) {
     const host = _hostnameDeUrl(action);
@@ -172,25 +241,41 @@ function analizarHtmlMiniapp(html) {
 
   _extraerFetchUrls(src).forEach(function (url) {
     const host = _hostnameDeUrl(url);
-    if (host) {
-      amenazas.push(_idAmenaza('fetch_externo', 'media', 'Peticion de red a dominio externo: ' + host, false));
+    if (!host) return;
+    if (usaIa && _esHostIaPermitido(host)) {
+      return; // permitido: lista blanca de proveedores IA
     }
+    amenazas.push(_idAmenaza(
+      'fetch_externo',
+      'media',
+      usaIa ? MSG_FETCH_IA_NO_AUTORIZADO : ('Peticion de red a dominio externo: ' + host),
+      true
+    ));
   });
 
+  if (usaIa && _detectarFetchAutomatico(src)) {
+    amenazas.push(_idAmenaza(
+      'fetch_automatico_ia',
+      'alta',
+      'Las llamadas a IA deben ejecutarse solo al hacer clic, no automaticamente',
+      true
+    ));
+  }
+
   if (/\bdocument\.write\s*\(/i.test(src)) {
-    amenazas.push(_idAmenaza('document_write', 'media', 'document.write() detectado', false));
+    amenazas.push(_idAmenaza('document_write', 'media', 'document.write() detectado', true));
   }
 
   if (/\bdocument\.cookie\b/i.test(src)) {
-    amenazas.push(_idAmenaza('document_cookie', 'media', 'Acceso a document.cookie', false));
+    amenazas.push(_idAmenaza('document_cookie', 'media', 'Acceso a document.cookie', true));
   }
 
   if (/\blocalStorage\b|\bsessionStorage\b/i.test(src)) {
-    amenazas.push(_idAmenaza('web_storage', 'media', 'Acceso a localStorage/sessionStorage', false));
+    amenazas.push(_idAmenaza('web_storage', 'media', 'Acceso a localStorage/sessionStorage', true));
   }
 
   if (/\bwindow\.location\s*=|\blocation\.href\s*=|\blocation\.replace\s*\(/i.test(src)) {
-    amenazas.push(_idAmenaza('redireccion', 'media', 'Redireccion de navegacion (location)', false));
+    amenazas.push(_idAmenaza('redireccion', 'media', 'Redireccion de navegacion (location)', true));
   }
 
   if (/addEventListener\s*\(\s*["'](?:keydown|keypress|keyup)["']/i.test(src) &&
@@ -252,25 +337,31 @@ function sanitizeMiniappHtml(html) {
   return s;
 }
 
-function htmlContenedorSandbox(codigo, titulo) {
+function htmlContenedorSandbox(codigo, titulo, usaIa) {
   const safeCodigo = String(codigo || '').replace(/[^A-Za-z0-9]/g, '');
   const safeTitulo = String(titulo || 'Mini app').replace(/[<>&"]/g, '');
   const embedUrl = '/usar-miniapp/' + encodeURIComponent(safeCodigo) + '/app';
+  const banner = usaIa
+    ? '<div class="ia-banner" role="note">Esta app usa inteligencia artificial con tu propia clave gratuita de Groq. La app te guía para obtenerla en 30 segundos.</div>'
+    : '';
   return '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">' +
     '<meta name="viewport" content="width=device-width,initial-scale=1">' +
     '<title>' + safeTitulo + '</title>' +
     '<style>body{margin:0;background:#f5f7fb;font-family:system-ui,sans-serif}' +
     '.wrap{min-height:100vh;display:flex;flex-direction:column}' +
     'header{padding:10px 16px;background:#fff;border-bottom:1px solid #e4e7eb;font-size:14px;font-weight:600;color:#0d1117}' +
+    '.ia-banner{padding:10px 16px;background:#f0f4ff;border-bottom:1px solid #d8e0f5;font-size:12.5px;line-height:1.45;color:#3a4560}' +
     'iframe{flex:1;width:100%;min-height:calc(100vh - 44px);border:0;background:#fff}' +
     '</style></head><body><div class="wrap">' +
     '<header>' + safeTitulo + '</header>' +
+    banner +
     '<iframe sandbox="allow-scripts" referrerpolicy="no-referrer" title="' + safeTitulo + '" src="' + embedUrl + '"></iframe>' +
     '</div></body></html>';
 }
 
 module.exports = {
   MINIAPP_CSP,
+  DOMINIOS_IA_PERMITIDOS,
   buildMiniappCsp,
   analizarHtmlMiniapp,
   sanitizeMiniappHtml,

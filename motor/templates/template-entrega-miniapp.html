@@ -4,24 +4,26 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Tu compra — {{NOMBRE}}</title>
+<link rel="stylesheet" href="{{PREMIUM_CSS_URL}}" />
 <!--
   PAGINA DE ENTREGA (post-venta) — MiniApps
   Marcadores que rellena el sistema:
-  {{NOMBRE}}         -> nombre de la mini app
-  {{CODIGO}}         -> codigo unico del comprador
-  {{LINK_UNICO}}     -> link completo personal del comprador
-  {{APP_URL}}        -> URL para usar/abrir la mini app (el HTML)
-  {{PDF_URL}}        -> URL para descargar el PDF (protegida por codigo)
-  {{PACK_URL}}       -> URL para descargar el pack ZIP (protegida por codigo)
-  {{PRODUCTO_ETIQUETA}} -> etiqueta sobre el nombre del producto
-  {{PDF_TITULO}}, {{PDF_DESCRIPCION}}, {{PDF_BTN}} -> textos del bloque PDF
-  {{#IF_MINIAPP}}...{{/IF_MINIAPP}}     -> solo categoria miniapp
-  {{#IF_PDF}}...{{/IF_PDF}}             -> descarga PDF (miniapp con pdf o infoproducto)
-  {{#IF_PACK}}...{{/IF_PACK}}           -> descarga pack ZIP (legacy)
-  {{#IF_VIDEOS}}...{{/IF_VIDEOS}}       -> lista de videos individuales (contenido digital)
-  {{VIDEOS_HTML}}                       -> HTML de la lista generado por el backend
-  {{#IF_CONTENIDO_PENDIENTE}}...{{/IF_CONTENIDO_PENDIENTE}} -> contenido digital sin videos aun
-  {{COLOR_1}}, {{COLOR_2}}, {{COLOR_3}} -> colores (mismos de la pagina de venta)
+    {{NOMBRE}}         -> nombre de la mini app
+    {{CODIGO}}         -> codigo unico del comprador
+    {{LINK_UNICO}}     -> link completo personal del comprador
+    {{APP_URL}}        -> URL para usar/abrir la mini app (el HTML)
+    {{PDF_URL}}        -> URL para descargar el PDF (protegida por codigo)
+    {{PACK_URL}}       -> URL para descargar el pack ZIP (protegida por codigo)
+    {{PRODUCTO_ETIQUETA}} -> etiqueta sobre el nombre del producto
+    {{PDF_TITULO}}, {{PDF_DESCRIPCION}}, {{PDF_BTN}} -> textos del bloque PDF
+    {{#IF_MINIAPP}}...{{/IF_MINIAPP}}     -> solo categoria miniapp
+    {{#IF_PDF}}...{{/IF_PDF}}             -> descarga PDF (miniapp con pdf o infoproducto)
+    {{#IF_PACK}}...{{/IF_PACK}}           -> descarga pack ZIP (legacy)
+    {{#IF_VIDEOS}}...{{/IF_VIDEOS}}       -> lista de videos individuales (contenido digital)
+    {{VIDEOS_HTML}}                       -> HTML de la lista generado por el backend
+    {{#IF_CONTENIDO_PENDIENTE}}...{{/IF_CONTENIDO_PENDIENTE}} -> contenido digital sin videos aun
+    {{COLOR_1}}, {{COLOR_2}}, {{COLOR_3}} -> colores (mismos de la pagina de venta)
+    {{PREMIUM_CSS_URL}} -> /assets/premium-platform.css (fondo premium)
 -->
 <style>
   :root {
@@ -35,18 +37,12 @@
     --c2: {{COLOR_2}};
     --c3: {{COLOR_3}};
     --grad: linear-gradient(120deg, {{COLOR_1}} 0%, {{COLOR_2}} 50%, {{COLOR_3}} 100%);
-    --shadow: 0 20px 60px rgba(13,17,23,.12);
+    --shadow: 0 20px 50px rgba(20,18,60,.22);
     --r: 20px;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
-    background:
-      radial-gradient(900px 500px at 12% 0%, color-mix(in srgb, var(--c1) 45%, transparent), transparent 55%),
-      radial-gradient(800px 500px at 88% 10%, color-mix(in srgb, var(--c3) 40%, transparent), transparent 52%),
-      radial-gradient(900px 600px at 50% 100%, color-mix(in srgb, var(--c2) 45%, transparent), transparent 58%),
-      linear-gradient(135deg, color-mix(in srgb, var(--c1) 25%, #05060f), color-mix(in srgb, var(--c2) 20%, #05060f), color-mix(in srgb, var(--c3) 18%, #05060f));
-    background-attachment: fixed;
     color: var(--ink);
     min-height: 100vh;
     display: flex;
@@ -57,7 +53,7 @@
   }
   .card {
     background: var(--white);
-    border: 1px solid var(--line);
+    border: 1px solid rgba(255,255,255,.65);
     border-radius: var(--r);
     box-shadow: var(--shadow);
     width: 100%;
@@ -232,8 +228,8 @@
   }
 </style>
 </head>
-<body>
-  <div class="card">
+<body class="ea-premium-bg ea-premium-bg--animated">
+  <div class="card ea-premium-card">
     <div class="top">
       <img src="{{LOGO_URL}}" alt="Activos Digitales" class="brand-logo" />
       <div class="check">

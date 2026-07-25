@@ -1522,6 +1522,14 @@ a.cr-dash-tab {
   line-height: 1.4;
 }
 
+.cr-option-help {
+  display: block;
+  margin-top: 6px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--cr-muted);
+}
+
 .cr-comision-field {
   margin-top: 12px;
   padding-top: 12px;
