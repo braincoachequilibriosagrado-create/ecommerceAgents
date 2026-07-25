@@ -6021,10 +6021,10 @@ function _serveRecuperarCompra(req, res) {
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;color:var(--ink);min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:40px 20px}
 .card{background:var(--white);border:none;border-radius:20px;box-shadow:0 20px 50px rgba(20,18,60,.22);width:100%;max-width:480px;overflow:hidden}
 .card.ea-premium-card{border:none;background:var(--white)}
-.top{background:var(--grad);color:#fff;padding:36px 28px 28px;text-align:center;margin:0}
-.brand-logo{width:80px;height:80px;border-radius:50%;object-fit:cover;display:block;margin:0 auto 16px;border:3px solid rgba(255,255,255,.55);box-shadow:0 6px 20px rgba(0,0,0,.18)}
-.top h1{font-size:26px;font-weight:800;margin-bottom:8px}
-.top p{font-size:15px;opacity:.92;line-height:1.5}
+.top{background:#ffffff;color:var(--ink);padding:36px 28px 28px;text-align:center;margin:0;border-bottom:1px solid var(--line)}
+.brand-logo{width:80px;height:80px;border-radius:50%;object-fit:cover;display:block;margin:0 auto 16px;border:3px solid #e8eaf0;box-shadow:0 6px 20px rgba(15,18,34,.08)}
+.top h1{font-size:26px;font-weight:800;margin-bottom:8px;color:#0b0e1a}
+.top p{font-size:15px;line-height:1.5;color:#5a5f74;opacity:1}
 .body{padding:28px}
 .field{margin-bottom:18px}
 .field label{display:block;font-size:13px;font-weight:600;color:var(--ink);margin-bottom:8px}
