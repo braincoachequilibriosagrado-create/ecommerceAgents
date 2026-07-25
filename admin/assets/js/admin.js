@@ -49,7 +49,7 @@ function adminLogin() {
       if (!res.data.ok || !res.data.token) throw new Error(res.data.error || 'Credenciales incorrectas');
       sessionStorage.setItem(_ADMIN_TOKEN_STORAGE, res.data.token);
       _adminShowPanel();
-      renderInventario();
+      switchAdminTab('miniapp');
     })
     .catch(function (e) {
       if (errEl) { errEl.textContent = e.message || 'Error al conectar'; errEl.style.display = 'block'; }
@@ -193,27 +193,189 @@ function _setHtml(id, html) {
 }
 
 /* ============================================================
-   TAB SWITCHING
+   TAB SWITCHING — admin digital-only (fisicos archivados en DOM)
    ============================================================ */
 
-var ADMIN_TABS = ['inventario', 'catalogo', 'paginas', 'usuarios', 'cuentas', 'pedidos', 'miniapps'];
+var ADMIN_TABS_DIGITAL = ['miniapp', 'infoproducto', 'contenido_digital', 'creadores', 'ventas', 'cuenta'];
+var ADMIN_TABS_ARCHIVED = ['inventario', 'catalogo', 'paginas', 'usuarios', 'cuentas', 'pedidos'];
+var ADMIN_PRODUCT_TABS = {
+  miniapp: {
+    cat: 'miniapp',
+    title: 'Mini Apps',
+    desc: 'Revisa, aprueba y gestiona las mini apps de los creadores.'
+  },
+  infoproducto: {
+    cat: 'infoproducto',
+    title: 'Infoproductos',
+    desc: 'PDFs e infoproductos pendientes y aprobados.'
+  },
+  contenido_digital: {
+    cat: 'contenido_digital',
+    title: 'Contenido Digital',
+    desc: 'Videos y packs de contenido digital pendientes y aprobados.'
+  }
+};
+
+var _adminTabActivo = 'miniapp';
 
 function switchAdminTab(tabId) {
-  ADMIN_TABS.forEach(function (id) {
-    var panel = document.getElementById('adm-panel-' + id);
-    var btn   = document.getElementById('adm-tab-btn-' + id);
+  if (ADMIN_TABS_ARCHIVED.indexOf(tabId) >= 0) {
+    // Fisicos archivados: no abrir desde UI
+    return;
+  }
+
+  _adminTabActivo = tabId;
+  var isProduct = !!ADMIN_PRODUCT_TABS[tabId];
+
+  ADMIN_TABS_DIGITAL.forEach(function (id) {
+    var btn = document.getElementById('adm-tab-btn-' + id);
     var active = id === tabId;
-    if (panel) { panel.classList.toggle('active', active); panel.hidden = !active; }
-    if (btn)   { btn.classList.toggle('active', active); btn.setAttribute('aria-selected', active ? 'true' : 'false'); }
+    if (btn) {
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-selected', active ? 'true' : 'false');
+    }
   });
-  if (tabId === 'inventario') renderInventario();
-  if (tabId === 'catalogo')   renderCatalogo();
-  if (tabId === 'paginas')    renderPaginas();
-  if (tabId === 'usuarios')   renderUsuarios();
-  if (tabId === 'cuentas')    renderCuentasAdmin();
-  if (tabId === 'pedidos')    renderPedidos();
-  if (tabId === 'miniapps')   renderMiniappsAdmin();
+
+  // Paneles de producto comparten adm-panel-miniapps
+  var panelMa = document.getElementById('adm-panel-miniapps');
+  var panelCr = document.getElementById('adm-panel-creadores');
+  var panelVe = document.getElementById('adm-panel-ventas');
+  var panelCu = document.getElementById('adm-panel-cuenta');
+
+  if (panelMa) {
+    panelMa.hidden = !isProduct;
+    panelMa.classList.toggle('active', isProduct);
+  }
+  if (panelCr) {
+    panelCr.hidden = tabId !== 'creadores';
+    panelCr.classList.toggle('active', tabId === 'creadores');
+  }
+  if (panelVe) {
+    panelVe.hidden = tabId !== 'ventas';
+    panelVe.classList.toggle('active', tabId === 'ventas');
+  }
+  if (panelCu) {
+    panelCu.hidden = tabId !== 'cuenta';
+    panelCu.classList.toggle('active', tabId === 'cuenta');
+  }
+
+  // Mantener archivados siempre ocultos
+  ADMIN_TABS_ARCHIVED.forEach(function (id) {
+    var panel = document.getElementById('adm-panel-' + id);
+    if (panel) {
+      panel.hidden = true;
+      panel.classList.remove('active');
+    }
+  });
+
+  if (isProduct) {
+    renderDigitalCategoria(tabId);
+  } else if (tabId === 'creadores') {
+    renderCreadoresAdmin();
+  } else if (tabId === 'ventas') {
+    renderVentasDigitales();
+  } else if (tabId === 'cuenta') {
+    renderCuentaResumen();
+  }
 }
+
+function renderDigitalCategoria(tabId) {
+  var meta = ADMIN_PRODUCT_TABS[tabId] || ADMIN_PRODUCT_TABS.miniapp;
+  var titleEl = document.getElementById('ma-panel-title');
+  var descEl = document.getElementById('ma-panel-desc');
+  if (titleEl) titleEl.textContent = meta.title;
+  if (descEl) descEl.textContent = meta.desc;
+  _maCategoriaActiva = meta.cat;
+  _maSubTabActivo = 'por-aprobar';
+  switchMaSubTab('por-aprobar');
+  loadMaData();
+}
+
+function renderCreadoresAdmin() {
+  _usrSubTab = 'creadores';
+  _crdLoadTabla().then(function () {
+    var n = (_crdCache || []).length;
+    var activos = (_crdCache || []).filter(function (c) { return c.activo !== false; }).length;
+    _setHtml('crd-summary-row',
+      _statCard(n, 'Total creadores') +
+      _statCard(activos, 'Activos')
+    );
+  }).catch(function () {
+    _setHtml('crd-summary-row', _statCard('—', 'Total creadores'));
+  });
+}
+
+function renderVentasDigitales() {
+  var sum = document.getElementById('ventas-digital-summary');
+  if (sum) sum.innerHTML = _statCard('...', 'Cargando');
+  renderMaCuentas();
+}
+
+function renderCuentaResumen() {
+  var sumEl = document.getElementById('cuenta-summary-row');
+  var pendEl = document.getElementById('cuenta-pendientes-wrap');
+  if (sumEl) sumEl.innerHTML = _statCard('...', 'Cargando');
+  if (pendEl) pendEl.innerHTML = '<p class="adm-empty-text">Cargando...</p>';
+
+  Promise.all([
+    _adminFetch(MOTOR_URL + '/api/admin/miniapps').then(function (r) { return r.json(); }),
+    _adminFetch(MOTOR_URL + '/api/admin/miniapps/cuentas').then(function (r) { return r.json(); }),
+    _adminFetch(MOTOR_URL + '/api/admin/creadores').then(function (r) { return r.json(); })
+  ]).then(function (results) {
+    var apps = (results[0] && results[0].ok) ? (results[0].miniapps || []) : [];
+    var cuentas = (results[1] && results[1].ok) ? (results[1].cuentas || []) : [];
+    var creadores = (results[2] && results[2].ok) ? (results[2].creadores || []) : [];
+
+    var byCat = { miniapp: 0, infoproducto: 0, contenido_digital: 0 };
+    var pendByCat = { miniapp: 0, infoproducto: 0, contenido_digital: 0 };
+    var aprobados = 0;
+    var pendientes = 0;
+    apps.forEach(function (m) {
+      var cat = m.categoria || 'miniapp';
+      if (byCat[cat] == null) byCat[cat] = 0;
+      byCat[cat]++;
+      if ((m.estado_aprobacion || 'pendiente') === 'pendiente') {
+        pendientes++;
+        if (pendByCat[cat] == null) pendByCat[cat] = 0;
+        pendByCat[cat]++;
+      } else if (m.estado_aprobacion === 'aprobada') {
+        aprobados++;
+      }
+    });
+
+    var totalGen = 0;
+    cuentas.forEach(function (c) { totalGen += Number(c.total_generado || 0); });
+
+    if (sumEl) {
+      sumEl.innerHTML =
+        _statCard(pendientes, 'Pendientes de aprobar') +
+        _statCard(aprobados, 'Aprobados') +
+        _statCard(creadores.length, 'Creadores') +
+        _statCard(_fmt(totalGen), 'Ingresos digitales');
+    }
+
+    if (pendEl) {
+      pendEl.innerHTML =
+        '<button type="button" class="cuenta-pend-card" onclick="switchAdminTab(\'miniapp\')">' +
+          '<span class="cuenta-pend-n">' + (pendByCat.miniapp || 0) + '</span>' +
+          '<span class="cuenta-pend-l">Mini Apps pendientes</span></button>' +
+        '<button type="button" class="cuenta-pend-card" onclick="switchAdminTab(\'infoproducto\')">' +
+          '<span class="cuenta-pend-n">' + (pendByCat.infoproducto || 0) + '</span>' +
+          '<span class="cuenta-pend-l">Infoproductos pendientes</span></button>' +
+        '<button type="button" class="cuenta-pend-card" onclick="switchAdminTab(\'contenido_digital\')">' +
+          '<span class="cuenta-pend-n">' + (pendByCat.contenido_digital || 0) + '</span>' +
+          '<span class="cuenta-pend-l">Contenido Digital pendiente</span></button>';
+    }
+  }).catch(function (e) {
+    if (sumEl) sumEl.innerHTML = '<p class="adm-empty-text" style="color:#c0392b">' + _esc(e.message || 'Error') + '</p>';
+    if (pendEl) pendEl.innerHTML = '';
+  });
+}
+
+/* ============================================================
+   LEGACY tab ids (archivados) — no usados en UI digital
+   ============================================================ */
+var ADMIN_TABS = ADMIN_TABS_DIGITAL.concat(ADMIN_TABS_ARCHIVED);
 
 /* ============================================================
    1. INVENTARIO — conectado a Supabase via motor (puerto 3002)
@@ -1912,7 +2074,7 @@ var _maSubTabActivo = 'por-aprobar';
 var _maCategoriaActiva = '';
 var _maCuentasCache = [];
 
-var MA_SUBTABS = ['por-aprobar', 'aprobados', 'cuentas'];
+var MA_SUBTABS = ['por-aprobar', 'aprobados'];
 var MA_CATEGORIAS = ['', 'infoproducto', 'contenido_digital', 'miniapp'];
 
 function _maCategoriaLabel(cat) {
@@ -1948,9 +2110,7 @@ function _maUpdateCategoriaFiltroUI() {
     if (btn) btn.classList.toggle('active', cat === _maCategoriaActiva);
   });
   var filtro = document.getElementById('ma-categoria-filtro');
-  if (filtro) {
-    filtro.hidden = _maSubTabActivo === 'cuentas';
-  }
+  if (filtro) filtro.hidden = true; // categoria = tab principal
 }
 
 function switchMaCategoria(cat) {
@@ -1960,6 +2120,11 @@ function switchMaCategoria(cat) {
 }
 
 function switchMaSubTab(tabId) {
+  if (tabId === 'cuentas') {
+    // Cuentas digitales viven en tab Ventas
+    switchAdminTab('ventas');
+    return;
+  }
   _maSubTabActivo = tabId;
   MA_SUBTABS.forEach(function (id) {
     var panel = document.getElementById('ma-panel-' + id);
@@ -1969,11 +2134,7 @@ function switchMaSubTab(tabId) {
     if (btn)   btn.classList.toggle('active', active);
   });
   _maUpdateCategoriaFiltroUI();
-  if (tabId === 'cuentas') {
-    renderMaCuentas();
-  } else {
-    renderMaCards();
-  }
+  renderMaCards();
 }
 
 function _maPrecioHtml(m) {
@@ -2068,6 +2229,12 @@ function _maCardHtml(m, modo) {
 function renderMaCards() {
   var pendientes = _maCache.filter(function (m) { return (m.estado_aprobacion || 'pendiente') === 'pendiente'; });
   var aprobadas  = _maCache.filter(function (m) { return m.estado_aprobacion === 'aprobada'; });
+  var pluralMap = {
+    miniapp: 'mini apps',
+    infoproducto: 'infoproductos',
+    contenido_digital: 'contenidos digitales'
+  };
+  var label = pluralMap[_maCategoriaActiva] || 'productos';
 
   var elP = document.getElementById('ma-cards-pendientes');
   var elA = document.getElementById('ma-cards-aprobados');
@@ -2075,12 +2242,12 @@ function renderMaCards() {
   if (elP) {
     elP.innerHTML = pendientes.length
       ? pendientes.map(function (m) { return _maCardHtml(m, 'pendiente'); }).join('')
-      : '<p class="adm-empty-text">No hay activos digitales pendientes de aprobacion.</p>';
+      : '<p class="adm-empty-text">No hay ' + label + ' pendientes de aprobacion.</p>';
   }
   if (elA) {
     elA.innerHTML = aprobadas.length
       ? aprobadas.map(function (m) { return _maCardHtml(m, 'aprobada'); }).join('')
-      : '<p class="adm-empty-text">Aun no hay activos digitales aprobados.</p>';
+      : '<p class="adm-empty-text">Aun no hay ' + label + ' aprobados.</p>';
   }
 }
 
@@ -2103,16 +2270,14 @@ function loadMaData() {
 }
 
 function renderMiniappsAdmin() {
-  _maSubTabActivo = 'por-aprobar';
-  _maCategoriaActiva = '';
-  switchMaSubTab('por-aprobar');
-  _maUpdateCategoriaFiltroUI();
-  loadMaData();
+  var tab = ADMIN_PRODUCT_TABS[_adminTabActivo] ? _adminTabActivo : 'miniapp';
+  renderDigitalCategoria(tab);
 }
 
 function renderMaCuentas() {
   var wrap = document.getElementById('ma-cuentas-wrap');
   var wrapVend = document.getElementById('ma-comisiones-vendedores-wrap');
+  var sum = document.getElementById('ventas-digital-summary');
   if (!wrap) return;
   wrap.innerHTML = '<p class="adm-empty-text" style="padding:28px">Cargando cuentas...</p>';
   if (wrapVend && COMISION_VENDEDORES_DIGITAL_ACTIVA) {
@@ -2125,8 +2290,21 @@ function renderMaCuentas() {
       if (!data.ok) throw new Error(data.error || 'Error del servidor.');
       _maCuentasCache = data.cuentas || [];
 
+      var totalGen = 0;
+      var totalPagar = 0;
+      (_maCuentasCache || []).forEach(function (c) {
+        totalGen += Number(c.total_generado || 0);
+        totalPagar += Number(c.total_a_pagar || 0);
+      });
+      if (sum) {
+        sum.innerHTML =
+          _statCard(_maCuentasCache.length, 'Creadores con ventas') +
+          _statCard(_fmt(totalGen), 'Ingresos digitales') +
+          _statCard(_fmt(totalPagar), 'A pagar a creadores');
+      }
+
       if (!_maCuentasCache.length) {
-        wrap.innerHTML = '<p class="adm-empty-text">No hay creadores con mini apps registradas.</p>';
+        wrap.innerHTML = '<p class="adm-empty-text">Aun no hay ventas digitales registradas.</p>';
       } else {
         var rows = _maCuentasCache.map(function (c) {
           return '<tr>' +
@@ -2147,6 +2325,7 @@ function renderMaCuentas() {
     })
     .catch(function (e) {
       wrap.innerHTML = '<p class="adm-empty-text" style="color:#c0392b">Error: ' + _esc(e.message) + '</p>';
+      if (sum) sum.innerHTML = _statCard('—', 'Ingresos digitales');
     });
 
   if (!wrapVend || !COMISION_VENDEDORES_DIGITAL_ACTIVA) return;
@@ -2338,5 +2517,5 @@ document.addEventListener('DOMContentLoaded', function () {
     return;
   }
   _adminShowPanel();
-  renderInventario();
+  switchAdminTab('miniapp');
 });
