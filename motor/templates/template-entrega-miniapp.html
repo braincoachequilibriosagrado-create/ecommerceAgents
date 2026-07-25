@@ -23,8 +23,7 @@
     {{VIDEOS_HTML}}                       -> HTML de la lista generado por el backend
     {{#IF_CONTENIDO_PENDIENTE}}...{{/IF_CONTENIDO_PENDIENTE}} -> contenido digital sin videos aun
     {{COLOR_1}}, {{COLOR_2}}, {{COLOR_3}} -> colores (mismos de la pagina de venta)
-    {{PREMIUM_CSS_URL}} -> /assets/premium-platform.css (fondo premium)
-    {{HERO_JS_URL}} -> /assets/premium-hero.js (rayas animadas = panel creadores)
+    {{PREMIUM_CSS_URL}} -> /assets/premium-platform.css (fondo premium CSS)
 -->
 <style>
   :root {
@@ -229,7 +228,7 @@
   }
 </style>
 </head>
-<body class="ea-shader-page">
+<body class="ea-premium-bg ea-premium-bg--animated">
   <div class="card ea-premium-card">
     <div class="top">
       <img src="{{LOGO_URL}}" alt="Activos Digitales" class="brand-logo" />
@@ -370,6 +369,5 @@
       _actualizarRestantesVideo(item, btn);
     });
   </script>
-  <script src="{{HERO_JS_URL}}"></script>
 </body>
 </html>

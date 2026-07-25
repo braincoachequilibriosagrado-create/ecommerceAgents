@@ -30,9 +30,8 @@ body {
   min-height: 100vh;
 }
 
-body.ea-premium-bg,
-body.ea-shader-page {
-  /* fondo premium: premium-platform.css + premium-hero.js */
+body.ea-premium-bg {
+  /* fondo premium CSS: premium-platform.css */
 }
 
 .vt-page {

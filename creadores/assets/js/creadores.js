@@ -208,23 +208,10 @@ function _setView(view) {
   document.body.classList.toggle('cr-body--landing', view === CR_VIEW.LANDING);
   document.body.classList.toggle('cr-body--auth', view === CR_VIEW.AUTH);
   document.body.classList.toggle('cr-body--dash', view === CR_VIEW.DASH);
-  document.body.classList.toggle('ea-shader-page', view === CR_VIEW.AUTH || view === CR_VIEW.DASH);
-
-  var pageShader = document.getElementById('ea-page-shader');
-  if (!pageShader && (view === CR_VIEW.AUTH || view === CR_VIEW.DASH) && typeof initPremiumPageBg === 'function') {
-    initPremiumPageBg();
-    pageShader = document.getElementById('ea-page-shader');
-  }
-  if (pageShader && pageShader._premiumHero) {
-    pageShader._premiumHero.setActive(view === CR_VIEW.AUTH || view === CR_VIEW.DASH);
-  } else if ((view === CR_VIEW.AUTH || view === CR_VIEW.DASH) && typeof initPremiumPageBg === 'function') {
-    setTimeout(function () {
-      var el = document.getElementById('ea-page-shader');
-      if (el && el._premiumHero) {
-        el._premiumHero.setActive(view === CR_VIEW.AUTH || view === CR_VIEW.DASH);
-      }
-    }, 100);
-  }
+  document.body.classList.add('ea-premium-bg', 'ea-premium-bg--animated');
+  document.body.classList.remove('ea-shader-page');
+  var staleShader = document.getElementById('ea-page-shader');
+  if (staleShader) staleShader.remove();
 }
 
 function _syncNavPanel(visible) {

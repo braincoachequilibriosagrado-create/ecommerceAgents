@@ -2008,11 +2008,11 @@ a.cr-dash-tab {
 
 /* ── Landing page ───────────────────────────────────────── */
 body.cr-body--landing {
-  background: #ffffff;
-  background-attachment: scroll;
+  /* fondo = .ea-premium-bg (premium-platform.css) */
+  background-attachment: fixed;
 }
 
-/* auth/dash: fondo premium via .ea-premium-bg en body (premium-platform.css) */
+/* auth/dash: mismo fondo premium CSS (.ea-premium-bg) */
 
 .lp {
   color: #0b0e1a;
@@ -2150,7 +2150,7 @@ body.cr-body--landing {
 .lp-hero.premium-hero {
   position: relative;
   overflow: hidden;
-  background: #05060f;
+  background: transparent;
   color: #f4f6fc;
   padding: 96px 0 72px;
   min-height: 520px;
@@ -2159,18 +2159,11 @@ body.cr-body--landing {
 }
 
 .premium-hero-canvas {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 0;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.5s ease;
+  display: none;
 }
 
 .premium-hero--ready .premium-hero-canvas {
-  opacity: 1;
+  display: none;
 }
 
 .premium-hero-overlay {
@@ -2179,8 +2172,8 @@ body.cr-body--landing {
   z-index: 1;
   pointer-events: none;
   background:
-    radial-gradient(ellipse 75% 65% at 50% 42%, rgba(5, 6, 15, 0.92) 0%, rgba(5, 6, 15, 0.55) 45%, transparent 72%),
-    linear-gradient(180deg, rgba(5, 6, 15, 0.35) 0%, transparent 30%, rgba(5, 6, 15, 0.5) 100%);
+    radial-gradient(ellipse 75% 65% at 50% 42%, rgba(5, 6, 15, 0.35) 0%, rgba(5, 6, 15, 0.12) 45%, transparent 72%),
+    linear-gradient(180deg, rgba(5, 6, 15, 0.15) 0%, transparent 40%, rgba(5, 6, 15, 0.2) 100%);
 }
 
 .premium-hero-content {
@@ -2774,7 +2767,7 @@ body.cr-body--landing {
   position: relative;
   overflow: hidden;
   padding: 80px 0;
-  background: #05060f;
+  background: transparent;
 }
 
 .lp-cta.premium-hero .lp-cta-inner {

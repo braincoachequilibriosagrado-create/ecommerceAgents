@@ -8,80 +8,54 @@
   --ea-premium-shadow-lg: 0 20px 50px rgba(20, 18, 60, 0.22);
 }
 
-.ea-premium-bg {
+/* Fondo premium CSS (canonico) — mismo degradado en toda la plataforma */
+.ea-premium-bg,
+body.ea-shader-page,
+body.cr-body--auth,
+body.cr-body--dash {
   background:
     radial-gradient(1200px 600px at 15% 0%, rgba(43, 58, 245, 0.55), transparent 55%),
     radial-gradient(1000px 700px at 85% 15%, rgba(255, 106, 61, 0.42), transparent 55%),
     radial-gradient(900px 600px at 50% 100%, rgba(139, 47, 214, 0.55), transparent 60%),
     var(--ea-grad-bg);
   background-attachment: fixed;
+  min-height: 100vh;
 }
 
-/* Shader de pagina completa (Three.js) */
+/* Hero de seccion (opcional): sin WebGL de pagina — CSS ligero */
 .premium-hero--page {
   position: fixed;
   inset: 0;
   z-index: 0;
   pointer-events: none;
   overflow: hidden;
-  background-color: #05060f;
-  background-image:
-    radial-gradient(ellipse 90% 70% at 12% 18%, rgba(43, 58, 245, 0.42), transparent 55%),
-    radial-gradient(ellipse 70% 60% at 88% 22%, rgba(139, 47, 214, 0.38), transparent 52%),
-    radial-gradient(ellipse 80% 55% at 50% 98%, rgba(255, 106, 61, 0.3), transparent 58%);
+  display: none; /* pagina usa .ea-premium-bg; no montar capa shader */
 }
 
 .premium-hero--page .premium-hero-canvas {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  transition: opacity 0.5s ease;
-}
-
-.premium-hero--page.premium-hero--ready .premium-hero-canvas {
-  opacity: 1;
+  display: none;
 }
 
 .premium-hero-overlay--page {
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(ellipse 75% 65% at 50% 42%, rgba(5, 6, 15, 0.45) 0%, rgba(5, 6, 15, 0.15) 50%, transparent 75%);
-  pointer-events: none;
+  display: none;
 }
 
 .premium-hero--viewport {
   position: relative;
   overflow: hidden;
-  min-height: 100vh;
-  background: #05060f;
+  min-height: auto;
+  background: transparent;
 }
 
 .premium-hero-overlay--soft {
   background:
-    radial-gradient(ellipse 85% 75% at 50% 35%, rgba(5, 6, 15, 0.68) 0%, rgba(5, 6, 15, 0.32) 45%, transparent 72%),
-    linear-gradient(180deg, rgba(5, 6, 15, 0.22) 0%, transparent 35%, rgba(5, 6, 15, 0.3) 100%);
+    radial-gradient(ellipse 85% 75% at 50% 35%, rgba(5, 6, 15, 0.2) 0%, transparent 72%);
 }
 
 .premium-hero--page.premium-hero--static,
 .premium-hero--viewport.premium-hero--static {
-  background-color: #05060f;
-  background-image:
-    radial-gradient(ellipse 90% 70% at 12% 18%, rgba(43, 58, 245, 0.42), transparent 55%),
-    radial-gradient(ellipse 70% 60% at 88% 22%, rgba(139, 47, 214, 0.38), transparent 52%),
-    radial-gradient(ellipse 80% 55% at 50% 98%, rgba(255, 106, 61, 0.3), transparent 58%);
-}
-
-body.ea-shader-page,
-body.cr-body--auth,
-body.cr-body--dash {
-  background-color: #05060f;
-  background-image:
-    radial-gradient(ellipse 90% 70% at 12% 18%, rgba(43, 58, 245, 0.42), transparent 55%),
-    radial-gradient(ellipse 70% 60% at 88% 22%, rgba(139, 47, 214, 0.38), transparent 52%),
-    radial-gradient(ellipse 80% 55% at 50% 98%, rgba(255, 106, 61, 0.3), transparent 58%);
+  background-color: transparent;
+  background-image: none;
 }
 
 body.ea-shader-page > *:not(#ea-page-shader):not(.premium-hero--page) {
