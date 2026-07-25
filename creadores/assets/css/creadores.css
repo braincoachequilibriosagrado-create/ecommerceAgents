@@ -2117,18 +2117,19 @@ body.cr-body--landing {
 }
 
 .lp-nav--premium {
-  background: rgba(5, 6, 15, 0.72);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: #ffffff;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid #e8eaf0;
+  box-shadow: 0 4px 20px rgba(15, 18, 34, 0.06);
 }
 
-.lp-nav--premium .lp-brand-name { color: #f4f6fc; }
-.lp-nav--premium .lp-brand-sub { color: rgba(244, 246, 252, 0.65); }
-.lp-nav--premium .lp-nav-links a { color: rgba(244, 246, 252, 0.78); }
-.lp-nav--premium .lp-nav-links a:hover { color: #fff; }
-.lp-nav--premium .lp-btn-ghost { color: rgba(244, 246, 252, 0.85); }
-.lp-nav--premium .lp-btn-ghost:hover { color: #fff; }
+.lp-nav--premium .lp-brand-name { color: #0b0e1a; }
+.lp-nav--premium .lp-brand-sub { color: #5a5f74; }
+.lp-nav--premium .lp-nav-links a { color: #0b0e1a; }
+.lp-nav--premium .lp-nav-links a:hover { color: var(--c-indigo); }
+.lp-nav--premium .lp-btn-ghost { color: #0b0e1a; }
+.lp-nav--premium .lp-btn-ghost:hover { color: var(--c-indigo); }
 
 .lp-btn-primary {
   color: #fff;
