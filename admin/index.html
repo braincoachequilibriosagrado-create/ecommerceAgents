@@ -140,15 +140,20 @@
     <section id="adm-panel-cuenta" class="adm-panel" role="tabpanel" hidden>
       <div class="adm-panel-header">
         <h2 class="adm-panel-title">Cuentas</h2>
-        <p class="adm-panel-desc">Saldo pendiente por creador (su parte de ventas Stripe). Al pagar, el historial se conserva y el pendiente vuelve a $0.</p>
+        <p class="adm-panel-desc">Saldo pendiente por creador (su parte de ventas Stripe). Al pagar, el historial se conserva, el pendiente vuelve a $0 y se descarga el comprobante PDF.</p>
       </div>
       <div class="adm-summary-row" id="cuenta-summary-row"></div>
       <div class="adm-section">
         <h3 class="adm-section-title">Liquidacion a creadores</h3>
         <p class="ma-subpanel-hint ma-subpanel-hint--info">
-          El monto pendiente usa el reparto guardado en cada venta (no se recalcula si cambia la comision).
+          El monto pendiente usa el reparto guardado en cada venta (no se recalcula si cambia la comision). Comision vigente nuevas ventas: 12% plataforma / 88% creador.
         </p>
         <div id="cuenta-liquidacion-wrap"></div>
+      </div>
+      <div class="adm-section">
+        <h3 class="adm-section-title">Historial de comprobantes</h3>
+        <p class="ma-subpanel-hint">Re-descarga PDF de liquidaciones anteriores.</p>
+        <div id="cuenta-historial-wrap"></div>
       </div>
       <div class="adm-section">
         <h3 class="adm-section-title">Pendientes de aprobacion</h3>
@@ -576,7 +581,7 @@
   </div><!-- /adm-main-content -->
 
   <script src="assets/js/premium-hero.js?v=2"></script>
-  <script src="assets/js/admin.js?v=25"></script>
+  <script src="assets/js/admin.js?v=26"></script>
   <script>
     (function () {
       function bootShader() {

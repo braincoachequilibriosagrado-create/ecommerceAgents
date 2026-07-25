@@ -31,6 +31,7 @@ const rateLimit = require('express-rate-limit');
 const ipKeyGenerator = rateLimit.ipKeyGenerator;
 const Stripe     = require('stripe');
 const { Resend } = require('resend');
+const { generarComprobantePagoPdf } = require('./comprobante-pago-pdf');
 
 const app  = express();
 const PORT = process.env.PORT || 3002;
@@ -6765,7 +6766,39 @@ app.get('/api/admin/miniapps/cuentas', async (req, res) => {
   }
 });
 
-// POST /api/admin/creadores/liquidar — marca ventas pagadas pendientes como liquidadas al creador
+async function _nextNumeroComprobantePago() {
+  const { data, error } = await supabase
+    .from('pagos_creadores')
+    .select('numero_comprobante')
+    .order('creado_en', { ascending: false })
+    .limit(50);
+  if (error) {
+    if (/pagos_creadores|relation|schema cache/i.test(String(error.message || ''))) {
+      const err = new Error('Falta migracion SQL: ejecuta motor/sql/miniapps-liquidacion-creador.sql en Supabase.');
+      err.statusCode = 503;
+      throw err;
+    }
+    throw error;
+  }
+  let maxN = 0;
+  (data || []).forEach(function (row) {
+    const m = String(row.numero_comprobante || '').match(/PAGO-(\d+)/i);
+    if (m) {
+      const n = parseInt(m[1], 10);
+      if (Number.isFinite(n) && n > maxN) maxN = n;
+    }
+  });
+  return 'PAGO-' + String(maxN + 1).padStart(4, '0');
+}
+
+function _sqlMigracionLiquidacionMsg(errMsg) {
+  if (/pagado_al_creador|pagos_creadores|fecha_pago_creador|column|relation|schema cache/i.test(String(errMsg || ''))) {
+    return 'Falta migracion SQL: ejecuta motor/sql/miniapps-liquidacion-creador.sql en Supabase.';
+  }
+  return null;
+}
+
+// POST /api/admin/creadores/liquidar — liquida saldo, crea comprobante y marca ventas
 app.post('/api/admin/creadores/liquidar', async (req, res) => {
   const { creador_id } = req.body || {};
   if (!creador_id) return res.status(400).json({ ok: false, error: 'Se requiere creador_id.' });
@@ -6781,11 +6814,17 @@ app.post('/api/admin/creadores/liquidar', async (req, res) => {
 
     const { data: miniapps, error: mErr } = await supabase
       .from('miniapps')
-      .select('id')
+      .select('id, nombre')
       .eq('creador_id', creador_id);
     if (mErr) throw mErr;
 
-    const miniIds = (miniapps || []).map(function (m) { return m.id; });
+    const miniMap = {};
+    const miniIds = [];
+    (miniapps || []).forEach(function (m) {
+      miniIds.push(m.id);
+      miniMap[m.id] = m.nombre || 'Producto';
+    });
+
     if (!miniIds.length) {
       return res.json({
         ok: true,
@@ -6797,25 +6836,17 @@ app.post('/api/admin/creadores/liquidar', async (req, res) => {
 
     const { data: pendientes, error: pErr } = await supabase
       .from('miniapp_compras')
-      .select('id, monto_creador')
+      .select('id, miniapp_id, monto, monto_creador, monto_plataforma')
       .eq('estado_pago', 'pagado')
       .eq('pagado_al_creador', false)
       .in('miniapp_id', miniIds);
     if (pErr) {
-      if (/pagado_al_creador|column|schema cache/i.test(String(pErr.message || ''))) {
-        return res.status(503).json({
-          ok: false,
-          error: 'Falta migracion SQL: ejecuta motor/sql/miniapps-liquidacion-creador.sql en Supabase.'
-        });
-      }
+      const mig = _sqlMigracionLiquidacionMsg(pErr.message);
+      if (mig) return res.status(503).json({ ok: false, error: mig });
       throw pErr;
     }
 
     const ids = (pendientes || []).map(function (p) { return p.id; });
-    const montoLiquidado = _roundMoney(
-      (pendientes || []).reduce(function (acc, p) { return acc + (Number(p.monto_creador) || 0); }, 0)
-    );
-
     if (!ids.length) {
       return res.json({
         ok: true,
@@ -6826,24 +6857,188 @@ app.post('/api/admin/creadores/liquidar', async (req, res) => {
       });
     }
 
+    const byProducto = {};
+    let totalVendido = 0;
+    let totalPlataforma = 0;
+    let totalPagado = 0;
+
+    (pendientes || []).forEach(function (p) {
+      const mid = p.miniapp_id;
+      const monto = Number(p.monto) || 0;
+      let parteCreador = Number(p.monto_creador);
+      let partePlat = Number(p.monto_plataforma);
+      if (!Number.isFinite(parteCreador)) parteCreador = 0;
+      if (!Number.isFinite(partePlat)) partePlat = 0;
+
+      totalVendido += monto;
+      totalPlataforma += partePlat;
+      totalPagado += parteCreador;
+
+      if (!byProducto[mid]) {
+        byProducto[mid] = {
+          miniapp_id: mid,
+          nombre: miniMap[mid] || 'Producto',
+          cantidad: 0,
+          monto_generado: 0,
+          monto_creador: 0,
+          monto_plataforma: 0
+        };
+      }
+      byProducto[mid].cantidad += 1;
+      byProducto[mid].monto_generado = _roundMoney(byProducto[mid].monto_generado + monto);
+      byProducto[mid].monto_creador = _roundMoney(byProducto[mid].monto_creador + parteCreador);
+      byProducto[mid].monto_plataforma = _roundMoney(byProducto[mid].monto_plataforma + partePlat);
+    });
+
+    const detalle = Object.values(byProducto).map(function (row) {
+      return {
+        miniapp_id: row.miniapp_id,
+        nombre: row.nombre,
+        cantidad: row.cantidad,
+        monto_generado: _roundMoney(row.monto_generado),
+        monto_creador: _roundMoney(row.monto_creador),
+        monto_plataforma: _roundMoney(row.monto_plataforma)
+      };
+    });
+
+    totalVendido = _roundMoney(totalVendido);
+    totalPlataforma = _roundMoney(totalPlataforma);
+    totalPagado = _roundMoney(totalPagado);
+
+    const numero = await _nextNumeroComprobantePago();
     const ahora = new Date().toISOString();
+
+    const { data: pagoRow, error: pagoErr } = await supabase
+      .from('pagos_creadores')
+      .insert({
+        creador_id: creador_id,
+        numero_comprobante: numero,
+        fecha: ahora,
+        total_vendido: totalVendido,
+        comision_plataforma: totalPlataforma,
+        total_pagado: totalPagado,
+        detalle: detalle
+      })
+      .select('id, numero_comprobante, fecha, total_vendido, comision_plataforma, total_pagado, detalle')
+      .single();
+    if (pagoErr) {
+      const mig = _sqlMigracionLiquidacionMsg(pagoErr.message);
+      if (mig) return res.status(503).json({ ok: false, error: mig });
+      if (/duplicate|unique/i.test(String(pagoErr.message || ''))) {
+        return res.status(409).json({ ok: false, error: 'Conflicto de correlativo. Reintenta el pago.' });
+      }
+      throw pagoErr;
+    }
+
     const { error: uErr } = await supabase
       .from('miniapp_compras')
       .update({ pagado_al_creador: true, fecha_pago_creador: ahora })
       .in('id', ids)
       .eq('estado_pago', 'pagado')
       .eq('pagado_al_creador', false);
-    if (uErr) throw uErr;
+    if (uErr) {
+      // Rollback blando del comprobante si falló marcar ventas
+      try {
+        await supabase.from('pagos_creadores').delete().eq('id', pagoRow.id);
+      } catch (_) { /* ignore */ }
+      throw uErr;
+    }
 
     res.json({
       ok: true,
       liquidadas: ids.length,
-      monto_liquidado: montoLiquidado,
+      monto_liquidado: totalPagado,
+      total_vendido: totalVendido,
+      comision_plataforma: totalPlataforma,
       creador_nombre: creador.nombre || '',
-      fecha_pago_creador: ahora
+      fecha_pago_creador: ahora,
+      pago_id: pagoRow.id,
+      numero_comprobante: pagoRow.numero_comprobante,
+      comprobante_url: '/api/admin/comprobante-pago/' + pagoRow.id
     });
   } catch (e) {
     console.error('[admin/creadores/liquidar]', e.message);
+    if (e.statusCode === 503) {
+      return res.status(503).json({ ok: false, error: e.message });
+    }
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
+  }
+});
+
+// GET /api/admin/creadores/pagos — historial de comprobantes
+app.get('/api/admin/creadores/pagos', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('pagos_creadores')
+      .select('id, creador_id, numero_comprobante, fecha, total_vendido, comision_plataforma, total_pagado, detalle, creado_en, creadores ( nombre, email )')
+      .order('fecha', { ascending: false })
+      .limit(200);
+    if (error) {
+      const mig = _sqlMigracionLiquidacionMsg(error.message);
+      if (mig) return res.status(503).json({ ok: false, error: mig, pagos: [] });
+      throw error;
+    }
+
+    const pagos = (data || []).map(function (p) {
+      const cr = p.creadores || {};
+      return {
+        id: p.id,
+        creador_id: p.creador_id,
+        creador_nombre: cr.nombre || '',
+        creador_email: cr.email || '',
+        numero_comprobante: p.numero_comprobante,
+        fecha: p.fecha || p.creado_en,
+        total_vendido: _roundMoney(p.total_vendido),
+        comision_plataforma: _roundMoney(p.comision_plataforma),
+        total_pagado: _roundMoney(p.total_pagado),
+        num_productos: Array.isArray(p.detalle) ? p.detalle.length : 0
+      };
+    });
+
+    res.json({ ok: true, pagos });
+  } catch (e) {
+    console.error('[admin/creadores/pagos]', e.message);
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
+  }
+});
+
+// GET /api/admin/comprobante-pago/:pago_id — PDF descargable
+app.get('/api/admin/comprobante-pago/:pago_id', async (req, res) => {
+  const pagoId = String(req.params.pago_id || '').trim();
+  if (!pagoId) return res.status(400).json({ ok: false, error: 'Se requiere pago_id.' });
+
+  try {
+    const { data: pago, error } = await supabase
+      .from('pagos_creadores')
+      .select('id, numero_comprobante, fecha, total_vendido, comision_plataforma, total_pagado, detalle, creadores ( nombre )')
+      .eq('id', pagoId)
+      .maybeSingle();
+    if (error) {
+      const mig = _sqlMigracionLiquidacionMsg(error.message);
+      if (mig) return res.status(503).json({ ok: false, error: mig });
+      throw error;
+    }
+    if (!pago) return res.status(404).json({ ok: false, error: 'Comprobante no encontrado.' });
+
+    const pdfBuf = await generarComprobantePagoPdf({
+      numero_comprobante: pago.numero_comprobante,
+      fecha: pago.fecha,
+      creador_nombre: (pago.creadores && pago.creadores.nombre) || 'Creador',
+      total_vendido: pago.total_vendido,
+      comision_plataforma: pago.comision_plataforma,
+      total_pagado: pago.total_pagado,
+      detalle: pago.detalle || [],
+      plataforma_pct: MINIAPP_PLATAFORMA_PCT,
+      creador_pct: MINIAPP_CREADOR_PCT
+    });
+
+    const filename = String(pago.numero_comprobante || 'comprobante').replace(/[^\w.-]+/g, '_') + '.pdf';
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="' + filename + '"');
+    res.setHeader('Content-Length', pdfBuf.length);
+    res.send(pdfBuf);
+  } catch (e) {
+    console.error('[admin/comprobante-pago]', e.message);
     res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
@@ -7922,6 +8117,8 @@ app.listen(PORT, () => {
   console.log(`[motor]   POST http://localhost:${PORT}/api/admin/creadores/activar`);
   console.log(`[motor]   POST http://localhost:${PORT}/api/admin/creadores/desactivar`);
   console.log(`[motor]   POST http://localhost:${PORT}/api/admin/creadores/liquidar`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/api/admin/creadores/pagos`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/api/admin/comprobante-pago/:pago_id`);
 
   // ══ OBJETIVO 3: Limpieza de seguridad cada 30 minutos ═════════════════════
   // Borra archivos de temp/ y outputs/ con mas de 1 hora de antiguedad.

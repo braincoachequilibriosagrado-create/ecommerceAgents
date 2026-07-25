@@ -318,17 +318,22 @@ function renderCuentaResumen() {
   var sumEl = document.getElementById('cuenta-summary-row');
   var pendEl = document.getElementById('cuenta-pendientes-wrap');
   var liqEl = document.getElementById('cuenta-liquidacion-wrap');
+  var histEl = document.getElementById('cuenta-historial-wrap');
   if (sumEl) sumEl.innerHTML = _statCard('...', 'Cargando');
   if (pendEl) pendEl.innerHTML = '<p class="adm-empty-text">Cargando...</p>';
   if (liqEl) liqEl.innerHTML = '<p class="adm-empty-text" style="padding:20px">Cargando saldos...</p>';
+  if (histEl) histEl.innerHTML = '<p class="adm-empty-text">Cargando historial...</p>';
 
   Promise.all([
     _adminFetch(MOTOR_URL + '/api/admin/miniapps').then(function (r) { return r.json(); }),
-    _adminFetch(MOTOR_URL + '/api/admin/miniapps/cuentas').then(function (r) { return r.json(); })
+    _adminFetch(MOTOR_URL + '/api/admin/miniapps/cuentas').then(function (r) { return r.json(); }),
+    _adminFetch(MOTOR_URL + '/api/admin/creadores/pagos').then(function (r) { return r.json(); }).catch(function () { return { ok: false, pagos: [] }; })
   ]).then(function (results) {
     var apps = (results[0] && results[0].ok) ? (results[0].miniapps || []) : [];
     var cuentasData = results[1] || {};
     var cuentas = cuentasData.ok ? (cuentasData.cuentas || []) : [];
+    var pagosData = results[2] || {};
+    var pagos = pagosData.ok ? (pagosData.pagos || []) : [];
     _maCuentasCache = cuentas;
 
     var pendByCat = { miniapp: 0, infoproducto: 0, contenido_digital: 0 };
@@ -362,6 +367,10 @@ function renderCuentaResumen() {
       liqEl.innerHTML = _cuentaLiquidacionHtml(cuentas);
     }
 
+    if (histEl) {
+      histEl.innerHTML = _cuentaHistorialHtml(pagos);
+    }
+
     if (pendEl) {
       pendEl.innerHTML =
         '<button type="button" class="cuenta-pend-card" onclick="switchAdminTab(\'miniapp\')">' +
@@ -378,6 +387,7 @@ function renderCuentaResumen() {
     if (sumEl) sumEl.innerHTML = '<p class="adm-empty-text" style="color:#c0392b">' + _esc(e.message || 'Error') + '</p>';
     if (pendEl) pendEl.innerHTML = '';
     if (liqEl) liqEl.innerHTML = '<p class="adm-empty-text" style="color:#c0392b">' + _esc(e.message || 'Error') + '</p>';
+    if (histEl) histEl.innerHTML = '<p class="adm-empty-text" style="color:#c0392b">' + _esc(e.message || 'Error') + '</p>';
   });
 }
 
@@ -410,6 +420,60 @@ function _cuentaLiquidacionHtml(cuentas) {
     '</tr></thead><tbody>' + rows + '</tbody></table></div>';
 }
 
+function _cuentaHistorialHtml(pagos) {
+  if (!pagos || !pagos.length) {
+    return '<p class="adm-empty-text">Aun no hay comprobantes de pago.</p>';
+  }
+  var rows = pagos.map(function (p) {
+    var pid = _esc(p.id || '');
+    var fecha = p.fecha ? new Date(p.fecha).toLocaleString('es-MX') : '—';
+    return '<tr>' +
+      '<td><strong>' + _esc(p.numero_comprobante || '') + '</strong></td>' +
+      '<td>' + _esc(fecha) + '</td>' +
+      '<td class="adm-td-name">' + _esc(p.creador_nombre || '—') + '</td>' +
+      '<td class="adm-td-money">' + _fmt(p.total_vendido || 0) + '</td>' +
+      '<td class="adm-td-money">' + _fmt(p.comision_plataforma || 0) + '</td>' +
+      '<td class="adm-td-money"><strong>' + _fmt(p.total_pagado || 0) + '</strong></td>' +
+      '<td><button type="button" class="adm-btn adm-btn--sm adm-btn--outline" onclick="cuentaDescargarComprobante(\'' + pid + '\',\'' + _esc(p.numero_comprobante || 'comprobante') + '\')">PDF</button></td>' +
+    '</tr>';
+  }).join('');
+
+  return '<div class="adm-table-wrap">' +
+    '<table class="adm-table">' +
+    '<thead><tr>' +
+      '<th>Comprobante</th><th>Fecha</th><th>Creador</th><th>Total vendido</th><th>Comision</th><th>Pagado</th><th></th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+}
+
+function cuentaDescargarComprobante(pagoId, numeroHint) {
+  if (!pagoId) return;
+  _adminFetch(MOTOR_URL + '/api/admin/comprobante-pago/' + encodeURIComponent(pagoId))
+    .then(function (r) {
+      if (!r.ok) {
+        return r.json().then(function (d) {
+          throw new Error((d && d.error) || 'No se pudo descargar el PDF.');
+        }).catch(function (e) {
+          if (e && e.message && e.message.indexOf('No se pudo') === 0) throw e;
+          throw new Error('No se pudo descargar el PDF.');
+        });
+      }
+      return r.blob();
+    })
+    .then(function (blob) {
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = String(numeroHint || 'comprobante').replace(/[^\w.-]+/g, '_') + '.pdf';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1500);
+    })
+    .catch(function (e) {
+      alert(e.message || 'Error al descargar comprobante.');
+    });
+}
+
 function cuentaPagarCreador(creadorId) {
   var row = null;
   (_maCuentasCache || []).forEach(function (c) {
@@ -425,7 +489,7 @@ function cuentaPagarCreador(creadorId) {
     alert('Este creador no tiene saldo pendiente.');
     return;
   }
-  if (!confirm('Confirmas que ya le pagaste a ' + nombre + ' ' + _fmt(monto) + '? Esto reiniciara su saldo pendiente.')) {
+  if (!confirm('Confirmas que le pagaste a ' + nombre + ' ' + _fmt(monto) + '?')) {
     return;
   }
 
@@ -440,7 +504,13 @@ function cuentaPagarCreador(creadorId) {
     .then(function (r) { return r.json(); })
     .then(function (d) {
       if (!d.ok) throw new Error(d.error || 'Error al liquidar.');
-      alert('Liquidado: ' + _fmt(d.monto_liquidado || monto) + ' (' + (d.liquidadas || 0) + ' ventas).');
+      var msg = 'Liquidado: ' + _fmt(d.monto_liquidado || monto) +
+        ' (' + (d.liquidadas || 0) + ' ventas)' +
+        (d.numero_comprobante ? '. Comprobante ' + d.numero_comprobante : '') + '.';
+      alert(msg);
+      if (d.pago_id) {
+        cuentaDescargarComprobante(d.pago_id, d.numero_comprobante || 'comprobante');
+      }
       renderCuentaResumen();
       if (typeof renderMaCuentas === 'function') renderMaCuentas();
     })
