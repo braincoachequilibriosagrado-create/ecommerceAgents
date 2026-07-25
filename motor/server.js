@@ -3438,7 +3438,7 @@ app.post('/api/mis-productos/quitar', requireUsuario, async (req, res) => {
 });
 
 // ── Marketplace publico (Activos Digitales) ─────────────────────────────────────
-const MARKETPLACE_ASSET_BUST = '8';
+const MARKETPLACE_ASSET_BUST = '9';
 
 async function _apiMarketplace(req, res) {
   try {
@@ -3512,7 +3512,7 @@ function _serveMarketplace(req, res) {
 <body class="ea-shader-page">
 <div class="vt-page">
   <main class="vt-main">
-    <section class="vt-hero vt-hero--grad" id="vt-hero">
+    <section class="vt-hero vt-hero--over-shader" id="vt-hero">
       <div class="vt-hero-content">
         <a href="/" class="vt-hero-brand">
           <img src="${logoUrl}" alt="Activos Digitales" class="vt-hero-logo" />
@@ -3550,6 +3550,7 @@ function _serveMarketplace(req, res) {
 </div>
 <script>window.VT_API_BASE='${PUBLIC_BASE_URL.replace(/'/g, "\\'")}';</script>
 <script src="${heroJs}"></script>
+<script>if(typeof initPremiumPageBg==='function')initPremiumPageBg();</script>
 <script src="${jsUrl}"></script>
 </body>
 </html>`);

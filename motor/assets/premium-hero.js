@@ -78,9 +78,10 @@
     this.renderer = null;
     this.material = null;
     this.clock = null;
-    this.staticMode = shouldUseStatic();
     this.isPage = heroEl.classList.contains('premium-hero--page');
     this.isControlled = heroEl.classList.contains('premium-hero--controlled');
+    // Fondo de pagina completa: animar tambien en movil (igual que creadores desktop)
+    this.staticMode = prefersReducedMotion() || (!this.isPage && isMobileViewport());
     this._onResize = this.resize.bind(this);
   }
 

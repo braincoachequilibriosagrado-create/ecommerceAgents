@@ -94,7 +94,17 @@ body.ea-shader-page {
   padding: 24px 20px 48px;
 }
 
-/* ── Hero (mismo tono que recuperar-compra) ───────────────── */
+/* ── Hero sobre fondo shader de pagina (igual panel creadores) ─ */
+.vt-hero.vt-hero--over-shader {
+  position: relative;
+  overflow: visible;
+  background: transparent;
+  color: #fff;
+  text-align: center;
+  padding: 48px 20px 36px;
+  margin: 0 -20px 24px;
+}
+
 .vt-hero.vt-hero--grad {
   position: relative;
   overflow: hidden;
