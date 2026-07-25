@@ -5153,7 +5153,8 @@ function _serveCheckoutMiniapp(req, res) {
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;color:var(--ink);min-height:100vh;padding:32px 16px 48px}
 .wrap{max-width:480px;margin:0 auto}
 .badge{display:inline-flex;align-items:center;gap:6px;background:#fff8e6;border:1px solid #ffe7a3;color:#8a6d1a;font-size:12px;font-weight:700;padding:6px 12px;border-radius:999px;margin-bottom:18px}
-.card{background:var(--white);border:1px solid rgba(255,255,255,.65);border-radius:20px;overflow:hidden;box-shadow:0 20px 50px rgba(20,18,60,.22)}
+.card{background:var(--white);border:none;border-radius:20px;overflow:hidden;box-shadow:0 20px 50px rgba(20,18,60,.22)}
+.card.ea-premium-card{border:none;background:var(--white)}
 .hero{padding:28px 24px 22px;text-align:center;border-bottom:1px solid var(--line)}
 .hero img{width:100%;max-height:220px;object-fit:cover;border-radius:14px;margin-bottom:18px;background:#f5f7fb}
 .hero h1{font-size:24px;font-weight:800;line-height:1.25;margin-bottom:8px}
@@ -6017,8 +6018,9 @@ function _serveRecuperarCompra(req, res) {
 :root{--c1:${c1};--c2:${c2};--c3:${c3};--grad:linear-gradient(120deg,var(--c1),var(--c2),var(--c3));--ink:#0d1117;--slate:#5f6571;--line:#e4e7eb;--white:#fff;--err:#c0392b}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;color:var(--ink);min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:40px 20px}
-.card{background:var(--white);border:1px solid rgba(255,255,255,.65);border-radius:20px;box-shadow:0 20px 50px rgba(20,18,60,.22);width:100%;max-width:480px;overflow:hidden}
-.top{background:var(--grad);color:#fff;padding:36px 28px 28px;text-align:center}
+.card{background:var(--white);border:none;border-radius:20px;box-shadow:0 20px 50px rgba(20,18,60,.22);width:100%;max-width:480px;overflow:hidden}
+.card.ea-premium-card{border:none;background:var(--white)}
+.top{background:var(--grad);color:#fff;padding:36px 28px 28px;text-align:center;margin:0}
 .brand-logo{width:80px;height:80px;border-radius:50%;object-fit:cover;display:block;margin:0 auto 16px;border:3px solid rgba(255,255,255,.55);box-shadow:0 6px 20px rgba(0,0,0,.18)}
 .top h1{font-size:26px;font-weight:800;margin-bottom:8px}
 .top p{font-size:15px;opacity:.92;line-height:1.5}

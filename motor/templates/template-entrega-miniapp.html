@@ -54,12 +54,16 @@
   }
   .card {
     background: var(--white);
-    border: 1px solid rgba(255,255,255,.65);
+    border: none;
     border-radius: var(--r);
     box-shadow: var(--shadow);
     width: 100%;
     max-width: 600px;
     overflow: hidden;
+  }
+  .card.ea-premium-card {
+    border: none;
+    background: var(--white);
   }
   .top {
     background: var(--grad);
@@ -67,6 +71,7 @@
     padding: 40px 32px 32px;
     text-align: center;
     position: relative;
+    margin: 0;
   }
   .brand-logo {
     width: 80px;
