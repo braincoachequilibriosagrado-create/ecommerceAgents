@@ -263,4 +263,15 @@
   global.initPremiumHero = initPremiumHero;
   global.initAllPremiumHeroes = initAllPremiumHeroes;
   global.initPremiumPageBg = initPremiumPageBg;
+
+  function _autoPageShader() {
+    if (!document.body || !document.body.classList.contains('ea-shader-page')) return;
+    if (document.getElementById('ea-page-shader')) return;
+    initPremiumPageBg();
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _autoPageShader);
+  } else {
+    _autoPageShader();
+  }
 })(typeof window !== 'undefined' ? window : this);

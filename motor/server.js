@@ -525,14 +525,17 @@ function _aplicarCspPorRuta(req, res, next) {
   const p = req.path;
   if (p.startsWith('/api/')) return next();
 
+  // Three.js (premium-hero streaks) se carga desde cdnjs — mismo fondo animado que creadores
+  const _CSP_SCRIPT_PREMIUM = "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com";
   if (p === '/marketplace' || p === '/vitrina' || (p === '/' && req.hostname !== API_PUBLIC_HOST)) {
     res.setHeader('Content-Security-Policy', [
       "default-src 'self'",
-      "script-src 'self'",
+      _CSP_SCRIPT_PREMIUM,
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com data:",
       "img-src 'self' data: blob: https:",
       "connect-src 'self' " + _CSP_API_ORIGIN,
+      "worker-src 'self' blob:",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'"
@@ -548,29 +551,32 @@ function _aplicarCspPorRuta(req, res, next) {
   } else if (p === '/checkout' || p === '/recuperar-compra') {
     res.setHeader('Content-Security-Policy', [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline'",
+      _CSP_SCRIPT_PREMIUM,
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: https:",
       "connect-src 'self'",
+      "worker-src 'self' blob:",
       "frame-ancestors 'self'"
     ].join('; '));
   } else if (p.startsWith('/mi-compra/') || p.startsWith('/usar-miniapp/')) {
     res.setHeader('Content-Security-Policy', [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline'",
+      _CSP_SCRIPT_PREMIUM,
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: https:",
       "media-src 'self' https:",
       "connect-src 'self'",
+      "worker-src 'self' blob:",
       "frame-src 'self'"
     ].join('; '));
   } else if (p === '/terminos' || p === '/privacidad') {
     res.setHeader('Content-Security-Policy', [
       "default-src 'self'",
-      "script-src 'self'",
+      _CSP_SCRIPT_PREMIUM,
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data:",
-      "font-src 'self' data:"
+      "font-src 'self' data:",
+      "worker-src 'self' blob:"
     ].join('; '));
   }
   return next();
@@ -3432,7 +3438,7 @@ app.post('/api/mis-productos/quitar', requireUsuario, async (req, res) => {
 });
 
 // ── Marketplace publico (Activos Digitales) ─────────────────────────────────────
-const MARKETPLACE_ASSET_BUST = '7';
+const MARKETPLACE_ASSET_BUST = '8';
 
 async function _apiMarketplace(req, res) {
   try {
@@ -3488,6 +3494,7 @@ function _serveMarketplace(req, res) {
   const logoUrl = _assetUrl('/assets/logo-activos.jpg') + bust;
   const cssUrl  = _assetUrl('/assets/vitrina.css') + bust;
   const premiumCss = _assetUrl('/assets/premium-platform.css') + bust;
+  const heroJs  = _assetUrl('/assets/premium-hero.js') + bust;
   const jsUrl   = _assetUrl('/assets/vitrina.js') + bust;
   res.send(`<!DOCTYPE html>
 <html lang="es">
@@ -3502,7 +3509,7 @@ function _serveMarketplace(req, res) {
 <link rel="stylesheet" href="${premiumCss}">
 <link rel="stylesheet" href="${cssUrl}">
 </head>
-<body class="ea-premium-bg ea-premium-bg--animated">
+<body class="ea-shader-page">
 <div class="vt-page">
   <main class="vt-main">
     <section class="vt-hero vt-hero--grad" id="vt-hero">
@@ -3542,6 +3549,7 @@ function _serveMarketplace(req, res) {
   </footer>
 </div>
 <script>window.VT_API_BASE='${PUBLIC_BASE_URL.replace(/'/g, "\\'")}';</script>
+<script src="${heroJs}"></script>
 <script src="${jsUrl}"></script>
 </body>
 </html>`);
@@ -5093,6 +5101,7 @@ function _serveCheckoutMiniapp(req, res) {
     ? 'Pago seguro · Stripe'
     : (COMPRA_PRUEBA_ACTIVA ? 'Modo prueba — sin cobro real' : 'Checkout');
   const premiumCss = _assetUrl('/assets/premium-platform.css');
+  const heroJs = _assetUrl('/assets/premium-hero.js');
   _setNoCacheHtml(res);
   res.send(`<!DOCTYPE html>
 <html lang="es">
@@ -5130,7 +5139,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;co
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
-<body class="ea-premium-bg ea-premium-bg--animated">
+<body class="ea-shader-page">
 <div class="wrap">
   <div class="badge" id="co-badge">${badgeText}</div>
   <div id="load" class="load"><div class="spin"></div>Cargando producto...</div>
@@ -5153,6 +5162,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;co
     </div>
   </div>
 </div>
+<script src="${heroJs}"></script>
 <script src="${_assetUrl('/checkout-miniapp.js')}"></script>
 </body>
 </html>`);
@@ -5165,6 +5175,7 @@ app.get('/checkout', (req, res) => {
     return _serveCheckoutMiniapp(req, res);
   }
   const premiumCss = _assetUrl('/assets/premium-platform.css');
+  const heroJs = _assetUrl('/assets/premium-hero.js');
   _setNoCacheHtml(res);
   res.send(`<!DOCTYPE html>
 <html lang="es">
@@ -5306,7 +5317,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-seri
 @media(max-width:380px){.ck-g2,.ck-g2z{grid-template-columns:1fr}}
 </style>
 </head>
-<body class="ea-premium-bg ea-premium-bg--animated">
+<body class="ea-shader-page">
 
 <!-- ── Header ──────────────────────────────────────────────────────── -->
 <header class="ck-hd">
@@ -5775,6 +5786,7 @@ function abrirAsesorWA() {
     });
 }
 </script>
+<script src="${heroJs}"></script>
 </body>
 </html>`);
 });
@@ -5955,6 +5967,7 @@ function _serveRecuperarCompra(req, res) {
   const c2 = DEFAULT_MINIAPP_COLORS.color_2;
   const c3 = DEFAULT_MINIAPP_COLORS.color_3;
   const premiumCss = _assetUrl('/assets/premium-platform.css');
+  const heroJs = _assetUrl('/assets/premium-hero.js');
   _setNoCacheHtml(res);
   res.send(`<!DOCTYPE html>
 <html lang="es">
@@ -5984,7 +5997,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;co
 .err{display:none;color:var(--err);font-size:13px;margin-bottom:12px;padding:10px 12px;background:#fef5f5;border:1px solid #f5c6c6;border-radius:10px}
 </style>
 </head>
-<body class="ea-premium-bg ea-premium-bg--animated">
+<body class="ea-shader-page">
 <div class="card ea-premium-card">
   <div class="top">
     <img src="${_assetUrl('/assets/logo-activos.jpg')}" alt="Activos Digitales" class="brand-logo" />
@@ -6020,6 +6033,7 @@ document.getElementById('codigo-acceso').addEventListener('keydown',function(e){
   if(e.key==='Enter'){e.preventDefault();irAcceder();}
 });
 </script>
+<script src="${heroJs}"></script>
 </body>
 </html>`);
 }
@@ -6133,7 +6147,8 @@ app.get('/mi-compra/:codigo', _entregaCodigoGate, async (req, res) => {
       COLOR_3:           colores.color_3,
       RECUPERAR_URL:     PUBLIC_BASE_URL + '/recuperar-compra',
       LOGO_URL:          _assetUrl('/assets/logo-activos.jpg'),
-      PREMIUM_CSS_URL:   _assetUrl('/assets/premium-platform.css')
+      PREMIUM_CSS_URL:   _assetUrl('/assets/premium-platform.css'),
+      HERO_JS_URL:       _assetUrl('/assets/premium-hero.js')
     });
 
     _setNoCacheHtml(res);
