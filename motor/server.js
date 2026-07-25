@@ -2485,9 +2485,13 @@ app.post('/api/creador/restablecer-password', authRateLimiter, async (req, res) 
   }
 });
 
-const CREADOR_PARTE_PLATAFORMA_DEFAULT = 10;
-const MINIAPP_PLATAFORMA_PCT = 10;
-/** ref=directo (venta del dueño / creador): sin vendedor, reparto 90% creador / 10% plataforma */
+/** Comision de plataforma en ventas digitales NUEVAS (%). Cambiar solo aqui. */
+const MINIAPP_PLATAFORMA_PCT = 12;
+/** Parte del creador en venta directa (100 - plataforma). Solo informativo / UI. */
+const MINIAPP_CREADOR_PCT = 100 - MINIAPP_PLATAFORMA_PCT;
+/** Default guardado en miniapps.parte_plataforma al crear producto (alineado a la constante). */
+const CREADOR_PARTE_PLATAFORMA_DEFAULT = MINIAPP_PLATAFORMA_PCT;
+/** ref=directo (venta del dueño / creador): sin vendedor, reparto creador/plataforma segun MINIAPP_PLATAFORMA_PCT */
 const REF_VENTA_DIRECTA = 'DIRECTO';
 // Comision vendedores en activos digitales desactivada. Reactivar para Sistema Viral Pro poniendo true.
 const COMISION_VENDEDORES_DIGITAL_ACTIVA = false;
@@ -3925,27 +3929,59 @@ app.get('/api/admin/creadores', async (req, res) => {
 
     const ids = (creadores || []).map(function (c) { return c.id; });
     const countMap = {};
+    const miniByCreador = {};
+    const miniToCreador = {};
     if (ids.length) {
       const { data: miniapps, error: mErr } = await supabase
         .from('miniapps')
-        .select('creador_id')
+        .select('id, creador_id')
         .in('creador_id', ids);
       if (mErr) throw mErr;
       (miniapps || []).forEach(function (m) {
         if (!m.creador_id) return;
         countMap[m.creador_id] = (countMap[m.creador_id] || 0) + 1;
+        if (!miniByCreador[m.creador_id]) miniByCreador[m.creador_id] = [];
+        miniByCreador[m.creador_id].push(m.id);
+        miniToCreador[m.id] = m.creador_id;
+      });
+    }
+
+    const ventasMap = {};
+    ids.forEach(function (id) {
+      ventasMap[id] = { total_vendido: 0, num_ventas: 0 };
+    });
+
+    const allMiniIds = Object.keys(miniToCreador);
+    if (allMiniIds.length) {
+      const { data: compras, error: cErr } = await supabase
+        .from('miniapp_compras')
+        .select('miniapp_id, monto')
+        .eq('estado_pago', 'pagado')
+        .in('miniapp_id', allMiniIds);
+      if (cErr) throw cErr;
+      (compras || []).forEach(function (c) {
+        const cid = miniToCreador[c.miniapp_id];
+        if (!cid || !ventasMap[cid]) return;
+        ventasMap[cid].total_vendido += Number(c.monto) || 0;
+        ventasMap[cid].num_ventas += 1;
       });
     }
 
     const rows = (creadores || []).map(function (c) {
+      const v = ventasMap[c.id] || { total_vendido: 0, num_ventas: 0 };
       return {
         id:            c.id,
         nombre:        c.nombre,
         email:         c.email,
         estado:        c.estado || 'inactivo',
         creado_en:     c.creado_en,
-        num_productos: countMap[c.id] || 0
+        num_productos: countMap[c.id] || 0,
+        total_vendido: _roundMoney(v.total_vendido),
+        num_ventas:    v.num_ventas
       };
+    }).sort(function (a, b) {
+      if (b.total_vendido !== a.total_vendido) return b.total_vendido - a.total_vendido;
+      return (b.num_ventas || 0) - (a.num_ventas || 0);
     });
 
     res.json({ ok: true, creadores: rows });
@@ -6625,12 +6661,12 @@ app.get('/api/admin/miniapps', async (req, res) => {
   }
 });
 
-// GET /api/admin/miniapps/cuentas  — resumen de ventas y deuda a creadores
+// GET /api/admin/miniapps/cuentas  — resumen de ventas y deuda a creadores (usa snapshot monto_creador)
 app.get('/api/admin/miniapps/cuentas', async (req, res) => {
   try {
     const { data: miniapps, error: mErr } = await supabase
       .from('miniapps')
-      .select('id, creador_id, parte_plataforma, comision_vendedor, creadores ( nombre, email )');
+      .select('id, creador_id, creadores ( nombre, email )');
     if (mErr) throw mErr;
 
     const miniMap = {};
@@ -6641,58 +6677,171 @@ app.get('/api/admin/miniapps/cuentas', async (req, res) => {
       if (!byCreador[m.creador_id]) {
         const cr = m.creadores || {};
         byCreador[m.creador_id] = {
-          creador_id:     m.creador_id,
-          creador_nombre: cr.nombre || '',
-          creador_email:  cr.email  || '',
-          num_ventas:     0,
-          total_generado: 0,
-          total_a_pagar:  0
+          creador_id:           m.creador_id,
+          creador_nombre:       cr.nombre || '',
+          creador_email:        cr.email  || '',
+          num_ventas:           0,
+          total_generado:       0,
+          total_a_pagar:        0,
+          num_ventas_pendientes: 0
         };
       }
     });
 
     const miniIds = Object.keys(miniMap);
     if (miniIds.length) {
-      const { data: compras, error: cErr } = await supabase
+      let compras = null;
+      let cErr = null;
+      const withLiq = await supabase
         .from('miniapp_compras')
-        .select('miniapp_id, monto, vendedor_id, estado_pago')
+        .select('miniapp_id, monto, monto_creador, monto_plataforma, monto_vendedor, estado_pago, pagado_al_creador')
         .eq('estado_pago', 'pagado')
         .in('miniapp_id', miniIds);
+      if (withLiq.error && /pagado_al_creador|column|schema cache/i.test(String(withLiq.error.message || ''))) {
+        const fallback = await supabase
+          .from('miniapp_compras')
+          .select('miniapp_id, monto, monto_creador, monto_plataforma, monto_vendedor, estado_pago')
+          .eq('estado_pago', 'pagado')
+          .in('miniapp_id', miniIds);
+        compras = fallback.data;
+        cErr = fallback.error;
+        (compras || []).forEach(function (c) { c.pagado_al_creador = false; });
+      } else {
+        compras = withLiq.data;
+        cErr = withLiq.error;
+      }
       if (cErr) throw cErr;
 
       (compras || []).forEach(function (c) {
         const mini = miniMap[c.miniapp_id];
         if (!mini || !byCreador[mini.creador_id]) return;
 
-        const monto    = Number(c.monto) || 0;
-        const platPct  = Number(mini.parte_plataforma) || 10;
-        const comPct   = c.vendedor_id ? (Number(mini.comision_vendedor) || 0) : 0;
-        const parteVend  = monto * comPct / 100;
-        const partePlat  = monto * platPct / 100;
-        const parteCreador = monto - parteVend - partePlat;
+        const monto = Number(c.monto) || 0;
+        // Snapshot de la venta (no recalcular con la comision actual)
+        let parteCreador = Number(c.monto_creador);
+        if (!Number.isFinite(parteCreador)) {
+          const plat = Number(c.monto_plataforma);
+          const vend = Number(c.monto_vendedor) || 0;
+          parteCreador = Number.isFinite(plat)
+            ? _roundMoney(Math.max(0, monto - plat - vend))
+            : 0;
+        }
 
         const row = byCreador[mini.creador_id];
         row.num_ventas     += 1;
         row.total_generado += monto;
-        row.total_a_pagar  += parteCreador;
+        if (!c.pagado_al_creador) {
+          row.total_a_pagar += parteCreador;
+          row.num_ventas_pendientes += 1;
+        }
       });
     }
 
     const cuentas = Object.values(byCreador)
       .map(function (r) {
         return {
-          creador_nombre: r.creador_nombre,
-          creador_email:  r.creador_email,
-          num_ventas:     r.num_ventas,
-          total_generado: Math.round(r.total_generado * 100) / 100,
-          total_a_pagar:  Math.round(r.total_a_pagar * 100) / 100
+          creador_id:            r.creador_id,
+          creador_nombre:        r.creador_nombre,
+          creador_email:         r.creador_email,
+          num_ventas:            r.num_ventas,
+          total_generado:        _roundMoney(r.total_generado),
+          total_a_pagar:         _roundMoney(r.total_a_pagar),
+          num_ventas_pendientes: r.num_ventas_pendientes
         };
       })
       .sort(function (a, b) { return b.total_a_pagar - a.total_a_pagar; });
 
-    res.json({ ok: true, cuentas });
+    res.json({
+      ok: true,
+      cuentas,
+      plataforma_pct: MINIAPP_PLATAFORMA_PCT,
+      creador_pct: MINIAPP_CREADOR_PCT
+    });
   } catch (e) {
     console.error('[admin/miniapps/cuentas]', e.message);
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
+  }
+});
+
+// POST /api/admin/creadores/liquidar — marca ventas pagadas pendientes como liquidadas al creador
+app.post('/api/admin/creadores/liquidar', async (req, res) => {
+  const { creador_id } = req.body || {};
+  if (!creador_id) return res.status(400).json({ ok: false, error: 'Se requiere creador_id.' });
+
+  try {
+    const { data: creador, error: crErr } = await supabase
+      .from('creadores')
+      .select('id, nombre')
+      .eq('id', creador_id)
+      .maybeSingle();
+    if (crErr) throw crErr;
+    if (!creador) return res.status(404).json({ ok: false, error: 'Creador no encontrado.' });
+
+    const { data: miniapps, error: mErr } = await supabase
+      .from('miniapps')
+      .select('id')
+      .eq('creador_id', creador_id);
+    if (mErr) throw mErr;
+
+    const miniIds = (miniapps || []).map(function (m) { return m.id; });
+    if (!miniIds.length) {
+      return res.json({
+        ok: true,
+        liquidadas: 0,
+        monto_liquidado: 0,
+        mensaje: 'Este creador no tiene productos.'
+      });
+    }
+
+    const { data: pendientes, error: pErr } = await supabase
+      .from('miniapp_compras')
+      .select('id, monto_creador')
+      .eq('estado_pago', 'pagado')
+      .eq('pagado_al_creador', false)
+      .in('miniapp_id', miniIds);
+    if (pErr) {
+      if (/pagado_al_creador|column|schema cache/i.test(String(pErr.message || ''))) {
+        return res.status(503).json({
+          ok: false,
+          error: 'Falta migracion SQL: ejecuta motor/sql/miniapps-liquidacion-creador.sql en Supabase.'
+        });
+      }
+      throw pErr;
+    }
+
+    const ids = (pendientes || []).map(function (p) { return p.id; });
+    const montoLiquidado = _roundMoney(
+      (pendientes || []).reduce(function (acc, p) { return acc + (Number(p.monto_creador) || 0); }, 0)
+    );
+
+    if (!ids.length) {
+      return res.json({
+        ok: true,
+        liquidadas: 0,
+        monto_liquidado: 0,
+        creador_nombre: creador.nombre || '',
+        mensaje: 'No hay saldo pendiente para este creador.'
+      });
+    }
+
+    const ahora = new Date().toISOString();
+    const { error: uErr } = await supabase
+      .from('miniapp_compras')
+      .update({ pagado_al_creador: true, fecha_pago_creador: ahora })
+      .in('id', ids)
+      .eq('estado_pago', 'pagado')
+      .eq('pagado_al_creador', false);
+    if (uErr) throw uErr;
+
+    res.json({
+      ok: true,
+      liquidadas: ids.length,
+      monto_liquidado: montoLiquidado,
+      creador_nombre: creador.nombre || '',
+      fecha_pago_creador: ahora
+    });
+  } catch (e) {
+    console.error('[admin/creadores/liquidar]', e.message);
     res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
@@ -7770,6 +7919,7 @@ app.listen(PORT, () => {
   console.log(`[motor]   GET  http://localhost:${PORT}/api/admin/creadores`);
   console.log(`[motor]   POST http://localhost:${PORT}/api/admin/creadores/activar`);
   console.log(`[motor]   POST http://localhost:${PORT}/api/admin/creadores/desactivar`);
+  console.log(`[motor]   POST http://localhost:${PORT}/api/admin/creadores/liquidar`);
 
   // ══ OBJETIVO 3: Limpieza de seguridad cada 30 minutos ═════════════════════
   // Borra archivos de temp/ y outputs/ con mas de 1 hora de antiguedad.

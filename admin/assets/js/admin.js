@@ -294,11 +294,14 @@ function renderDigitalCategoria(tabId) {
 function renderCreadoresAdmin() {
   _usrSubTab = 'creadores';
   _crdLoadTabla().then(function () {
-    var n = (_crdCache || []).length;
-    var activos = (_crdCache || []).filter(function (c) { return c.activo !== false; }).length;
+    var list = _crdCache || [];
+    var n = list.length;
+    var activos = list.filter(function (c) { return String(c.estado || '').toLowerCase() === 'activo'; }).length;
+    var top = list[0];
     _setHtml('crd-summary-row',
       _statCard(n, 'Total creadores') +
-      _statCard(activos, 'Activos')
+      _statCard(activos, 'Activos') +
+      _statCard(top ? _fmt(top.total_vendido || 0) : _fmt(0), 'Top ventas')
     );
   }).catch(function () {
     _setHtml('crd-summary-row', _statCard('—', 'Total creadores'));
@@ -314,44 +317,49 @@ function renderVentasDigitales() {
 function renderCuentaResumen() {
   var sumEl = document.getElementById('cuenta-summary-row');
   var pendEl = document.getElementById('cuenta-pendientes-wrap');
+  var liqEl = document.getElementById('cuenta-liquidacion-wrap');
   if (sumEl) sumEl.innerHTML = _statCard('...', 'Cargando');
   if (pendEl) pendEl.innerHTML = '<p class="adm-empty-text">Cargando...</p>';
+  if (liqEl) liqEl.innerHTML = '<p class="adm-empty-text" style="padding:20px">Cargando saldos...</p>';
 
   Promise.all([
     _adminFetch(MOTOR_URL + '/api/admin/miniapps').then(function (r) { return r.json(); }),
-    _adminFetch(MOTOR_URL + '/api/admin/miniapps/cuentas').then(function (r) { return r.json(); }),
-    _adminFetch(MOTOR_URL + '/api/admin/creadores').then(function (r) { return r.json(); })
+    _adminFetch(MOTOR_URL + '/api/admin/miniapps/cuentas').then(function (r) { return r.json(); })
   ]).then(function (results) {
     var apps = (results[0] && results[0].ok) ? (results[0].miniapps || []) : [];
-    var cuentas = (results[1] && results[1].ok) ? (results[1].cuentas || []) : [];
-    var creadores = (results[2] && results[2].ok) ? (results[2].creadores || []) : [];
+    var cuentasData = results[1] || {};
+    var cuentas = cuentasData.ok ? (cuentasData.cuentas || []) : [];
+    _maCuentasCache = cuentas;
 
-    var byCat = { miniapp: 0, infoproducto: 0, contenido_digital: 0 };
     var pendByCat = { miniapp: 0, infoproducto: 0, contenido_digital: 0 };
-    var aprobados = 0;
     var pendientes = 0;
     apps.forEach(function (m) {
       var cat = m.categoria || 'miniapp';
-      if (byCat[cat] == null) byCat[cat] = 0;
-      byCat[cat]++;
       if ((m.estado_aprobacion || 'pendiente') === 'pendiente') {
         pendientes++;
         if (pendByCat[cat] == null) pendByCat[cat] = 0;
         pendByCat[cat]++;
-      } else if (m.estado_aprobacion === 'aprobada') {
-        aprobados++;
       }
     });
 
-    var totalGen = 0;
-    cuentas.forEach(function (c) { totalGen += Number(c.total_generado || 0); });
+    var totalPendiente = 0;
+    var conDeuda = 0;
+    cuentas.forEach(function (c) {
+      var p = Number(c.total_a_pagar || 0);
+      totalPendiente += p;
+      if (p > 0) conDeuda++;
+    });
 
     if (sumEl) {
       sumEl.innerHTML =
-        _statCard(pendientes, 'Pendientes de aprobar') +
-        _statCard(aprobados, 'Aprobados') +
-        _statCard(creadores.length, 'Creadores') +
-        _statCard(_fmt(totalGen), 'Ingresos digitales');
+        _statCard(_fmt(totalPendiente), 'Saldo pendiente total') +
+        _statCard(conDeuda, 'Creadores con deuda') +
+        _statCard(pendientes, 'Productos por aprobar') +
+        _statCard((cuentasData.plataforma_pct || 12) + '%', 'Comision plataforma');
+    }
+
+    if (liqEl) {
+      liqEl.innerHTML = _cuentaLiquidacionHtml(cuentas);
     }
 
     if (pendEl) {
@@ -369,7 +377,77 @@ function renderCuentaResumen() {
   }).catch(function (e) {
     if (sumEl) sumEl.innerHTML = '<p class="adm-empty-text" style="color:#c0392b">' + _esc(e.message || 'Error') + '</p>';
     if (pendEl) pendEl.innerHTML = '';
+    if (liqEl) liqEl.innerHTML = '<p class="adm-empty-text" style="color:#c0392b">' + _esc(e.message || 'Error') + '</p>';
   });
+}
+
+function _cuentaLiquidacionHtml(cuentas) {
+  if (!cuentas || !cuentas.length) {
+    return '<p class="adm-empty-text">No hay creadores con ventas registradas.</p>';
+  }
+  var rows = cuentas.map(function (c) {
+    var pendiente = Number(c.total_a_pagar || 0);
+    var cid = _esc(c.creador_id || '');
+    var nombre = _esc(c.creador_nombre || '—');
+    var btn = pendiente > 0
+      ? '<button type="button" class="adm-btn adm-btn--sm adm-btn--primary" id="liq-btn-' + cid + '" onclick="cuentaPagarCreador(\'' + cid + '\')">Pagar</button>'
+      : '<span class="adm-badge adm-badge--ok">Al dia</span>';
+    return '<tr id="liq-row-' + cid + '">' +
+      '<td class="adm-td-name">' + nombre + '</td>' +
+      '<td class="ma-email">' + _esc(c.creador_email || '') + '</td>' +
+      '<td>' + (Number(c.num_ventas) || 0) + '</td>' +
+      '<td class="adm-td-money">' + _fmt(c.total_generado || 0) + '</td>' +
+      '<td class="adm-td-money ma-td-pagar"><strong>' + _fmt(pendiente) + '</strong></td>' +
+      '<td>' + (Number(c.num_ventas_pendientes) || 0) + '</td>' +
+      '<td>' + btn + '</td>' +
+    '</tr>';
+  }).join('');
+
+  return '<div class="adm-table-wrap">' +
+    '<table class="adm-table ma-cuentas-table">' +
+    '<thead><tr>' +
+      '<th>Creador</th><th>Email</th><th>Ventas</th><th>Total vendido</th><th>Saldo pendiente</th><th>Ventas sin liquidar</th><th></th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+}
+
+function cuentaPagarCreador(creadorId) {
+  var row = null;
+  (_maCuentasCache || []).forEach(function (c) {
+    if (String(c.creador_id) === String(creadorId)) row = c;
+  });
+  if (!row) {
+    alert('No se encontro el creador.');
+    return;
+  }
+  var nombre = row.creador_nombre || 'este creador';
+  var monto = Number(row.total_a_pagar || 0);
+  if (monto <= 0) {
+    alert('Este creador no tiene saldo pendiente.');
+    return;
+  }
+  if (!confirm('Confirmas que ya le pagaste a ' + nombre + ' ' + _fmt(monto) + '? Esto reiniciara su saldo pendiente.')) {
+    return;
+  }
+
+  var btn = document.getElementById('liq-btn-' + creadorId);
+  if (btn) { btn.disabled = true; btn.textContent = 'Pagando...'; }
+
+  _adminFetch(MOTOR_URL + '/api/admin/creadores/liquidar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ creador_id: creadorId })
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d.ok) throw new Error(d.error || 'Error al liquidar.');
+      alert('Liquidado: ' + _fmt(d.monto_liquidado || monto) + ' (' + (d.liquidadas || 0) + ' ventas).');
+      renderCuentaResumen();
+      if (typeof renderMaCuentas === 'function') renderMaCuentas();
+    })
+    .catch(function (e) {
+      alert(e.message || 'Error al liquidar.');
+      if (btn) { btn.disabled = false; btn.textContent = 'Pagar'; }
+    });
 }
 
 /* ============================================================
@@ -1264,8 +1342,8 @@ function _crdRenderTabla(arr) {
   if (!arr || !arr.length) {
     _setHtml('crd-table-wrap',
       '<table class="adm-table"><thead><tr>' +
-      '<th class="adm-th-n">N</th><th>Nombre</th><th>Email</th><th>Productos</th><th>Estado</th><th>Accion</th>' +
-      '</tr></thead><tbody><tr><td colspan="6" class="adm-td-muted" style="padding:24px;text-align:center;">No hay creadores registrados.</td></tr></tbody></table>'
+      '<th class="adm-th-n">#</th><th>Nombre</th><th>Email</th><th>Ventas</th><th>Total vendido</th><th>Productos</th><th>Estado</th><th>Accion</th>' +
+      '</tr></thead><tbody><tr><td colspan="8" class="adm-td-muted" style="padding:24px;text-align:center;">No hay creadores registrados.</td></tr></tbody></table>'
     );
     return;
   }
@@ -1279,6 +1357,8 @@ function _crdRenderTabla(arr) {
       '<td class="adm-td-muted adm-td-n">' + (idx + 1) + '</td>' +
       '<td><span class="adm-usr-name">' + _esc(c.nombre || '—') + '</span></td>' +
       '<td>' + _esc(c.email || '') + '</td>' +
+      '<td>' + (Number(c.num_ventas) || 0) + '</td>' +
+      '<td class="adm-td-money"><strong>' + _fmt(c.total_vendido || 0) + '</strong></td>' +
       '<td class="adm-td-muted">' + (Number(c.num_productos) || 0) + '</td>' +
       '<td><span class="adm-badge ' + estadoCls + '" id="crd-badge-' + _esc(c.id) + '">' + estadoTxt + '</span></td>' +
       '<td><button type="button" class="adm-btn adm-btn--sm ' + toggleCls + '" id="crd-btn-' + _esc(c.id) + '" onclick="crdToggle(\'' + _esc(c.id) + '\',' + (activo ? 'true' : 'false') + ')">' + toggleTxt + '</button></td>' +
@@ -1288,9 +1368,11 @@ function _crdRenderTabla(arr) {
   _setHtml('crd-table-wrap',
     '<table class="adm-table">' +
     '<thead><tr>' +
-      '<th class="adm-th-n">N</th>' +
+      '<th class="adm-th-n">#</th>' +
       '<th>Nombre</th>' +
       '<th>Email</th>' +
+      '<th>Ventas</th>' +
+      '<th>Total vendido</th>' +
       '<th>Productos</th>' +
       '<th>Estado</th>' +
       '<th>Accion</th>' +
@@ -2300,7 +2382,7 @@ function renderMaCuentas() {
         sum.innerHTML =
           _statCard(_maCuentasCache.length, 'Creadores con ventas') +
           _statCard(_fmt(totalGen), 'Ingresos digitales') +
-          _statCard(_fmt(totalPagar), 'A pagar a creadores');
+          _statCard(_fmt(totalPagar), 'Saldo pendiente');
       }
 
       if (!_maCuentasCache.length) {
@@ -2319,7 +2401,7 @@ function renderMaCuentas() {
         wrap.innerHTML =
           '<div class="adm-table-wrap">' +
           '<table class="adm-table ma-cuentas-table">' +
-          '<thead><tr><th>Creador</th><th>Email</th><th>Ventas</th><th>Total generado</th><th>Total a pagar</th></tr></thead>' +
+          '<thead><tr><th>Creador</th><th>Email</th><th>Ventas</th><th>Total generado</th><th>Saldo pendiente</th></tr></thead>' +
           '<tbody>' + rows + '</tbody></table></div>';
       }
     })

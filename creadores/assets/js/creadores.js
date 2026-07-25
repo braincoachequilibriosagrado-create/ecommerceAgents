@@ -1013,7 +1013,7 @@ async function cargarCatalogoCreador() {
         paginaHtml =
           '<div class="cr-catalogo-link-dueno">' +
             '<span class="cr-catalogo-link-dueno-lbl">Tu link directo (sin comision a vendedores)</span>' +
-            '<p class="cr-catalogo-link-dueno-hint">Comparte este enlace para vender directo. Recibes el 90%, sin comision a vendedores.</p>' +
+            '<p class="cr-catalogo-link-dueno-hint">Comparte este enlace para vender directo. Recibes el 88%, sin comision a vendedores.</p>' +
             '<div class="cr-catalogo-pagina-row">' +
               '<a class="cr-catalogo-link" href="' + _esc(ownerLink) + '" target="_blank" rel="noopener noreferrer">' + _esc(ownerLink) + '</a>' +
               '<button type="button" class="cr-btn-copy" data-copy-url="' + _esc(ownerLink) + '">Copiar</button>' +

@@ -61,7 +61,7 @@
     <button class="adm-tab-btn" id="adm-tab-btn-ventas" role="tab" aria-selected="false"
       onclick="switchAdminTab('ventas')">Ventas</button>
     <button class="adm-tab-btn" id="adm-tab-btn-cuenta" role="tab" aria-selected="false"
-      onclick="switchAdminTab('cuenta')">Cuenta</button>
+      onclick="switchAdminTab('cuenta')">Cuentas</button>
   </nav>
 
   <!-- MAIN CONTENT -->
@@ -104,11 +104,11 @@
     <section id="adm-panel-creadores" class="adm-panel" role="tabpanel" hidden>
       <div class="adm-panel-header">
         <h2 class="adm-panel-title">Creadores</h2>
-        <p class="adm-panel-desc">Activa o desactiva creadores y revisa quienes suben productos digitales.</p>
+        <p class="adm-panel-desc">Ranking por ventas pagadas (mayor a menor). Activa o desactiva cuentas.</p>
       </div>
       <div class="adm-summary-row" id="crd-summary-row"></div>
       <div class="adm-section">
-        <h3 class="adm-section-title">Creadores registrados</h3>
+        <h3 class="adm-section-title">Ranking de creadores</h3>
         <div class="adm-table-wrap" id="crd-table-wrap"></div>
       </div>
     </section>
@@ -136,25 +136,23 @@
       </div>
     </section>
 
-    <!-- ===== CUENTA (vista general) ===== -->
+    <!-- ===== CUENTAS (liquidacion a creadores) ===== -->
     <section id="adm-panel-cuenta" class="adm-panel" role="tabpanel" hidden>
       <div class="adm-panel-header">
-        <h2 class="adm-panel-title">Cuenta</h2>
-        <p class="adm-panel-desc">Vista general del negocio digital: pendientes, aprobados e ingresos.</p>
+        <h2 class="adm-panel-title">Cuentas</h2>
+        <p class="adm-panel-desc">Saldo pendiente por creador (su parte de ventas Stripe). Al pagar, el historial se conserva y el pendiente vuelve a $0.</p>
       </div>
       <div class="adm-summary-row" id="cuenta-summary-row"></div>
       <div class="adm-section">
-        <h3 class="adm-section-title">Pendientes por tipo</h3>
-        <div id="cuenta-pendientes-wrap" class="cuenta-pendientes-grid"></div>
+        <h3 class="adm-section-title">Liquidacion a creadores</h3>
+        <p class="ma-subpanel-hint ma-subpanel-hint--info">
+          El monto pendiente usa el reparto guardado en cada venta (no se recalcula si cambia la comision).
+        </p>
+        <div id="cuenta-liquidacion-wrap"></div>
       </div>
       <div class="adm-section">
-        <h3 class="adm-section-title">Accesos rapidos</h3>
-        <div class="cuenta-quick-actions">
-          <button type="button" class="adm-btn adm-btn--primary" onclick="switchAdminTab('miniapp')">Ver Mini Apps</button>
-          <button type="button" class="adm-btn adm-btn--outline" onclick="switchAdminTab('infoproducto')">Ver Infoproductos</button>
-          <button type="button" class="adm-btn adm-btn--outline" onclick="switchAdminTab('contenido_digital')">Ver Contenido Digital</button>
-          <button type="button" class="adm-btn adm-btn--outline" onclick="switchAdminTab('ventas')">Ver Ventas</button>
-        </div>
+        <h3 class="adm-section-title">Pendientes de aprobacion</h3>
+        <div id="cuenta-pendientes-wrap" class="cuenta-pendientes-grid"></div>
       </div>
     </section>
 
@@ -578,7 +576,7 @@
   </div><!-- /adm-main-content -->
 
   <script src="assets/js/premium-hero.js?v=2"></script>
-  <script src="assets/js/admin.js?v=24"></script>
+  <script src="assets/js/admin.js?v=25"></script>
   <script>
     (function () {
       function bootShader() {
