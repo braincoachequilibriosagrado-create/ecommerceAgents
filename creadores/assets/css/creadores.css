@@ -116,16 +116,17 @@ body.cr-body--auth #cr-auth-screen {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 76px;
-  height: 76px;
-  overflow: hidden;
-  border-radius: 50%;
+  width: auto;
+  height: 52px;
+  overflow: visible;
+  border-radius: 0;
 }
 
 .cr-nav-logo {
-  width: 76px;
-  height: 76px;
-  border-radius: 50%;
+  width: auto;
+  height: 52px;
+  max-width: 160px;
+  border-radius: 0;
   object-fit: contain;
   object-position: center;
   display: block;
@@ -282,8 +283,9 @@ body.cr-body--auth #cr-auth-screen {
 }
 
 .cr-auth-logo {
-  width: 234px;
-  height: 234px;
+  width: auto;
+  height: 160px;
+  max-width: 220px;
   object-fit: contain;
   object-position: center;
   display: block;
@@ -1981,12 +1983,14 @@ a.cr-dash-tab {
   }
   .cr-nav-logo-wrap,
   .cr-nav-logo {
-    width: 68px;
-    height: 68px;
+    width: auto;
+    height: 44px;
+    max-width: 130px;
   }
   .cr-auth-logo {
-    width: 187px;
-    height: 187px;
+    width: auto;
+    height: 120px;
+    max-width: 180px;
   }
   .cr-nav-brand {
     flex: 1 1 auto;
@@ -2053,10 +2057,12 @@ body.cr-body--landing {
 }
 
 .lp-brand-logo {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  object-fit: cover;
+  width: auto;
+  height: 44px;
+  max-width: 150px;
+  border-radius: 0;
+  object-fit: contain;
+  display: block;
 }
 
 .lp-brand-text {
@@ -2842,10 +2848,11 @@ body.cr-body--landing {
 }
 
 .lp-footer-logo {
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  object-fit: cover;
+  width: auto;
+  height: 72px;
+  max-width: 180px;
+  border-radius: 0;
+  object-fit: contain;
 }
 
 .lp-footer p {

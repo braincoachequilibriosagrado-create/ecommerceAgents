@@ -36,10 +36,11 @@ function _fmtFecha(iso) {
 
 function _logoPath() {
   const candidates = [
-    path.join(__dirname, '../creadores/assets/img/logo.jpg'),
-    path.join(__dirname, '../creadores/assets/img/logo.png'),
-    path.join(__dirname, 'assets/img/logo.jpg'),
-    path.join(__dirname, 'assets/img/logo.png')
+    path.join(__dirname, 'assets/logo-activos.png'),
+    path.join(__dirname, 'assets/logo-activos.jpg'),
+    path.join(__dirname, 'assets/img/logo-activos.png'),
+    path.join(__dirname, '../creadores/assets/img/logo-activos.png'),
+    path.join(__dirname, '../creadores/assets/img/logo.jpg')
   ];
   for (let i = 0; i < candidates.length; i++) {
     try {
@@ -93,8 +94,8 @@ function generarComprobantePagoPdf(pago) {
       let textX = left;
       if (logo) {
         try {
-          doc.image(logo, left, 22, { width: 48, height: 48 });
-          textX = left + 60;
+          doc.image(logo, left, 14, { fit: [72, 72], align: 'center', valign: 'center' });
+          textX = left + 84;
         } catch (_) { /* logo opcional */ }
       }
       doc.fillColor('#ffffff')

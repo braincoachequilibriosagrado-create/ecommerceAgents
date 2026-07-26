@@ -56,6 +56,15 @@ body {
   text-align: center;
 }
 
+.adm-login-logo {
+  display: block;
+  width: auto;
+  height: 120px;
+  max-width: 200px;
+  margin: 0 auto 12px;
+  object-fit: contain;
+}
+
 .adm-login-brand {
   font-family: var(--font-ui);
   font-size: 17px;
@@ -139,6 +148,15 @@ body {
   display: flex;
   align-items: center;
   gap: 14px;
+}
+
+.adm-brand-logo {
+  display: block;
+  width: auto;
+  height: 40px;
+  max-width: 140px;
+  object-fit: contain;
+  flex-shrink: 0;
 }
 
 .adm-brand {

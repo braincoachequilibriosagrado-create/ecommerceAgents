@@ -209,7 +209,7 @@ function _serveLegalPage(res, templatePath) {
     }
     let html = fs.readFileSync(templatePath, 'utf-8');
     html = html
-      .replace(/\{\{LOGO_URL\}\}/g, _assetUrl('/assets/logo-activos.jpg'))
+      .replace(/\{\{LOGO_URL\}\}/g, _assetUrl('/assets/logo-activos.png'))
       .replace(/\{\{CSS_URL\}\}/g, _assetUrl('/assets/legal.css'))
       .replace(/\{\{PREMIUM_CSS_URL\}\}/g, _assetUrl('/assets/premium-platform.css'))
       .replace(/\{\{HERO_JS_URL\}\}/g, _assetUrl('/assets/premium-hero.js'))
@@ -2327,9 +2327,13 @@ async function _enviarCorreoRecuperarCreador(email, nombre, resetUrl) {
     console.error('[creador/recuperar-password] RESEND_API_KEY no configurada');
     return false;
   }
+  const logoAbs = String(PUBLIC_BASE_URL || '').replace(/\/$/, '') + '/assets/logo-activos.png';
   const displayName = String(nombre || '').trim() || 'Creador';
   const html =
     '<div style="font-family:Inter,Arial,sans-serif;max-width:520px;margin:0 auto;color:#0f1222">' +
+    '<div style="text-align:center;margin:0 0 20px">' +
+    '<img src="' + logoAbs + '" alt="Activos Digitales" width="140" height="140" style="width:140px;height:auto;max-width:180px;display:inline-block" />' +
+    '</div>' +
     '<h2 style="color:#5b28e0;margin:0 0 12px">Recupera tu contraseña</h2>' +
     '<p>Hola ' + displayName.replace(/</g, '&lt;') + ',</p>' +
     '<p>Recibimos una solicitud para restablecer la contraseña de tu cuenta en <strong>Activos Digitales</strong>.</p>' +
@@ -3443,7 +3447,7 @@ app.post('/api/mis-productos/quitar', requireUsuario, async (req, res) => {
 });
 
 // ── Marketplace publico (Activos Digitales) ─────────────────────────────────────
-const MARKETPLACE_ASSET_BUST = '9';
+const MARKETPLACE_ASSET_BUST = '10';
 
 async function _apiMarketplace(req, res) {
   try {
@@ -3496,7 +3500,7 @@ function _serveRoot(req, res) {
 function _serveMarketplace(req, res) {
   _setNoCacheHtml(res);
   const bust    = '&mp=' + MARKETPLACE_ASSET_BUST;
-  const logoUrl = _assetUrl('/assets/logo-activos.jpg') + bust;
+  const logoUrl = _assetUrl('/assets/logo-activos.png') + bust;
   const cssUrl  = _assetUrl('/assets/vitrina.css') + bust;
   const premiumCss = _assetUrl('/assets/premium-platform.css') + bust;
   const heroJs  = _assetUrl('/assets/premium-hero.js') + bust;
@@ -3508,6 +3512,7 @@ function _serveMarketplace(req, res) {
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Activos Digitales — Marketplace</title>
 <meta name="description" content="Marketplace de activos digitales: mini apps, infoproductos y contenido digital. Compra segura y acceso inmediato.">
+<link rel="icon" type="image/png" href="${_assetUrl('/assets/logo-activos.png')}${bust}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
@@ -6022,7 +6027,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;co
 .card{background:var(--white);border:none;border-radius:20px;box-shadow:0 20px 50px rgba(20,18,60,.22);width:100%;max-width:480px;overflow:hidden}
 .card.ea-premium-card{border:none;background:var(--white)}
 .top{background:#ffffff;color:var(--ink);padding:36px 28px 28px;text-align:center;margin:0;border-bottom:1px solid var(--line)}
-.brand-logo{width:80px;height:80px;border-radius:50%;object-fit:cover;display:block;margin:0 auto 16px;border:3px solid #e8eaf0;box-shadow:0 6px 20px rgba(15,18,34,.08)}
+.brand-logo{width:auto;height:88px;max-width:200px;border-radius:0;object-fit:contain;display:block;margin:0 auto 16px;border:none;box-shadow:none}
 .top h1{font-size:26px;font-weight:800;margin-bottom:8px;color:#0b0e1a}
 .top p{font-size:15px;line-height:1.5;color:#5a5f74;opacity:1}
 .body{padding:28px}
@@ -6040,7 +6045,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;co
 <body class="ea-shader-page">
 <div class="card ea-premium-card">
   <div class="top">
-    <img src="${_assetUrl('/assets/logo-activos.jpg')}" alt="Activos Digitales" class="brand-logo" />
+    <img src="${_assetUrl('/assets/logo-activos.png')}" alt="Activos Digitales" class="brand-logo" />
     <h1>Recupera tu compra</h1>
     <p>Ingresa el codigo de acceso que recibiste al comprar para volver a tu producto.</p>
   </div>
@@ -6186,7 +6191,7 @@ app.get('/mi-compra/:codigo', _entregaCodigoGate, async (req, res) => {
       COLOR_2:           colores.color_2,
       COLOR_3:           colores.color_3,
       RECUPERAR_URL:     PUBLIC_BASE_URL + '/recuperar-compra',
-      LOGO_URL:          _assetUrl('/assets/logo-activos.jpg'),
+      LOGO_URL:          _assetUrl('/assets/logo-activos.png'),
       PREMIUM_CSS_URL:   _assetUrl('/assets/premium-platform.css'),
       HERO_JS_URL:       _assetUrl('/assets/premium-hero.js')
     });
@@ -8089,7 +8094,7 @@ app.listen(PORT, () => {
   console.log(`[motor]   GET  http://localhost:${PORT}/marketplace`);
   console.log(`[motor]   GET  http://localhost:${PORT}/vitrina  (redirect → /marketplace)`);
   console.log(`[motor]   GET  http://localhost:${PORT}/api/marketplace`);
-  console.log(`[motor]   GET  http://localhost:${PORT}/assets/logo-activos.jpg`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/assets/logo-activos.png`);
   console.log(`[motor]   GET  http://localhost:${PORT}/usar-miniapp/:codigo`);
   console.log(`[motor]   GET  http://localhost:${PORT}/descargar-pdf/:codigo (R2 presigned)`);
   console.log(`[motor]   GET  http://localhost:${PORT}/descargar-pack/:codigo`);

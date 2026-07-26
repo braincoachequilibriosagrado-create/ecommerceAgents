@@ -53,10 +53,11 @@ body {
 }
 
 .legal-brand img {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  object-fit: cover;
+  width: auto;
+  height: 44px;
+  max-width: 140px;
+  border-radius: 0;
+  object-fit: contain;
 }
 
 .legal-brand-name {
