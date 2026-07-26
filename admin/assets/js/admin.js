@@ -204,10 +204,10 @@ var ADMIN_PRODUCT_TABS = {
     title: 'Mini Apps',
     desc: 'Revisa, aprueba y gestiona las mini apps de los creadores.'
   },
-  infoproducto: {
+    infoproducto: {
     cat: 'infoproducto',
     title: 'Infoproductos',
-    desc: 'PDFs e infoproductos pendientes y aprobados.'
+    desc: 'PDFs, arte digital y prompts pendientes y aprobados.'
   },
   contenido_digital: {
     cat: 'contenido_digital',
@@ -286,8 +286,10 @@ function renderDigitalCategoria(tabId) {
   if (titleEl) titleEl.textContent = meta.title;
   if (descEl) descEl.textContent = meta.desc;
   _maCategoriaActiva = meta.cat;
+  _maSubcategoriaActiva = '';
   _maSubTabActivo = 'por-aprobar';
   switchMaSubTab('por-aprobar');
+  _maUpdateCategoriaFiltroUI();
   loadMaData();
 }
 
@@ -2224,10 +2226,12 @@ function admCerrarModal() {
 var _maCache = [];
 var _maSubTabActivo = 'por-aprobar';
 var _maCategoriaActiva = '';
+var _maSubcategoriaActiva = '';
 var _maCuentasCache = [];
 
 var MA_SUBTABS = ['por-aprobar', 'aprobados'];
 var MA_CATEGORIAS = ['', 'infoproducto', 'contenido_digital', 'miniapp'];
+var MA_SUBCATEGORIAS = ['', 'pdf', 'arte', 'prompts'];
 
 function _maCategoriaLabel(cat) {
   var map = {
@@ -2236,6 +2240,18 @@ function _maCategoriaLabel(cat) {
     miniapp:           'Mini App'
   };
   return map[cat] || 'Mini App';
+}
+
+function _maSubcategoriaLabel(sub) {
+  var map = { pdf: 'PDF', arte: 'Arte', prompts: 'Prompts' };
+  return map[String(sub || '').toLowerCase()] || '';
+}
+
+function _maSubcategoriaBadgeClass(sub) {
+  var s = String(sub || '').toLowerCase();
+  if (s === 'arte') return 'adm-badge--sub-arte';
+  if (s === 'prompts') return 'adm-badge--sub-prompts';
+  return 'adm-badge--sub-pdf';
 }
 
 function _maCategoriaBadgeClass(cat) {
@@ -2247,11 +2263,23 @@ function _maCategoriaBadgeClass(cat) {
   return map[cat] || 'adm-badge--cat-miniapp';
 }
 
+function _maTipoLabel(m) {
+  var t = String(m.tipo_producto || '');
+  if (t === 'html_pdf') return 'HTML + PDF';
+  if (t === 'pdf') return 'PDF';
+  if (t === 'videos' || t === 'pack') return 'Videos';
+  if (t === 'html') return 'HTML';
+  return t || '—';
+}
+
 function _maFetchUrl() {
   var url = MOTOR_URL + '/api/admin/miniapps';
-  if (_maCategoriaActiva) {
-    url += '?categoria=' + encodeURIComponent(_maCategoriaActiva);
+  var qs = [];
+  if (_maCategoriaActiva) qs.push('categoria=' + encodeURIComponent(_maCategoriaActiva));
+  if (_maCategoriaActiva === 'infoproducto' && _maSubcategoriaActiva) {
+    qs.push('subcategoria=' + encodeURIComponent(_maSubcategoriaActiva));
   }
+  if (qs.length) url += '?' + qs.join('&');
   return url;
 }
 
@@ -2263,10 +2291,29 @@ function _maUpdateCategoriaFiltroUI() {
   });
   var filtro = document.getElementById('ma-categoria-filtro');
   if (filtro) filtro.hidden = true; // categoria = tab principal
+
+  var subFiltro = document.getElementById('ma-subcategoria-filtro');
+  if (subFiltro) {
+    var showSub = _maCategoriaActiva === 'infoproducto';
+    subFiltro.hidden = !showSub;
+    if (!showSub) _maSubcategoriaActiva = '';
+    MA_SUBCATEGORIAS.forEach(function (sub) {
+      var id = sub ? 'ma-sub-btn-' + sub : 'ma-sub-btn-todas';
+      var btn = document.getElementById(id);
+      if (btn) btn.classList.toggle('active', sub === _maSubcategoriaActiva);
+    });
+  }
 }
 
 function switchMaCategoria(cat) {
   _maCategoriaActiva = cat || '';
+  if (_maCategoriaActiva !== 'infoproducto') _maSubcategoriaActiva = '';
+  _maUpdateCategoriaFiltroUI();
+  loadMaData();
+}
+
+function switchMaSubcategoria(sub) {
+  _maSubcategoriaActiva = sub || '';
   _maUpdateCategoriaFiltroUI();
   loadMaData();
 }
@@ -2318,7 +2365,7 @@ function _maSeguridadHtml(m) {
 
 function _maCardHtml(m, modo) {
   var imgUrl = MOTOR_URL + '/api/miniapps/asset/' + encodeURIComponent(m.slug) + '/foto1';
-  var tipo = m.tipo_producto === 'html_pdf' ? 'HTML + PDF' : 'HTML';
+  var tipo = _maTipoLabel(m);
   var cardClass = 'ma-card' + (modo === 'pendiente' ? ' ma-card--pendiente' : ' ma-card--aprobada');
   var badge = modo === 'aprobada'
     ? '<span class="adm-badge adm-badge--ok ma-card-badge">Aprobada</span>'
@@ -2326,6 +2373,11 @@ function _maCardHtml(m, modo) {
 
   var tags = '<span class="adm-badge ' + _maCategoriaBadgeClass(m.categoria || 'miniapp') + '">' +
     _maCategoriaLabel(m.categoria || 'miniapp') + '</span>';
+  if ((m.categoria || '') === 'infoproducto') {
+    var sub = m.subcategoria || 'pdf';
+    tags += ' <span class="adm-badge ' + _maSubcategoriaBadgeClass(sub) + '">' +
+      _esc(_maSubcategoriaLabel(sub) || 'PDF') + '</span>';
+  }
   tags += ' <span class="adm-badge adm-badge--html">' + tipo + '</span>';
   if (m.usa_ia) tags += ' <span class="adm-badge adm-badge--pagina">Usa IA</span>';
   if (m.disponible_vendedores && COMISION_VENDEDORES_DIGITAL_ACTIVA) {

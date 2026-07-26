@@ -487,6 +487,34 @@ body.ea-shader-page {
   color: #e85a1f;
 }
 
+.vt-badge--sub-pdf {
+  background: rgba(43, 58, 245, 0.1);
+  color: #2b3af5;
+}
+.vt-badge--sub-arte {
+  background: rgba(232, 90, 31, 0.12);
+  color: #d35400;
+}
+.vt-badge--sub-prompts {
+  background: rgba(15, 122, 74, 0.12);
+  color: #0f7a4a;
+}
+
+.vt-subfilters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(15, 18, 34, 0.08);
+}
+
+.vt-chip--sub {
+  font-size: 12px;
+  padding: 6px 12px;
+}
+
 .vt-card-name {
   font-family: var(--font-display);
   font-size: 17px;

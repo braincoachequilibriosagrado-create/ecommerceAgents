@@ -3,6 +3,7 @@
 
   var productos = [];
   var filtroCat = 'all';
+  var filtroSub = 'all';
   var busqueda = '';
 
   var CAT_LABELS = {
@@ -11,11 +12,18 @@
     contenido_digital: 'Contenido Digital'
   };
 
+  var SUB_LABELS = {
+    pdf: 'PDF',
+    arte: 'Arte',
+    prompts: 'Prompts'
+  };
+
   var gridEl   = document.getElementById('vt-grid');
   var statusEl = document.getElementById('vt-status');
   var emptyEl  = document.getElementById('vt-empty');
   var searchEl = document.getElementById('vt-search');
   var filtersEl = document.getElementById('vt-filters');
+  var subfiltersEl = document.getElementById('vt-subfilters');
 
   function esc(s) {
     return String(s || '')
@@ -48,9 +56,31 @@
     return 'vt-badge--miniapp';
   }
 
+  function subBadgeClass(sub) {
+    if (sub === 'arte') return 'vt-badge--sub-arte';
+    if (sub === 'prompts') return 'vt-badge--sub-prompts';
+    return 'vt-badge--sub-pdf';
+  }
+
+  function updateSubfiltersVisibility() {
+    if (!subfiltersEl) return;
+    var show = filtroCat === 'infoproducto';
+    subfiltersEl.hidden = !show;
+    if (!show) filtroSub = 'all';
+    if (show) {
+      subfiltersEl.querySelectorAll('.vt-chip').forEach(function (c) {
+        c.classList.toggle('vt-chip--active', (c.getAttribute('data-sub') || 'all') === filtroSub);
+      });
+    }
+  }
+
   function productosFiltrados() {
     return productos.filter(function (p) {
       if (filtroCat !== 'all' && p.categoria !== filtroCat) return false;
+      if (filtroCat === 'infoproducto' && filtroSub !== 'all') {
+        var sub = p.subcategoria || 'pdf';
+        if (sub !== filtroSub) return false;
+      }
       if (busqueda) {
         var q = busqueda.toLowerCase();
         if ((p.nombre || '').toLowerCase().indexOf(q) === -1) return false;
@@ -67,6 +97,7 @@
   }
 
   function render() {
+    updateSubfiltersVisibility();
     var list = productosFiltrados();
 
     if (!productos.length) {
@@ -94,6 +125,8 @@
     gridEl.innerHTML = list.map(function (p) {
       var cat = p.categoria || 'miniapp';
       var catLabel = CAT_LABELS[cat] || 'Mini App';
+      var sub = cat === 'infoproducto' ? (p.subcategoria || 'pdf') : null;
+      var subLabel = sub ? (p.subcategoria_label || SUB_LABELS[sub] || sub) : '';
       var thumb = p.foto1_url
         ? '<img src="' + esc(p.foto1_url) + '" alt="' + esc(p.nombre) + '" loading="lazy" onerror="this.parentElement.classList.add(\'vt-card-thumb--empty\');this.remove();" />'
         : '';
@@ -102,14 +135,17 @@
         ? '<p class="vt-card-desc">' + esc(p.descripcion_corta) + '</p>'
         : '';
       var link = p.link_dueno || '#';
+      var badges =
+        '<span class="vt-badge ' + badgeClass(cat) + '">' + esc(catLabel) + '</span>' +
+        (sub
+          ? ' <span class="vt-badge ' + subBadgeClass(sub) + '">' + esc(subLabel) + '</span>'
+          : '');
 
       return (
         '<article class="vt-card">' +
           '<div class="' + thumbClass + '">' + thumb + '</div>' +
           '<div class="vt-card-body">' +
-            '<div class="vt-card-badges">' +
-              '<span class="vt-badge ' + badgeClass(cat) + '">' + esc(catLabel) + '</span>' +
-            '</div>' +
+            '<div class="vt-card-badges">' + badges + '</div>' +
             '<h2 class="vt-card-name">' + esc(p.nombre) + '</h2>' +
             desc +
             '<div class="vt-card-prices">' + precioHtml(p) + '</div>' +
@@ -145,7 +181,20 @@
       var btn = e.target.closest('.vt-chip');
       if (!btn) return;
       filtroCat = btn.getAttribute('data-cat') || 'all';
+      if (filtroCat !== 'infoproducto') filtroSub = 'all';
       filtersEl.querySelectorAll('.vt-chip').forEach(function (c) {
+        c.classList.toggle('vt-chip--active', c === btn);
+      });
+      render();
+    });
+  }
+
+  if (subfiltersEl) {
+    subfiltersEl.addEventListener('click', function (e) {
+      var btn = e.target.closest('.vt-chip');
+      if (!btn) return;
+      filtroSub = btn.getAttribute('data-sub') || 'all';
+      subfiltersEl.querySelectorAll('.vt-chip').forEach(function (c) {
         c.classList.toggle('vt-chip--active', c === btn);
       });
       render();

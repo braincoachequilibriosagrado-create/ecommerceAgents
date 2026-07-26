@@ -162,12 +162,18 @@ function _miniappToVitrina(m) {
   const pagSlug = String(m.pagina_venta_slug || '').trim();
   const miniSlug = String(m.slug || '').trim();
   const promo = m.precio_promocion != null ? Number(m.precio_promocion) : null;
+  const categoria = String(m.categoria || 'miniapp').toLowerCase();
+  const subcategoria = categoria === 'infoproducto'
+    ? _normalizarSubcategoriaInfoproducto(m.subcategoria || 'pdf', 'infoproducto')
+    : null;
   return {
     nombre:              String(m.nombre || '').trim(),
     descripcion_corta:   _vitrinaDescCorta(m.descripcion, 140),
     precio:              Number(m.precio) || 0,
     precio_promocion:    promo != null && promo > 0 ? promo : null,
-    categoria:           String(m.categoria || 'miniapp').toLowerCase(),
+    categoria:           categoria,
+    subcategoria:        subcategoria,
+    subcategoria_label:  subcategoria ? _subcategoriaLabelCorta(subcategoria) : null,
     foto1_url:           miniSlug && m.foto1_key ? _miniappFotoUrl(miniSlug, 'foto1') : null,
     pagina_venta_slug:   pagSlug,
     link_dueno:          pagSlug ? PUBLIC_BASE_URL + '/p/' + encodeURIComponent(pagSlug) : null
@@ -438,6 +444,25 @@ const uploadMiniappFields = multer({
 ]);
 
 const CREADOR_CATEGORIAS = ['infoproducto', 'contenido_digital', 'miniapp'];
+const INFOPRODUCTO_SUBCATEGORIAS = ['pdf', 'arte', 'prompts'];
+
+function _normalizarSubcategoriaInfoproducto(raw, categoria) {
+  const cat = String(categoria || '').trim().toLowerCase();
+  if (cat !== 'infoproducto') return null;
+  const sub = String(raw || '').trim().toLowerCase();
+  if (!INFOPRODUCTO_SUBCATEGORIAS.includes(sub)) return null;
+  return sub;
+}
+
+function _subcategoriaLabel(sub) {
+  const map = { pdf: 'PDF / Documentos', arte: 'Arte / Fotos', prompts: 'Prompts' };
+  return map[String(sub || '').toLowerCase()] || '';
+}
+
+function _subcategoriaLabelCorta(sub) {
+  const map = { pdf: 'PDF', arte: 'Arte', prompts: 'Prompts' };
+  return map[String(sub || '').toLowerCase()] || '';
+}
 
 // ── CORS — lista blanca de orígenes permitidos ────────────────────────────────
 // Editar aquí para agregar dominios de producción / Vercel / staging.
@@ -2857,6 +2882,17 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
     return res.status(400).json({ ok: false, error: 'Categoria invalida. Use infoproducto, contenido_digital o miniapp.' });
   }
 
+  let subcategoria = null;
+  if (categoria === 'infoproducto') {
+    subcategoria = _normalizarSubcategoriaInfoproducto(body.subcategoria, categoria);
+    if (!subcategoria) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Elige una subcategoria: PDF / Documentos, Arte / Fotos o Prompts.'
+      });
+    }
+  }
+
   const files      = req.files || {};
   const foto1      = files.foto1 && files.foto1[0];
   const foto2      = files.foto2 && files.foto2[0];
@@ -2999,6 +3035,7 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
         precio:                precioNum,
         precio_promocion:      (precioPromoNum > 0) ? precioPromoNum : null,
         categoria,
+        subcategoria,
         tipo_producto,
         usa_ia:                usaIaFinal,
         r2_key:                r2Key,
@@ -3022,7 +3059,7 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
     let { data, error } = await supabase
       .from('miniapps')
       .insert(insertRow)
-      .select('id, nombre, slug, categoria, precio, precio_promocion, tipo_producto, usa_ia, disponible_vendedores, comision_vendedor, estado, creado_en, r2_key, foto1_key, pack_key, requiere_revision_seguridad, escaneo_seguridad')
+      .select('id, nombre, slug, categoria, subcategoria, precio, precio_promocion, tipo_producto, usa_ia, disponible_vendedores, comision_vendedor, estado, creado_en, r2_key, foto1_key, pack_key, requiere_revision_seguridad, escaneo_seguridad')
       .single();
 
     if (error && /requiere_revision_seguridad|escaneo_seguridad|column|schema cache/.test(String(error.message || ''))) {
@@ -3031,8 +3068,20 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
       ({ data, error } = await supabase
         .from('miniapps')
         .insert(insertRow)
+        .select('id, nombre, slug, categoria, subcategoria, precio, precio_promocion, tipo_producto, usa_ia, disponible_vendedores, comision_vendedor, estado, creado_en, r2_key, foto1_key, pack_key')
+        .single());
+    }
+
+    if (error && /subcategoria|column|schema cache/.test(String(error.message || ''))) {
+      delete insertRow.subcategoria;
+      ({ data, error } = await supabase
+        .from('miniapps')
+        .insert(insertRow)
         .select('id, nombre, slug, categoria, precio, precio_promocion, tipo_producto, usa_ia, disponible_vendedores, comision_vendedor, estado, creado_en, r2_key, foto1_key, pack_key')
         .single());
+      if (!error) {
+        console.warn('[creador/miniapps/subir] subcategoria no guardada: falta migracion SQL miniapps-subcategoria.sql');
+      }
     }
 
     if (error) throw error;
@@ -3110,11 +3159,18 @@ app.get('/api/miniapps/asset/:slug/:file', async (req, res) => {
 // GET /api/creador/miniapps
 app.get('/api/creador/miniapps', requireCreador, async (req, res) => {
   try {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('miniapps')
-      .select('id, nombre, slug, precio, precio_promocion, tipo_producto, categoria, usa_ia, disponible_vendedores, comision_vendedor, estado, estado_aprobacion, motivo_rechazo, pagina_venta_slug, foto1_key, foto2_key, creado_en')
+      .select('id, nombre, slug, precio, precio_promocion, tipo_producto, categoria, subcategoria, usa_ia, disponible_vendedores, comision_vendedor, estado, estado_aprobacion, motivo_rechazo, pagina_venta_slug, foto1_key, foto2_key, creado_en')
       .eq('creador_id', req.creador_id)
       .order('creado_en', { ascending: false });
+    if (error && /subcategoria|column|schema cache/i.test(String(error.message || ''))) {
+      ({ data, error } = await supabase
+        .from('miniapps')
+        .select('id, nombre, slug, precio, precio_promocion, tipo_producto, categoria, usa_ia, disponible_vendedores, comision_vendedor, estado, estado_aprobacion, motivo_rechazo, pagina_venta_slug, foto1_key, foto2_key, creado_en')
+        .eq('creador_id', req.creador_id)
+        .order('creado_en', { ascending: false }));
+    }
     if (error) throw error;
     res.json({ ok: true, miniapps: (data || []).map(_miniappToClient) });
   } catch (e) {
@@ -3447,17 +3503,33 @@ app.post('/api/mis-productos/quitar', requireUsuario, async (req, res) => {
 });
 
 // ── Marketplace publico (Activos Digitales) ─────────────────────────────────────
-const MARKETPLACE_ASSET_BUST = '10';
+const MARKETPLACE_ASSET_BUST = '11';
 
 async function _apiMarketplace(req, res) {
   try {
-    const { data, error } = await supabase
+    let data = null;
+    let error = null;
+    const withSub = await supabase
       .from('miniapps')
-      .select('nombre, slug, descripcion, precio, precio_promocion, categoria, foto1_key, pagina_venta_slug, creado_en')
+      .select('nombre, slug, descripcion, precio, precio_promocion, categoria, subcategoria, foto1_key, pagina_venta_slug, creado_en')
       .eq('estado_aprobacion', 'aprobada')
       .eq('estado', 'activo')
       .not('pagina_venta_slug', 'is', null)
       .order('creado_en', { ascending: false });
+    if (withSub.error && /subcategoria|column|schema cache/i.test(String(withSub.error.message || ''))) {
+      const fallback = await supabase
+        .from('miniapps')
+        .select('nombre, slug, descripcion, precio, precio_promocion, categoria, foto1_key, pagina_venta_slug, creado_en')
+        .eq('estado_aprobacion', 'aprobada')
+        .eq('estado', 'activo')
+        .not('pagina_venta_slug', 'is', null)
+        .order('creado_en', { ascending: false });
+      data = fallback.data;
+      error = fallback.error;
+    } else {
+      data = withSub.data;
+      error = withSub.error;
+    }
     if (error) throw error;
     _setNoCacheJson(res);
     res.json({
@@ -3542,6 +3614,12 @@ function _serveMarketplace(req, res) {
         <button type="button" class="vt-chip" data-cat="infoproducto">Infoproductos</button>
         <button type="button" class="vt-chip" data-cat="contenido_digital">Contenido Digital</button>
         <button type="button" class="vt-chip" data-cat="miniapp">Mini Apps</button>
+      </div>
+      <div class="vt-subfilters" id="vt-subfilters" hidden role="tablist" aria-label="Filtrar infoproductos">
+        <button type="button" class="vt-chip vt-chip--sub vt-chip--active" data-sub="all">Todos</button>
+        <button type="button" class="vt-chip vt-chip--sub" data-sub="pdf">PDF</button>
+        <button type="button" class="vt-chip vt-chip--sub" data-sub="arte">Arte</button>
+        <button type="button" class="vt-chip vt-chip--sub" data-sub="prompts">Prompts</button>
       </div>
     </div>
 
@@ -6600,7 +6678,7 @@ app.get('/api/admin/miniapps', async (req, res) => {
     let query = supabase
       .from('miniapps')
       .select(`
-        id, nombre, slug, descripcion, precio, precio_promocion, tipo_producto, categoria,
+        id, nombre, slug, descripcion, precio, precio_promocion, tipo_producto, categoria, subcategoria,
         usa_ia, disponible_vendedores, comision_vendedor,
         estado_aprobacion, motivo_rechazo, foto1_key, foto2_key, pagina_venta_slug, creado_en,
         requiere_revision_seguridad, escaneo_seguridad,
@@ -6618,8 +6696,13 @@ app.get('/api/admin/miniapps', async (req, res) => {
       query = query.eq('categoria', categoria);
     }
 
-    const { data, error } = await query;
-    if (error && /requiere_revision_seguridad|escaneo_seguridad|column|schema cache/.test(String(error.message || ''))) {
+    const subcategoria = String(req.query.subcategoria || '').trim().toLowerCase();
+    if (subcategoria && INFOPRODUCTO_SUBCATEGORIAS.includes(subcategoria)) {
+      query = query.eq('subcategoria', subcategoria);
+    }
+
+    let { data, error } = await query;
+    if (error && /requiere_revision_seguridad|escaneo_seguridad|subcategoria|column|schema cache/.test(String(error.message || ''))) {
       let q2 = supabase
         .from('miniapps')
         .select(`
@@ -6637,6 +6720,10 @@ app.get('/api/admin/miniapps', async (req, res) => {
 
     const miniapps = (data || []).map(function (m) {
       const cr = m.creadores || {};
+      const cat = m.categoria || 'miniapp';
+      const sub = cat === 'infoproducto'
+        ? _normalizarSubcategoriaInfoproducto(m.subcategoria || 'pdf', 'infoproducto')
+        : null;
       return {
         id:                    m.id,
         nombre:                m.nombre,
@@ -6645,7 +6732,9 @@ app.get('/api/admin/miniapps', async (req, res) => {
         precio:                m.precio,
         precio_promocion:      m.precio_promocion,
         tipo_producto:         m.tipo_producto,
-        categoria:             m.categoria || 'miniapp',
+        categoria:             cat,
+        subcategoria:          sub,
+        subcategoria_label:    sub ? _subcategoriaLabelCorta(sub) : null,
         usa_ia:                m.usa_ia,
         disponible_vendedores: m.disponible_vendedores,
         comision_vendedor:     m.comision_vendedor,
@@ -6660,6 +6749,9 @@ app.get('/api/admin/miniapps', async (req, res) => {
         creador_email:         cr.email  || '',
         creado_en:             m.creado_en
       };
+    }).filter(function (m) {
+      if (!subcategoria || !INFOPRODUCTO_SUBCATEGORIAS.includes(subcategoria)) return true;
+      return m.categoria === 'infoproducto' && m.subcategoria === subcategoria;
     });
 
     res.json({ ok: true, miniapps });
@@ -7194,7 +7286,7 @@ app.post('/api/admin/miniapps/generar-pagina', async (req, res) => {
     const { data: miniapp, error: mErr } = await supabase
       .from('miniapps')
       .select(`
-        id, nombre, slug, descripcion, precio, precio_promocion, tipo_producto, categoria,
+        id, nombre, slug, descripcion, precio, precio_promocion, tipo_producto, categoria, subcategoria,
         usa_ia, foto1_key, foto2_key, estado_aprobacion, pagina_venta_slug,
         creadores ( nombre )
       `)
@@ -7222,6 +7314,7 @@ app.post('/api/admin/miniapps/generar-pagina', async (req, res) => {
         precio_promocion:   miniapp.precio_promocion,
         tipo_producto:      miniapp.tipo_producto,
         categoria:          miniapp.categoria,
+        subcategoria:       miniapp.subcategoria,
         usa_ia:             miniapp.usa_ia,
         foto1_key:          miniapp.foto1_key,
         foto2_key:          miniapp.foto2_key,

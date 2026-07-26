@@ -101,9 +101,15 @@ function replaceAll(html, map) {
   return out;
 }
 
-function categoriaLabel(categoria) {
+function categoriaLabel(categoria, subcategoria) {
   const cat = String(categoria || 'miniapp').toLowerCase();
-  if (cat === 'infoproducto') return 'Infoproducto';
+  if (cat === 'infoproducto') {
+    const sub = String(subcategoria || '').toLowerCase();
+    if (sub === 'arte') return 'Arte digital';
+    if (sub === 'prompts') return 'Prompts';
+    if (sub === 'pdf') return 'PDF / Documentos';
+    return 'Infoproducto';
+  }
   if (cat === 'contenido_digital') return 'Contenido Digital';
   return 'Mini App';
 }
@@ -378,8 +384,9 @@ async function generarPaginaVentaMiniapp(miniapp, opts) {
   const baseUrl = publicBaseUrl || 'https://api.activosdigitales.click';
   const paginaSlug = miniapp.pagina_venta_slug || ('app-' + miniapp.slug);
   const categoria = miniapp.categoria || 'miniapp';
+  const subcategoria = miniapp.subcategoria || null;
 
-  console.log('[generar-pagina] Iniciando slug=' + miniapp.slug + ' pagina=' + paginaSlug + ' cat=' + categoria);
+  console.log('[generar-pagina] Iniciando slug=' + miniapp.slug + ' pagina=' + paginaSlug + ' cat=' + categoria + (subcategoria ? ' sub=' + subcategoria : ''));
 
   const imagenes = [];
   if (miniapp.foto1_key) {
@@ -425,7 +432,7 @@ async function generarPaginaVentaMiniapp(miniapp, opts) {
       FOTO1_URL:        foto1Url,
       FOTO2_URL:        foto2Url,
       CHECKOUT_URL:     '/checkout?slug=' + encodeURIComponent(paginaSlug),
-      CATEGORIA_LABEL:  categoriaLabel(categoria)
+      CATEGORIA_LABEL:  categoriaLabel(categoria, subcategoria)
     }
   );
 

@@ -2013,6 +2013,19 @@ body {
   color: var(--adm-gold, #B8973A);
 }
 
+.adm-badge--sub-pdf {
+  background: #e8ecff;
+  color: #2b3af5;
+}
+.adm-badge--sub-arte {
+  background: #ffe8dc;
+  color: #d35400;
+}
+.adm-badge--sub-prompts {
+  background: #e3f6ec;
+  color: #0f7a4a;
+}
+
 .ma-subtabs {
   display: flex;
   gap: 0;

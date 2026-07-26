@@ -18,8 +18,10 @@ var currentCreador = { id: null, nombre: '', email: '' };
 var _htmlMode = 'pegar';
 var _htmlFromFile = '';
 var _categoriaActiva = null;
+var _subcategoriaActiva = null;
 
 var CR_CATEGORIAS = ['infoproducto', 'contenido_digital', 'miniapp'];
+var CR_SUBCATEGORIAS = ['pdf', 'arte', 'prompts'];
 
 var CR_CATEGORIA_META = {
   infoproducto: {
@@ -606,6 +608,29 @@ function _updateCategoriaUI() {
   if (blockPdfInfo) blockPdfInfo.hidden = _categoriaActiva !== 'infoproducto';
   if (blockVideos)  blockVideos.hidden  = _categoriaActiva !== 'contenido_digital';
   if (optIa)        optIa.hidden        = _categoriaActiva !== 'miniapp';
+
+  var blockSub = document.getElementById('cr-block-subcategoria');
+  if (blockSub) blockSub.hidden = _categoriaActiva !== 'infoproducto';
+  if (_categoriaActiva === 'infoproducto') {
+    if (!_subcategoriaActiva) _subcategoriaActiva = 'pdf';
+    _updateSubcategoriaUI();
+  } else {
+    _subcategoriaActiva = null;
+  }
+}
+
+function _updateSubcategoriaUI() {
+  CR_SUBCATEGORIAS.forEach(function (sub) {
+    var btn = document.getElementById('cr-subcat-btn-' + sub);
+    if (btn) btn.classList.toggle('active', sub === _subcategoriaActiva);
+  });
+}
+
+function switchSubcategoriaInfoproducto(sub) {
+  if (CR_SUBCATEGORIAS.indexOf(sub) === -1) return;
+  _subcategoriaActiva = sub;
+  _updateSubcategoriaUI();
+  _clearMsg('cr-subir-msg');
 }
 
 function switchCategoriaActivo(cat) {
@@ -617,6 +642,7 @@ function switchCategoriaActivo(cat) {
 
 function _resetSubirForm() {
   _categoriaActiva = null;
+  _subcategoriaActiva = null;
   _updateCategoriaUI();
   document.getElementById('cr-html-textarea').value = '';
   document.getElementById('cr-ma-nombre').value = '';
@@ -690,6 +716,10 @@ async function publicarMiniapp() {
     return;
   }
   if (_categoriaActiva === 'infoproducto') {
+    if (!_subcategoriaActiva || CR_SUBCATEGORIAS.indexOf(_subcategoriaActiva) === -1) {
+      _showMsg('cr-subir-msg', 'Elige una subcategoria: PDF / Documentos, Arte / Fotos o Prompts.', false);
+      return;
+    }
     if (!pdfInfoInput || !pdfInfoInput.files || !pdfInfoInput.files[0]) {
       _showMsg('cr-subir-msg', 'El PDF es obligatorio para un infoproducto.', false);
       return;
@@ -721,6 +751,9 @@ async function publicarMiniapp() {
 
   var fd = new FormData();
   fd.append('categoria', _categoriaActiva);
+  if (_categoriaActiva === 'infoproducto' && _subcategoriaActiva) {
+    fd.append('subcategoria', _subcategoriaActiva);
+  }
   if (_categoriaActiva === 'miniapp') fd.append('html', html);
   fd.append('nombre', nombre);
   fd.append('descripcion', descripcion);
@@ -875,6 +908,18 @@ async function toggleVendedores(miniappId, disponible) {
 function _crCategoriaLabel(cat) {
   var map = { infoproducto: 'Infoproducto', contenido_digital: 'Contenido Digital', miniapp: 'Mini App' };
   return map[cat] || 'Mini App';
+}
+
+function _crSubcategoriaLabel(sub) {
+  var map = { pdf: 'PDF', arte: 'Arte', prompts: 'Prompts' };
+  return map[String(sub || '').toLowerCase()] || '';
+}
+
+function _crSubcategoriaTagClass(sub) {
+  var s = String(sub || '').toLowerCase();
+  if (s === 'arte') return 'cr-product-tag--sub-arte';
+  if (s === 'prompts') return 'cr-product-tag--sub-prompts';
+  return 'cr-product-tag--sub-pdf';
 }
 
 function _crEstadoBadge(estado, motivo) {
@@ -1034,6 +1079,9 @@ async function cargarCatalogoCreador() {
             '<p class="cr-product-slug">' + _esc(m.slug) + '</p>' +
             '<div class="cr-product-tags">' +
               '<span class="cr-product-tag cr-product-tag--cat">' + _crCategoriaLabel(cat) + '</span>' +
+              (cat === 'infoproducto' && m.subcategoria
+                ? '<span class="cr-product-tag ' + _crSubcategoriaTagClass(m.subcategoria) + '">' + _esc(_crSubcategoriaLabel(m.subcategoria)) + '</span>'
+                : '') +
               _crEstadoBadge(estado, m.motivo_rechazo) +
             '</div>' +
             '<div class="cr-product-prices">' + _crPrecioHtml(m) + '</div>' +

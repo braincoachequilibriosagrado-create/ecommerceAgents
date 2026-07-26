@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="assets/css/premium-platform.css?v=4" />
-  <link rel="stylesheet" href="assets/css/creadores.css?v=38" />
+  <link rel="stylesheet" href="assets/css/creadores.css?v=39" />
 </head>
 <body class="cr-body--landing">
 
@@ -491,9 +491,28 @@
               </div>
             </div>
 
-            <!-- Infoproducto: PDF obligatorio -->
+            <!-- Infoproducto: subcategoria + PDF obligatorio -->
+            <div id="cr-block-subcategoria" class="cr-product-block" hidden>
+              <label class="cr-label">Subcategoria <span class="cr-req">*</span></label>
+              <p class="cr-hint cr-hint--block">Elige el tipo de infoproducto. La entrega sigue siendo un archivo PDF descargable.</p>
+              <div class="cr-subcat-picker" role="radiogroup" aria-label="Subcategoria de infoproducto">
+                <button type="button" class="cr-subcat-card" id="cr-subcat-btn-pdf" data-sub="pdf" onclick="switchSubcategoriaInfoproducto('pdf')">
+                  <span class="cr-subcat-name">PDF / Documentos</span>
+                  <span class="cr-subcat-desc">Guias, ebooks, plantillas, workbooks</span>
+                </button>
+                <button type="button" class="cr-subcat-card" id="cr-subcat-btn-arte" data-sub="arte" onclick="switchSubcategoriaInfoproducto('arte')">
+                  <span class="cr-subcat-name">Arte / Fotos</span>
+                  <span class="cr-subcat-desc">Ilustraciones, fotos, cuadros, disenos</span>
+                </button>
+                <button type="button" class="cr-subcat-card" id="cr-subcat-btn-prompts" data-sub="prompts" onclick="switchSubcategoriaInfoproducto('prompts')">
+                  <span class="cr-subcat-name">Prompts</span>
+                  <span class="cr-subcat-desc">Colecciones de prompts de IA</span>
+                </button>
+              </div>
+            </div>
+
             <div id="cr-block-pdf-info" class="cr-product-block" hidden>
-              <label class="cr-label" for="cr-pdf-info">PDF del producto <span class="cr-req">*</span></label>
+              <label class="cr-label" for="cr-pdf-info">Archivo del producto (PDF) <span class="cr-req">*</span></label>
               <p class="cr-hint cr-hint--block">Este es tu producto — el comprador lo descargara.</p>
               <div class="cr-file-zone cr-file-zone--compact">
                 <input type="file" id="cr-pdf-info" class="cr-file-input-hidden" accept=".pdf,application/pdf" onchange="onPdfInfoSelected(this)" />
@@ -696,7 +715,7 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="assets/js/premium-hero.js?v=4"></script>
-  <script src="assets/js/creadores.js?v=30"></script>
+  <script src="assets/js/creadores.js?v=31"></script>
   <script>
     function initCrShaders() {
       if (typeof initAllPremiumHeroes === 'function') initAllPremiumHeroes();
