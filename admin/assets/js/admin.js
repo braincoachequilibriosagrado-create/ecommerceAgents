@@ -1414,17 +1414,23 @@ function _crdRenderTabla(arr) {
   if (!arr || !arr.length) {
     _setHtml('crd-table-wrap',
       '<table class="adm-table"><thead><tr>' +
-      '<th class="adm-th-n">#</th><th>Nombre</th><th>Email</th><th>Ventas</th><th>Total vendido</th><th>Productos</th><th>Estado</th><th>Accion</th>' +
-      '</tr></thead><tbody><tr><td colspan="8" class="adm-td-muted" style="padding:24px;text-align:center;">No hay creadores registrados.</td></tr></tbody></table>'
+      '<th class="adm-th-n">#</th><th>Nombre</th><th>Email</th><th>Ventas</th><th>Total vendido</th><th>Productos</th><th>Estado</th><th>Confiable</th><th>Accion</th>' +
+      '</tr></thead><tbody><tr><td colspan="9" class="adm-td-muted" style="padding:24px;text-align:center;">No hay creadores registrados.</td></tr></tbody></table>'
     );
     return;
   }
   var rows = arr.map(function (c, idx) {
     var activo = String(c.estado || '').toLowerCase() === 'activo';
+    var confiable = !!c.creador_confiable;
     var estadoCls = activo ? 'adm-badge--ok' : 'adm-badge--inactivo';
     var estadoTxt = activo ? 'Activo' : 'Inactivo';
     var toggleTxt = activo ? 'Desactivar' : 'Activar';
     var toggleCls = activo ? 'adm-btn--danger' : 'adm-btn--success';
+    var confBadge = confiable
+      ? '<span class="adm-badge adm-badge--ok" id="crd-conf-badge-' + _esc(c.id) + '">Si</span>'
+      : '<span class="adm-badge adm-badge--inactivo" id="crd-conf-badge-' + _esc(c.id) + '">No</span>';
+    var confBtnTxt = confiable ? 'Quitar confiable' : 'Marcar confiable';
+    var confBtnCls = confiable ? 'adm-btn--outline' : 'adm-btn--primary';
     return '<tr id="crd-row-' + _esc(c.id) + '">' +
       '<td class="adm-td-muted adm-td-n">' + (idx + 1) + '</td>' +
       '<td><span class="adm-usr-name">' + _esc(c.nombre || '—') + '</span></td>' +
@@ -1433,7 +1439,11 @@ function _crdRenderTabla(arr) {
       '<td class="adm-td-money"><strong>' + _fmt(c.total_vendido || 0) + '</strong></td>' +
       '<td class="adm-td-muted">' + (Number(c.num_productos) || 0) + '</td>' +
       '<td><span class="adm-badge ' + estadoCls + '" id="crd-badge-' + _esc(c.id) + '">' + estadoTxt + '</span></td>' +
-      '<td><button type="button" class="adm-btn adm-btn--sm ' + toggleCls + '" id="crd-btn-' + _esc(c.id) + '" onclick="crdToggle(\'' + _esc(c.id) + '\',' + (activo ? 'true' : 'false') + ')">' + toggleTxt + '</button></td>' +
+      '<td>' + confBadge + '</td>' +
+      '<td style="white-space:nowrap">' +
+        '<button type="button" class="adm-btn adm-btn--sm ' + toggleCls + '" id="crd-btn-' + _esc(c.id) + '" onclick="crdToggle(\'' + _esc(c.id) + '\',' + (activo ? 'true' : 'false') + ')">' + toggleTxt + '</button> ' +
+        '<button type="button" class="adm-btn adm-btn--sm ' + confBtnCls + '" id="crd-conf-btn-' + _esc(c.id) + '" onclick="crdToggleConfiable(\'' + _esc(c.id) + '\',' + (confiable ? 'true' : 'false') + ')" title="Si es confiable, sus mini apps saltan el escaner de seguridad">' + confBtnTxt + '</button>' +
+      '</td>' +
     '</tr>';
   }).join('');
 
@@ -1447,6 +1457,7 @@ function _crdRenderTabla(arr) {
       '<th>Total vendido</th>' +
       '<th>Productos</th>' +
       '<th>Estado</th>' +
+      '<th>Confiable</th>' +
       '<th>Accion</th>' +
     '</tr></thead>' +
     '<tbody>' + rows + '</tbody></table>'
@@ -1514,6 +1525,46 @@ function crdToggle(cid, estaActivo) {
       console.error('[crdToggle]', e);
       if (btn) btn.disabled = false;
       alert('Error al cambiar estado: ' + e.message);
+    });
+}
+
+function crdToggleConfiable(cid, estaConfiable) {
+  var btn = document.getElementById('crd-conf-btn-' + cid);
+  var badge = document.getElementById('crd-conf-badge-' + cid);
+  if (btn) btn.disabled = true;
+  var nuevo = !estaConfiable;
+
+  _adminFetch(MOTOR_URL + '/api/admin/creadores/confiable', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ creador_id: cid, confiable: nuevo })
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (!data.ok) throw new Error(data.error || 'Error del servidor.');
+      if (_crdCache) {
+        for (var i = 0; i < _crdCache.length; i++) {
+          if (_crdCache[i].id === cid) {
+            _crdCache[i].creador_confiable = nuevo;
+            break;
+          }
+        }
+      }
+      if (badge) {
+        badge.className = 'adm-badge ' + (nuevo ? 'adm-badge--ok' : 'adm-badge--inactivo');
+        badge.textContent = nuevo ? 'Si' : 'No';
+      }
+      if (btn) {
+        btn.disabled = false;
+        btn.className = 'adm-btn adm-btn--sm ' + (nuevo ? 'adm-btn--outline' : 'adm-btn--primary');
+        btn.textContent = nuevo ? 'Quitar confiable' : 'Marcar confiable';
+        btn.setAttribute('onclick', 'crdToggleConfiable(\'' + cid + '\',' + (nuevo ? 'true' : 'false') + ')');
+      }
+    })
+    .catch(function (e) {
+      console.error('[crdToggleConfiable]', e);
+      if (btn) btn.disabled = false;
+      alert('Error al marcar confiable: ' + e.message);
     });
 }
 

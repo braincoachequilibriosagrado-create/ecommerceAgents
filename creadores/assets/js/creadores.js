@@ -417,10 +417,12 @@ function _construirPromptSeguridadLocal(amenazas) {
     eval: 'Elimina eval(). Reescribe la logica sin ejecutar strings como codigo.',
     new_function: 'Elimina new Function(). Reescribe la logica con funciones normales.',
     meta_refresh: 'Quita cualquier <meta http-equiv="refresh">. No uses redirecciones automaticas.',
-    iframe_anidado: 'Quita todos los <iframe>. La mini app no puede embeber otras paginas.',
-    inline_handler: 'Quita atributos inline (onclick=, onerror=, onload=, etc.). Usa addEventListener en un <script>.',
-    script_inline_peligroso: 'Revisa los <script> inline: quita eval, new Function, document.write, document.cookie e innerHTML peligroso. Usa addEventListener y DOM seguro.',
-    script_inline: 'Si la app NO usa IA: evita JS inline propio; usa solo scripts de CDNs permitidos. Si SI usa IA: marca "Usa IA" y deja el JS inline seguro.',
+    iframe_anidado: 'Quita iframes que no sean de YouTube. Solo embeds https://www.youtube.com/embed/... o youtube-nocookie.',
+    iframe_no_permitido: 'Usa solo <iframe src="https://www.youtube.com/embed/VIDEO_ID"> (o youtube-nocookie). Quita otros iframes.',
+    object_embed: 'Quita <object> y <embed>. Para video usa iframe de YouTube /embed/.',
+    inline_handler: 'Opcional: mueve onclick a addEventListener (no bloquea la subida).',
+    script_inline_peligroso: 'Revisa los <script> inline: quita eval, new Function, document.write, document.cookie y setTimeout/setInterval con string. innerHTML normal para armar UI esta permitido.',
+    script_inline: 'Los <script> inline son validos en mini apps de un solo archivo. No hace falta usar .js externos.',
     form_externo: 'Quita action externos en <form> o pon action="#" y maneja el envio en JS local.',
     script_externo: 'Quita scripts de dominios no autorizados. Solo CDNs permitidos.',
     script_data_uri: 'Quita scripts con src="data:...".',
@@ -428,7 +430,7 @@ function _construirPromptSeguridadLocal(amenazas) {
     fetch_automatico_ia: 'Las llamadas a IA deben ejecutarse solo con un clic del usuario, no automaticamente.',
     document_write: 'Elimina document.write(). Usa createElement / textContent.',
     document_cookie: 'No uses document.cookie. Usa variables JS en memoria.',
-    web_storage: 'No uses localStorage ni sessionStorage. Usa variables JS en memoria.',
+    web_storage: 'Preferible variables en memoria; localStorage ya no bloquea la subida (el sandbox lo limita).',
     redireccion: 'Quita window.location / location.href / location.replace().',
     keylogger_sospechoso: 'No combines listeners de teclado con envio de datos.',
     ofuscacion: 'Entrega el codigo legible, sin ofuscacion masiva.',
@@ -452,7 +454,7 @@ function _construirPromptSeguridadLocal(amenazas) {
   });
   return 'Mi mini app HTML fue rechazada por el sistema de seguridad de Activos Digitales. Corrige estos problemas SIN cambiar la funcionalidad visible para el usuario:\n\n' +
     lineas.join('\n') +
-    '\n\nReglas generales: sin eval/new Function/document.write; sin localStorage/sessionStorage/cookies; sin handlers inline; sin iframes/meta refresh; sin fetch externo salvo IA autorizada y solo al clic. Devuelveme el HTML completo corregido en un solo archivo, listo para subir.';
+    '\n\nPermitido: script inline, innerHTML, canvas, audio, speechSynthesis, CDNs permitidos, YouTube embed. Prohibido: eval/new Function/document.write; cookies; fetch externo salvo IA; scripts no allowlist; iframes no-YouTube; meta refresh. Devuelveme el HTML completo corregido en un solo archivo, listo para subir.';
 }
 
 function _mostrarRechazoSeguridad(d) {

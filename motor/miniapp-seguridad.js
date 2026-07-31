@@ -5,6 +5,8 @@ const MINIAPP_CDN_PERMITIDOS = [
   'cdnjs.cloudflare.com',
   'cdn.jsdelivr.net',
   'unpkg.com',
+  'googleapis.com',
+  'gstatic.com',
   'fonts.googleapis.com',
   'fonts.gstatic.com',
   'ajax.googleapis.com',
@@ -13,6 +15,9 @@ const MINIAPP_CDN_PERMITIDOS = [
   'maxcdn.bootstrapcdn.com',
   'cdn.tailwindcss.com'
 ];
+
+/** Solo embeds de YouTube (ruta /embed/...) */
+const YOUTUBE_EMBED_HOSTS = ['www.youtube.com', 'www.youtube-nocookie.com'];
 
 const DOMINIOS_IA_PERMITIDOS = [
   'https://api.groq.com',
@@ -34,14 +39,18 @@ function buildMiniappCsp(apiOrigin, usaIa) {
   const connectSrc = usaIa
     ? "connect-src 'self' " + DOMINIOS_IA_PERMITIDOS.join(' ')
     : "connect-src 'self'";
+  const youtubeFrames =
+    "https://www.youtube.com https://www.youtube-nocookie.com";
   return [
     "default-src 'self'",
-    "script-src 'unsafe-inline' 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com https://ajax.googleapis.com https://code.jquery.com https://cdn.tailwindcss.com",
-    "style-src 'unsafe-inline' 'self' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com",
+    "script-src 'unsafe-inline' 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com https://ajax.googleapis.com https://www.gstatic.com https://*.googleapis.com https://*.gstatic.com https://code.jquery.com https://cdn.tailwindcss.com",
+    "style-src 'unsafe-inline' 'self' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com https://www.gstatic.com",
     "font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net",
-    "img-src 'self' data: blob: https://" + apiHost + " https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com https://fonts.gstatic.com",
+    "img-src 'self' data: blob: https://" + apiHost + " https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com https://fonts.gstatic.com https://i.ytimg.com https://img.youtube.com",
+    "media-src 'self' blob: data:",
     connectSrc,
-    "frame-src 'none'",
+    "frame-src " + youtubeFrames,
+    "child-src " + youtubeFrames,
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'"
@@ -89,6 +98,34 @@ function _esHostIaPermitido(hostname) {
       return false;
     }
   });
+}
+
+/** Extrae atributo src de una etiqueta HTML. */
+function _attrSrcDeTag(tag) {
+  const m = String(tag || '').match(/\ssrc\s*=\s*["']([^"']+)["']/i);
+  return m ? m[1] : '';
+}
+
+/**
+ * true solo si es embed de YouTube:
+ * https://www.youtube.com/embed/... o https://www.youtube-nocookie.com/embed/...
+ */
+function _esUrlYoutubeEmbed(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return false;
+  try {
+    const u = new URL(s, 'https://base.invalid');
+    if (u.protocol !== 'https:') return false;
+    const host = u.hostname.toLowerCase();
+    if (YOUTUBE_EMBED_HOSTS.indexOf(host) === -1) return false;
+    return u.pathname.indexOf('/embed/') === 0;
+  } catch (_) {
+    return false;
+  }
+}
+
+function _esTagIframeYoutube(tag) {
+  return _esUrlYoutubeEmbed(_attrSrcDeTag(tag));
 }
 
 function _extraerSrcScripts(html) {
@@ -169,46 +206,10 @@ function _detectarInlineHandlers(html) {
 }
 
 /**
- * innerHTML peligroso: asignacion dinamica (variable/expresion), no strings/plantillas estaticas.
+ * innerHTML normal (strings, concatenacion, plantillas) es permitido para armar UI.
+ * Ya no se marca como peligroso por si solo: eval/fetch externo/document.write
+ * se detectan con sus propias reglas.
  */
-function _innerHtmlDinamicoPeligroso(code) {
-  const re = /\.innerHTML\s*=\s*/gi;
-  let m;
-  while ((m = re.exec(code)) !== null) {
-    let i = m.index + m[0].length;
-    while (i < code.length && /\s/.test(code[i])) i++;
-    const ch = code[i];
-    if (ch === "'" || ch === '"') {
-      // String estatico: OK. Si luego concatena con no-string, marcar.
-      const quote = ch;
-      i += 1;
-      while (i < code.length) {
-        if (code[i] === '\\') { i += 2; continue; }
-        if (code[i] === quote) { i += 1; break; }
-        i += 1;
-      }
-      while (i < code.length && /\s/.test(code[i])) i++;
-      if (code[i] === '+' ) {
-        let j = i + 1;
-        while (j < code.length && /\s/.test(code[j])) j++;
-        if (code[j] && code[j] !== "'" && code[j] !== '"' && code[j] !== '`') return true;
-      }
-      continue;
-    }
-    if (ch === '`') {
-      // Template literal: peligroso solo si interpola ${...}
-      const slice = code.slice(i + 1);
-      const close = slice.search(/`/);
-      const content = close >= 0 ? slice.slice(0, close) : slice.slice(0, 400);
-      if (/\$\{/.test(content)) return true;
-      continue;
-    }
-    // Variable, llamada, expresion, etc.
-    return true;
-  }
-  return false;
-}
-
 function _scriptInlineEsPeligroso(body) {
   const src = String(body || '');
   if (/\beval\s*\(/i.test(src)) return true;
@@ -216,13 +217,16 @@ function _scriptInlineEsPeligroso(body) {
   if (/\bdocument\.write\s*\(/i.test(src)) return true;
   if (/\bdocument\.cookie\b/i.test(src)) return true;
   if (/javascript\s*:/i.test(src)) return true;
-  // setTimeout/setInterval con string (codigo inyectado)
+  // setTimeout/setInterval con string (ejecuta codigo inyectado)
   if (/\b(?:setTimeout|setInterval)\s*\(\s*['"`]/i.test(src)) return true;
-  if (_innerHtmlDinamicoPeligroso(src)) return true;
   return false;
 }
 
-function _detectarScriptsInline(html, usaIa) {
+/**
+ * Revisa el CONTENIDO de <script> inline. Tener script inline es normal y requerido
+ * (mini app = un solo HTML). Solo reporta amenazas reales en el cuerpo del script.
+ */
+function _detectarScriptsInline(html) {
   const amenazas = [];
   const re = /<script\b(?![^>]*\ssrc\s*=)[^>]*>([\s\S]*?)<\/script>/gi;
   let m;
@@ -231,10 +235,6 @@ function _detectarScriptsInline(html, usaIa) {
     if (!body.trim()) continue;
     if (_scriptInlineEsPeligroso(body)) {
       amenazas.push(_idAmenaza('script_inline_peligroso', 'alta', 'Script inline con codigo potencialmente peligroso', true));
-    } else if (usaIa) {
-      // Con IA se permite JS inline seguro (fetch a Groq en click); no bloquea subida
-    } else {
-      amenazas.push(_idAmenaza('script_inline', 'media', 'Script inline detectado (usa archivos .js externos)', true));
     }
   }
   return amenazas;
@@ -304,15 +304,31 @@ function analizarHtmlMiniapp(html, opts) {
     amenazas.push(_idAmenaza('meta_refresh', 'alta', 'Redireccion automatica (meta refresh)', true));
   }
 
-  if (/<iframe\b/i.test(src)) {
-    amenazas.push(_idAmenaza('iframe_anidado', 'alta', 'Iframes anidados no permitidos', true));
+  // iframe: solo YouTube /embed/ permitido; cualquier otro se rechaza
+  (function () {
+    const iframeRe = /<iframe\b[^>]*>/gi;
+    let im;
+    while ((im = iframeRe.exec(src)) !== null) {
+      if (!_esTagIframeYoutube(im[0])) {
+        amenazas.push(_idAmenaza(
+          'iframe_no_permitido',
+          'alta',
+          'Iframe no permitido (solo embeds de YouTube: youtube.com/embed o youtube-nocookie.com/embed)',
+          true
+        ));
+        break;
+      }
+    }
+  })();
+
+  // object/embed: no permitidos (salvo que alguien meta youtube por error; se rechazan)
+  if (/<(?:object|embed)\b/i.test(src)) {
+    amenazas.push(_idAmenaza('object_embed', 'alta', 'Etiquetas <object>/<embed> no permitidas', true));
   }
 
-  if (_detectarInlineHandlers(src)) {
-    amenazas.push(_idAmenaza('inline_handler', 'media', 'Atributos de evento inline (onclick, onerror, etc.) no permitidos', true));
-  }
+  // Handlers inline (onclick=) permitidos: tecnica normal de UI en mini apps de un archivo.
 
-  _detectarScriptsInline(src, usaIa).forEach(function (a) { amenazas.push(a); });
+  _detectarScriptsInline(src).forEach(function (a) { amenazas.push(a); });
 
   _extraerFormActions(src).forEach(function (action) {
     const host = _hostnameDeUrl(action);
@@ -324,7 +340,7 @@ function analizarHtmlMiniapp(html, opts) {
   _extraerSrcScripts(src).forEach(function (scriptSrc) {
     const host = _hostnameDeUrl(scriptSrc);
     if (host && !_esCdnPermitido(host)) {
-      amenazas.push(_idAmenaza('script_externo', 'media', 'Script externo no autorizado: ' + host, false));
+      amenazas.push(_idAmenaza('script_externo', 'alta', 'Script externo no autorizado: ' + host, true));
     }
     if (/^data:/i.test(scriptSrc)) {
       amenazas.push(_idAmenaza('script_data_uri', 'alta', 'Script con URI data: no permitido', true));
@@ -362,9 +378,8 @@ function analizarHtmlMiniapp(html, opts) {
     amenazas.push(_idAmenaza('document_cookie', 'media', 'Acceso a document.cookie', true));
   }
 
-  if (/\blocalStorage\b|\bsessionStorage\b/i.test(src)) {
-    amenazas.push(_idAmenaza('web_storage', 'media', 'Acceso a localStorage/sessionStorage', true));
-  }
+  // localStorage/sessionStorage: el sandbox del iframe los limita en runtime.
+  // No se rechaza la subida por usarlos (apps ricas a menudo los referencian).
 
   if (/\bwindow\.location\s*=|\blocation\.href\s*=|\blocation\.replace\s*\(/i.test(src)) {
     amenazas.push(_idAmenaza('redireccion', 'media', 'Redireccion de navegacion (location)', true));
@@ -409,18 +424,20 @@ const SOLUCION_POR_CODIGO = {
   eval: 'Elimina eval(). Reescribe la logica sin ejecutar strings como codigo.',
   new_function: 'Elimina new Function(). Reescribe la logica con funciones normales.',
   meta_refresh: 'Quita cualquier <meta http-equiv="refresh">. No uses redirecciones automaticas.',
-  iframe_anidado: 'Quita todos los <iframe>. La mini app no puede embeber otras paginas.',
-  inline_handler: 'Quita atributos inline (onclick=, onerror=, onload=, etc.). Usa addEventListener en un <script>.',
-  script_inline_peligroso: 'Revisa los <script> inline: quita eval, new Function, document.write, document.cookie, setTimeout/setInterval con string, e innerHTML dinamico. Usa addEventListener y DOM seguro (strings estaticos en innerHTML estan bien).',
-  script_inline: 'Si la app NO usa IA: evita JS inline propio; usa solo scripts de CDNs permitidos (cdnjs, jsdelivr, unpkg). Si SI usa IA: marca "Usa IA" y deja el JS inline seguro (sin eval/storage/redirecciones).',
+  iframe_anidado: 'Quita iframes que no sean de YouTube. Solo se permiten embeds https://www.youtube.com/embed/... o https://www.youtube-nocookie.com/embed/...',
+  iframe_no_permitido: 'Si necesitas video, usa solo <iframe src="https://www.youtube.com/embed/VIDEO_ID"> (o youtube-nocookie). Quita cualquier otro iframe.',
+  object_embed: 'Quita <object> y <embed>. Para video usa iframe de YouTube /embed/.',
+  inline_handler: 'Opcional: mueve onclick/onerror a addEventListener en un <script> (no es obligatorio para aprobar).',
+  script_inline_peligroso: 'Revisa los <script> inline: quita eval, new Function, document.write, document.cookie y setTimeout/setInterval con string. innerHTML, canvas, AudioContext, speechSynthesis y animaciones estan permitidos.',
+  script_inline: 'Los <script> inline son validos en mini apps de un solo archivo.',
   form_externo: 'Quita action externos en <form> o pon action="#" y maneja el envio en JS local (sin enviar datos a dominios ajenos).',
-  script_externo: 'Quita scripts de dominios no autorizados. Solo CDNs permitidos: cdnjs.cloudflare.com, cdn.jsdelivr.net, unpkg.com, etc.',
-  script_data_uri: 'Quita scripts con src="data:...". Usa archivos/CDN permitidos o script inline seguro si aplica.',
-  fetch_externo: 'La mini app debe funcionar offline (sin fetch/XHR a dominios externos), salvo proveedores de IA autorizados si marcaste Usa IA (Groq, OpenAI, Anthropic, Google).',
+  script_externo: 'Quita scripts de dominios no autorizados. Solo CDNs permitidos: cdnjs.cloudflare.com, cdn.jsdelivr.net, unpkg.com, googleapis.com, gstatic.com, etc.',
+  script_data_uri: 'Quita scripts con src="data:...". Usa CDN permitido o script inline seguro.',
+  fetch_externo: 'La mini app no debe hacer fetch/XHR a dominios externos, salvo proveedores de IA autorizados si marcaste Usa IA (Groq, OpenAI, Anthropic, Google).',
   fetch_automatico_ia: 'Las llamadas a IA deben ejecutarse solo con un clic del usuario (boton). No llames a la IA en DOMContentLoaded, load, setInterval ni bucles automaticos.',
-  document_write: 'Elimina document.write(). Construye el DOM con createElement / textContent.',
-  document_cookie: 'No uses document.cookie. Guarda estado en variables JS en memoria (no persistentes).',
-  web_storage: 'No uses localStorage ni sessionStorage. Guarda la API key y el estado solo en variables JS en memoria.',
+  document_write: 'Elimina document.write(). Construye el DOM con createElement / textContent / innerHTML seguro.',
+  document_cookie: 'No uses document.cookie. Guarda estado en variables JS en memoria.',
+  web_storage: 'localStorage/sessionStorage suelen fallar en el sandbox; preferible variables en memoria. Ya no bloquean la subida.',
   redireccion: 'Quita window.location =, location.href = y location.replace(). La mini app no debe redirigir el navegador.',
   keylogger_sospechoso: 'No combines listeners de teclado (keydown/keypress/keyup) con envio de datos (fetch/XHR/sendBeacon).',
   ofuscacion: 'Entrega el codigo legible, sin ofuscacion hex/base64 masiva ni empaquetadores sospechosos.',
@@ -464,19 +481,32 @@ function generarPromptSolucion(escaneo) {
     'Mi mini app HTML fue rechazada por el sistema de seguridad de Activos Digitales. ' +
     'Corrige estos problemas SIN cambiar la funcionalidad visible para el usuario:\n\n' +
     lineas.join('\n') +
-    '\n\nReglas generales: sin eval/new Function/document.write; sin localStorage/sessionStorage/cookies; ' +
-    'sin handlers inline (onclick/onerror); sin iframes/object/embed/meta refresh; ' +
-    'sin fetch externo salvo IA autorizada y solo al hacer clic si usa IA. ' +
+    '\n\nPermitido: script inline, innerHTML para UI, canvas, Web Audio, speechSynthesis, ' +
+    'requestAnimationFrame, librerias desde CDNs permitidos, iframe de YouTube /embed/. ' +
+    'Prohibido: eval/new Function/document.write; document.cookie; fetch externo (salvo IA autorizada al clic); ' +
+    'scripts de dominios no allowlist; iframes que no sean YouTube; meta refresh; redirecciones. ' +
     'Devuelveme el HTML completo corregido en un solo archivo, listo para subir.'
   );
 }
 
-/** Limpia patrones claramente maliciosos sin eliminar JS legitimo */
+/** Limpia patrones claramente maliciosos sin eliminar JS legitimo ni YouTube embed */
 function sanitizeMiniappHtml(html) {
   let s = String(html || '');
 
   s = s.replace(/<meta\b[^>]*http-equiv\s*=\s*["']?refresh[^>]*>/gi, '');
-  s = s.replace(/<iframe\b[\s\S]*?<\/iframe>/gi, '');
+
+  // Conserva solo iframes de YouTube /embed/; elimina el resto
+  s = s.replace(/<iframe\b([^>]*)>([\s\S]*?)<\/iframe>/gi, function (full, attrs) {
+    const tag = '<iframe' + attrs + '>';
+    if (_esTagIframeYoutube(tag)) return full;
+    return '<!-- iframe no permitido eliminado -->';
+  });
+  s = s.replace(/<iframe\b[^>]*\/?>/gi, function (tag) {
+    if (/<\/iframe>/i.test(tag)) return tag;
+    if (_esTagIframeYoutube(tag)) return tag;
+    return '<!-- iframe no permitido eliminado -->';
+  });
+
   s = s.replace(/<object\b[\s\S]*?<\/object>/gi, '');
   s = s.replace(/<embed\b[^>]*>/gi, '');
 
@@ -515,7 +545,7 @@ function htmlContenedorSandbox(codigo, titulo, usaIa) {
     '</style></head><body><div class="wrap">' +
     '<header>' + safeTitulo + '</header>' +
     banner +
-    '<iframe sandbox="allow-scripts" referrerpolicy="no-referrer" title="' + safeTitulo + '" src="' + embedUrl + '"></iframe>' +
+    '<iframe sandbox="allow-scripts allow-presentation allow-popups" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="no-referrer" title="' + safeTitulo + '" src="' + embedUrl + '"></iframe>' +
     '</div></body></html>';
 }
 

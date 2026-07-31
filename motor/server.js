@@ -113,6 +113,18 @@ const STRIPE_PUBLISHABLE_KEY  = process.env.STRIPE_PUBLISHABLE_KEY || '';
 const RESEND_API_KEY          = process.env.RESEND_API_KEY || '';
 const RESEND_FROM_EMAIL       = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
 const CREADORES_PANEL_URL     = (process.env.CREADORES_PANEL_URL || 'https://app.activosdigitales.click').replace(/\/$/, '');
+// Emails de creadores de confianza (coma-separados). Alternativa a marcar creador_confiable en BD.
+const CREADOR_EMAILS_CONFIABLES = (process.env.CREADOR_EMAILS_CONFIABLES || '')
+  .split(',')
+  .map(function (e) { return String(e || '').trim().toLowerCase(); })
+  .filter(Boolean);
+
+function _creadorEsConfiable(creador) {
+  if (!creador) return false;
+  if (creador.creador_confiable === true) return true;
+  const email = String(creador.email || '').trim().toLowerCase();
+  return !!(email && CREADOR_EMAILS_CONFIABLES.indexOf(email) !== -1);
+}
 
 let _resendClient = null;
 function _getResend() {
@@ -275,11 +287,22 @@ async function requireCreador(req, res, next) {
   if (!decoded) return;
   const creador_id = String(decoded.sub);
   try {
-    const { data, error } = await supabase
+    let data = null;
+    let error = null;
+    ({ data, error } = await supabase
       .from('creadores')
-      .select('id, nombre, email, estado')
+      .select('id, nombre, email, estado, creador_confiable')
       .eq('id', creador_id)
-      .maybeSingle();
+      .maybeSingle());
+    // Compat: si falta la columna (migracion no aplicada), reintentar sin ella
+    if (error && /creador_confiable/i.test(String(error.message || ''))) {
+      ({ data, error } = await supabase
+        .from('creadores')
+        .select('id, nombre, email, estado')
+        .eq('id', creador_id)
+        .maybeSingle());
+      if (data) data.creador_confiable = false;
+    }
     if (error || !data || data.estado !== 'activo') {
       return _authUnauthorized(res);
     }
@@ -2927,8 +2950,9 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
     if (Buffer.byteLength(htmlContent, 'utf8') > 5 * 1024 * 1024) {
       return res.status(400).json({ ok: false, error: 'El HTML supera el limite de 5 MB.' });
     }
+    const saltarEscaner = _creadorEsConfiable(req.creador);
     escaneoHtml = miniappSeg.analizarHtmlMiniapp(htmlContent, { usaIa: usaIaFinal });
-    if (escaneoHtml.rechazar) {
+    if (escaneoHtml.rechazar && !saltarEscaner) {
       return res.status(400).json({
         ok: false,
         error: miniappSeg.mensajeRechazoCreador(escaneoHtml),
@@ -2936,6 +2960,10 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
         prompt_solucion: miniappSeg.generarPromptSolucion(escaneoHtml),
         seguridad_rechazo: true
       });
+    }
+    if (escaneoHtml.rechazar && saltarEscaner) {
+      console.warn('[creador/miniapps/subir] escaner omitido (creador confiable) id=' + req.creador_id +
+        ' amenazas=' + (escaneoHtml.amenazas || []).map(function (a) { return a.codigo; }).join(','));
     }
     htmlContent = miniappSeg.sanitizeMiniappHtml(htmlContent);
     if (pdfFile && pdfFile.size > 50 * 1024 * 1024) {
@@ -4007,10 +4035,19 @@ app.post('/api/admin/usuarios/desactivar', async (req, res) => {
 // GET /api/admin/creadores
 app.get('/api/admin/creadores', async (req, res) => {
   try {
-    const { data: creadores, error } = await supabase
+    let creadores = null;
+    let error = null;
+    ({ data: creadores, error } = await supabase
       .from('creadores')
-      .select('id, nombre, email, estado, creado_en')
-      .order('creado_en', { ascending: false });
+      .select('id, nombre, email, estado, creado_en, creador_confiable')
+      .order('creado_en', { ascending: false }));
+    if (error && /creador_confiable/i.test(String(error.message || ''))) {
+      ({ data: creadores, error } = await supabase
+        .from('creadores')
+        .select('id, nombre, email, estado, creado_en')
+        .order('creado_en', { ascending: false }));
+      (creadores || []).forEach(function (c) { c.creador_confiable = false; });
+    }
     if (error) throw error;
 
     const ids = (creadores || []).map(function (c) { return c.id; });
@@ -4056,14 +4093,15 @@ app.get('/api/admin/creadores', async (req, res) => {
     const rows = (creadores || []).map(function (c) {
       const v = ventasMap[c.id] || { total_vendido: 0, num_ventas: 0 };
       return {
-        id:            c.id,
-        nombre:        c.nombre,
-        email:         c.email,
-        estado:        c.estado || 'inactivo',
-        creado_en:     c.creado_en,
-        num_productos: countMap[c.id] || 0,
-        total_vendido: _roundMoney(v.total_vendido),
-        num_ventas:    v.num_ventas
+        id:                c.id,
+        nombre:            c.nombre,
+        email:             c.email,
+        estado:            c.estado || 'inactivo',
+        creado_en:         c.creado_en,
+        creador_confiable: !!c.creador_confiable || _creadorEsConfiable(c),
+        num_productos:     countMap[c.id] || 0,
+        total_vendido:     _roundMoney(v.total_vendido),
+        num_ventas:        v.num_ventas
       };
     }).sort(function (a, b) {
       if (b.total_vendido !== a.total_vendido) return b.total_vendido - a.total_vendido;
@@ -4107,6 +4145,33 @@ app.post('/api/admin/creadores/desactivar', async (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     console.error('[admin/creadores/desactivar]', e.message);
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
+  }
+});
+
+// POST /api/admin/creadores/confiable — marca/desmarca creador de confianza (salta escaner)
+app.post('/api/admin/creadores/confiable', async (req, res) => {
+  const body = req.body || {};
+  const creador_id = body.creador_id;
+  const confiable = body.confiable === true || body.confiable === 'true' || body.confiable === 1;
+  if (!creador_id) return res.status(400).json({ ok: false, error: 'Se requiere creador_id.' });
+  try {
+    const { error } = await supabase
+      .from('creadores')
+      .update({ creador_confiable: !!confiable })
+      .eq('id', creador_id);
+    if (error) {
+      if (/creador_confiable/i.test(String(error.message || ''))) {
+        return res.status(400).json({
+          ok: false,
+          error: 'Falta migracion SQL: ejecuta motor/sql/creadores-confiable.sql en Supabase.'
+        });
+      }
+      throw error;
+    }
+    res.json({ ok: true, creador_id: creador_id, creador_confiable: !!confiable });
+  } catch (e) {
+    console.error('[admin/creadores/confiable]', e.message);
     res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
@@ -8216,6 +8281,7 @@ app.listen(PORT, () => {
   console.log(`[motor]   GET  http://localhost:${PORT}/api/admin/creadores`);
   console.log(`[motor]   POST http://localhost:${PORT}/api/admin/creadores/activar`);
   console.log(`[motor]   POST http://localhost:${PORT}/api/admin/creadores/desactivar`);
+  console.log(`[motor]   POST http://localhost:${PORT}/api/admin/creadores/confiable`);
   console.log(`[motor]   POST http://localhost:${PORT}/api/admin/creadores/liquidar`);
   console.log(`[motor]   GET  http://localhost:${PORT}/api/admin/creadores/pagos`);
   console.log(`[motor]   GET  http://localhost:${PORT}/api/admin/comprobante-pago/:pago_id`);
