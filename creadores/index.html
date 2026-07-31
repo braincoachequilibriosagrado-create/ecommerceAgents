@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="assets/css/premium-platform.css?v=4" />
-  <link rel="stylesheet" href="assets/css/creadores.css?v=39" />
+  <link rel="stylesheet" href="assets/css/creadores.css?v=40" />
 </head>
 <body class="cr-body--landing">
 
@@ -445,6 +445,14 @@
         </div>
 
         <div id="cr-subir-msg" class="cr-msg"></div>
+        <div id="cr-seguridad-prompt-wrap" class="cr-seguridad-prompt" hidden>
+          <div class="cr-seguridad-prompt-head">
+            <h4 class="cr-seguridad-prompt-title">Prompt de solucion (para pegar en una IA)</h4>
+            <button type="button" class="cr-btn-copy cr-seguridad-prompt-copy" id="cr-seguridad-prompt-copy" onclick="copiarPromptSeguridad()">Copiar prompt</button>
+          </div>
+          <p class="cr-seguridad-prompt-hint">Copia este texto, pegalo en Cursor / Claude / ChatGPT junto con tu HTML, y sube de nuevo el archivo corregido.</p>
+          <textarea id="cr-seguridad-prompt-text" class="cr-textarea cr-seguridad-prompt-text" rows="8" readonly></textarea>
+        </div>
 
         <div class="cr-upload-stack" id="cr-upload-stack" hidden>
 
@@ -715,7 +723,7 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="assets/js/premium-hero.js?v=4"></script>
-  <script src="assets/js/creadores.js?v=31"></script>
+  <script src="assets/js/creadores.js?v=32"></script>
   <script>
     function initCrShaders() {
       if (typeof initAllPremiumHeroes === 'function') initAllPremiumHeroes();

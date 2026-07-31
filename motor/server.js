@@ -2932,7 +2932,9 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
       return res.status(400).json({
         ok: false,
         error: miniappSeg.mensajeRechazoCreador(escaneoHtml),
-        amenazas: escaneoHtml.amenazas
+        amenazas: escaneoHtml.amenazas,
+        prompt_solucion: miniappSeg.generarPromptSolucion(escaneoHtml),
+        seguridad_rechazo: true
       });
     }
     htmlContent = miniappSeg.sanitizeMiniappHtml(htmlContent);

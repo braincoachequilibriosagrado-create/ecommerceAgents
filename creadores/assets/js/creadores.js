@@ -390,6 +390,7 @@ function _initRestablecerDesdeUrl() {
 function _clearMsg(id) {
   var el = document.getElementById(id);
   if (el) { el.textContent = ''; el.className = 'cr-msg'; el.style.display = 'none'; }
+  if (id === 'cr-subir-msg') _ocultarPromptSeguridad();
 }
 
 function _showMsg(id, text, ok) {
@@ -398,6 +399,98 @@ function _showMsg(id, text, ok) {
   el.textContent = text;
   el.className = 'cr-msg ' + (ok ? 'cr-msg--ok' : 'cr-msg--err');
   el.style.display = 'block';
+  if (id === 'cr-subir-msg' && ok) _ocultarPromptSeguridad();
+}
+
+function _ocultarPromptSeguridad() {
+  var wrap = document.getElementById('cr-seguridad-prompt-wrap');
+  var ta = document.getElementById('cr-seguridad-prompt-text');
+  if (wrap) wrap.hidden = true;
+  if (ta) ta.value = '';
+  var copyBtn = document.getElementById('cr-seguridad-prompt-copy');
+  if (copyBtn) copyBtn.textContent = 'Copiar prompt';
+}
+
+function _construirPromptSeguridadLocal(amenazas) {
+  var map = {
+    crypto_miner: 'Elimina cualquier codigo de mineria de criptomonedas o WebAssembly asociado.',
+    eval: 'Elimina eval(). Reescribe la logica sin ejecutar strings como codigo.',
+    new_function: 'Elimina new Function(). Reescribe la logica con funciones normales.',
+    meta_refresh: 'Quita cualquier <meta http-equiv="refresh">. No uses redirecciones automaticas.',
+    iframe_anidado: 'Quita todos los <iframe>. La mini app no puede embeber otras paginas.',
+    inline_handler: 'Quita atributos inline (onclick=, onerror=, onload=, etc.). Usa addEventListener en un <script>.',
+    script_inline_peligroso: 'Revisa los <script> inline: quita eval, new Function, document.write, document.cookie e innerHTML peligroso. Usa addEventListener y DOM seguro.',
+    script_inline: 'Si la app NO usa IA: evita JS inline propio; usa solo scripts de CDNs permitidos. Si SI usa IA: marca "Usa IA" y deja el JS inline seguro.',
+    form_externo: 'Quita action externos en <form> o pon action="#" y maneja el envio en JS local.',
+    script_externo: 'Quita scripts de dominios no autorizados. Solo CDNs permitidos.',
+    script_data_uri: 'Quita scripts con src="data:...".',
+    fetch_externo: 'La mini app debe funcionar offline (sin fetch externo), salvo IA autorizada si marcaste Usa IA.',
+    fetch_automatico_ia: 'Las llamadas a IA deben ejecutarse solo con un clic del usuario, no automaticamente.',
+    document_write: 'Elimina document.write(). Usa createElement / textContent.',
+    document_cookie: 'No uses document.cookie. Usa variables JS en memoria.',
+    web_storage: 'No uses localStorage ni sessionStorage. Usa variables JS en memoria.',
+    redireccion: 'Quita window.location / location.href / location.replace().',
+    keylogger_sospechoso: 'No combines listeners de teclado con envio de datos.',
+    ofuscacion: 'Entrega el codigo legible, sin ofuscacion masiva.',
+    ofuscacion_leve: 'Reduce patrones de ofuscacion; deja el codigo legible.'
+  };
+  var seen = {};
+  var fallas = [];
+  (amenazas || []).forEach(function (a) {
+    if (!a || !a.bloquea_subida) return;
+    var codigo = String(a.codigo || '');
+    if (!codigo || seen[codigo]) return;
+    seen[codigo] = true;
+    fallas.push(a);
+  });
+  if (!fallas.length) {
+    return 'Mi mini app fue rechazada por el sistema de seguridad de Activos Digitales. Corrige el HTML para cumplir las reglas SIN cambiar la funcionalidad. Devuelveme el HTML completo corregido en un solo archivo.';
+  }
+  var lineas = fallas.map(function (a, i) {
+    var sol = map[a.codigo] || ('Elimina o reescribe: ' + (a.mensaje || a.codigo));
+    return (i + 1) + ') ' + (a.mensaje || a.codigo) + ' -> ' + sol;
+  });
+  return 'Mi mini app HTML fue rechazada por el sistema de seguridad de Activos Digitales. Corrige estos problemas SIN cambiar la funcionalidad visible para el usuario:\n\n' +
+    lineas.join('\n') +
+    '\n\nReglas generales: sin eval/new Function/document.write; sin localStorage/sessionStorage/cookies; sin handlers inline; sin iframes/meta refresh; sin fetch externo salvo IA autorizada y solo al clic. Devuelveme el HTML completo corregido en un solo archivo, listo para subir.';
+}
+
+function _mostrarRechazoSeguridad(d) {
+  var error = (d && d.error) || 'Tu mini app contiene codigo no permitido.';
+  _showMsg('cr-subir-msg', error, false);
+
+  var prompt = (d && d.prompt_solucion) || _construirPromptSeguridadLocal(d && d.amenazas);
+  var wrap = document.getElementById('cr-seguridad-prompt-wrap');
+  var ta = document.getElementById('cr-seguridad-prompt-text');
+  if (ta) ta.value = prompt;
+  if (wrap) {
+    wrap.hidden = false;
+    try { wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (_) {}
+  }
+}
+
+function copiarPromptSeguridad() {
+  var ta = document.getElementById('cr-seguridad-prompt-text');
+  var btn = document.getElementById('cr-seguridad-prompt-copy');
+  if (!ta || !ta.value) return;
+  var texto = ta.value;
+  function ok() {
+    if (btn) {
+      btn.textContent = 'Copiado';
+      setTimeout(function () { if (btn) btn.textContent = 'Copiar prompt'; }, 1600);
+    }
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(texto).then(ok).catch(function () {
+      ta.focus();
+      ta.select();
+      try { document.execCommand('copy'); ok(); } catch (_) {}
+    });
+  } else {
+    ta.focus();
+    ta.select();
+    try { document.execCommand('copy'); ok(); } catch (_) {}
+  }
 }
 
 async function creadorLogin() {
@@ -789,7 +882,13 @@ async function publicarMiniapp() {
       body: fd
     });
     var d = await r.json();
-    if (!d.ok) throw new Error(d.error || 'Error al publicar.');
+    if (!d.ok) {
+      if (d.seguridad_rechazo || d.prompt_solucion || (d.amenazas && d.amenazas.length)) {
+        _mostrarRechazoSeguridad(d);
+        return;
+      }
+      throw new Error(d.error || 'Error al publicar.');
+    }
 
     var tipoLabel = _categoriaActiva === 'miniapp' ? 'Mini app' : (_categoriaActiva === 'infoproducto' ? 'Infoproducto' : 'Contenido digital');
     var msgOk = tipoLabel + ' publicado correctamente. Slug: ' + d.miniapp.slug;

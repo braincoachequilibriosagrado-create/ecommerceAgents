@@ -126,8 +126,100 @@ function _tieneBase64Largo(html) {
   return /[A-Za-z0-9+/=]{200,}/.test(html);
 }
 
+/** Eventos DOM reales usados como atributos HTML on* (lista cerrada). */
+const EVENTOS_INLINE_HTML = [
+  'onclick', 'ondblclick', 'onmouseover', 'onmouseout', 'onmousedown', 'onmouseup',
+  'onmousemove', 'onmouseenter', 'onmouseleave',
+  'onkeydown', 'onkeyup', 'onkeypress',
+  'onload', 'onerror', 'onchange', 'oninput', 'onsubmit', 'onfocus', 'onblur',
+  'onscroll', 'onresize', 'onwheel', 'oncontextmenu',
+  'ontouchstart', 'ontouchend', 'ontouchmove', 'ontouchcancel',
+  'ondrag', 'ondragstart', 'ondragend', 'ondragover', 'ondrop',
+  'onanimationend', 'ontransitionend',
+  'onbeforeunload', 'onunload',
+  'onpaste', 'oncopy', 'oncut',
+  'onplay', 'onpause', 'onended', 'onseeking', 'onseeked',
+  'onpointerover', 'onpointerdown', 'onpointerup', 'onpointermove'
+];
+
+const _RE_ATTR_EVENTO_INLINE = new RegExp(
+  '[\\s/](?:' + EVENTOS_INLINE_HTML.join('|') + ')\\s*=',
+  'i'
+);
+
+/** Quita bloques <script>...</script> para no confundir JS con atributos HTML. */
+function _htmlSinScripts(html) {
+  return String(html || '').replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ');
+}
+
+/**
+ * Detecta handlers inline REALES (onclick= dentro de una etiqueta HTML).
+ * No marca variables JS (onDelay, onda, content, etc.).
+ */
 function _detectarInlineHandlers(html) {
-  return /\s(on[a-z]+\s*=)/i.test(html);
+  const markup = _htmlSinScripts(html);
+  const tagRe = /<\/?[a-zA-Z][^>]*>/g;
+  let m;
+  while ((m = tagRe.exec(markup)) !== null) {
+    const tag = m[0];
+    if (tag.startsWith('</')) continue;
+    if (_RE_ATTR_EVENTO_INLINE.test(tag)) return true;
+  }
+  return false;
+}
+
+/**
+ * innerHTML peligroso: asignacion dinamica (variable/expresion), no strings/plantillas estaticas.
+ */
+function _innerHtmlDinamicoPeligroso(code) {
+  const re = /\.innerHTML\s*=\s*/gi;
+  let m;
+  while ((m = re.exec(code)) !== null) {
+    let i = m.index + m[0].length;
+    while (i < code.length && /\s/.test(code[i])) i++;
+    const ch = code[i];
+    if (ch === "'" || ch === '"') {
+      // String estatico: OK. Si luego concatena con no-string, marcar.
+      const quote = ch;
+      i += 1;
+      while (i < code.length) {
+        if (code[i] === '\\') { i += 2; continue; }
+        if (code[i] === quote) { i += 1; break; }
+        i += 1;
+      }
+      while (i < code.length && /\s/.test(code[i])) i++;
+      if (code[i] === '+' ) {
+        let j = i + 1;
+        while (j < code.length && /\s/.test(code[j])) j++;
+        if (code[j] && code[j] !== "'" && code[j] !== '"' && code[j] !== '`') return true;
+      }
+      continue;
+    }
+    if (ch === '`') {
+      // Template literal: peligroso solo si interpola ${...}
+      const slice = code.slice(i + 1);
+      const close = slice.search(/`/);
+      const content = close >= 0 ? slice.slice(0, close) : slice.slice(0, 400);
+      if (/\$\{/.test(content)) return true;
+      continue;
+    }
+    // Variable, llamada, expresion, etc.
+    return true;
+  }
+  return false;
+}
+
+function _scriptInlineEsPeligroso(body) {
+  const src = String(body || '');
+  if (/\beval\s*\(/i.test(src)) return true;
+  if (/\bnew\s+Function\s*\(/i.test(src)) return true;
+  if (/\bdocument\.write\s*\(/i.test(src)) return true;
+  if (/\bdocument\.cookie\b/i.test(src)) return true;
+  if (/javascript\s*:/i.test(src)) return true;
+  // setTimeout/setInterval con string (codigo inyectado)
+  if (/\b(?:setTimeout|setInterval)\s*\(\s*['"`]/i.test(src)) return true;
+  if (_innerHtmlDinamicoPeligroso(src)) return true;
+  return false;
 }
 
 function _detectarScriptsInline(html, usaIa) {
@@ -137,7 +229,7 @@ function _detectarScriptsInline(html, usaIa) {
   while ((m = re.exec(html)) !== null) {
     const body = m[1] || '';
     if (!body.trim()) continue;
-    if (/\beval\s*\(|\bnew\s+Function\s*\(|document\.write\s*\(|javascript:|\.innerHTML\s*=|document\.cookie/i.test(body)) {
+    if (_scriptInlineEsPeligroso(body)) {
       amenazas.push(_idAmenaza('script_inline_peligroso', 'alta', 'Script inline con codigo potencialmente peligroso', true));
     } else if (usaIa) {
       // Con IA se permite JS inline seguro (fetch a Groq en click); no bloquea subida
@@ -311,6 +403,74 @@ function _mensajeRechazoCreador(escaneo) {
   return 'Tu mini app contiene codigo no permitido: ' + lista + '. Contacta soporte si crees que es un error.';
 }
 
+/** Instrucciones de arreglo por codigo de amenaza (para prompt copiable). */
+const SOLUCION_POR_CODIGO = {
+  crypto_miner: 'Elimina cualquier codigo de mineria de criptomonedas o WebAssembly asociado.',
+  eval: 'Elimina eval(). Reescribe la logica sin ejecutar strings como codigo.',
+  new_function: 'Elimina new Function(). Reescribe la logica con funciones normales.',
+  meta_refresh: 'Quita cualquier <meta http-equiv="refresh">. No uses redirecciones automaticas.',
+  iframe_anidado: 'Quita todos los <iframe>. La mini app no puede embeber otras paginas.',
+  inline_handler: 'Quita atributos inline (onclick=, onerror=, onload=, etc.). Usa addEventListener en un <script>.',
+  script_inline_peligroso: 'Revisa los <script> inline: quita eval, new Function, document.write, document.cookie, setTimeout/setInterval con string, e innerHTML dinamico. Usa addEventListener y DOM seguro (strings estaticos en innerHTML estan bien).',
+  script_inline: 'Si la app NO usa IA: evita JS inline propio; usa solo scripts de CDNs permitidos (cdnjs, jsdelivr, unpkg). Si SI usa IA: marca "Usa IA" y deja el JS inline seguro (sin eval/storage/redirecciones).',
+  form_externo: 'Quita action externos en <form> o pon action="#" y maneja el envio en JS local (sin enviar datos a dominios ajenos).',
+  script_externo: 'Quita scripts de dominios no autorizados. Solo CDNs permitidos: cdnjs.cloudflare.com, cdn.jsdelivr.net, unpkg.com, etc.',
+  script_data_uri: 'Quita scripts con src="data:...". Usa archivos/CDN permitidos o script inline seguro si aplica.',
+  fetch_externo: 'La mini app debe funcionar offline (sin fetch/XHR a dominios externos), salvo proveedores de IA autorizados si marcaste Usa IA (Groq, OpenAI, Anthropic, Google).',
+  fetch_automatico_ia: 'Las llamadas a IA deben ejecutarse solo con un clic del usuario (boton). No llames a la IA en DOMContentLoaded, load, setInterval ni bucles automaticos.',
+  document_write: 'Elimina document.write(). Construye el DOM con createElement / textContent.',
+  document_cookie: 'No uses document.cookie. Guarda estado en variables JS en memoria (no persistentes).',
+  web_storage: 'No uses localStorage ni sessionStorage. Guarda la API key y el estado solo en variables JS en memoria.',
+  redireccion: 'Quita window.location =, location.href = y location.replace(). La mini app no debe redirigir el navegador.',
+  keylogger_sospechoso: 'No combines listeners de teclado (keydown/keypress/keyup) con envio de datos (fetch/XHR/sendBeacon).',
+  ofuscacion: 'Entrega el codigo legible, sin ofuscacion hex/base64 masiva ni empaquetadores sospechosos.',
+  ofuscacion_leve: 'Reduce patrones de ofuscacion; deja el codigo legible y mantenible.'
+};
+
+function _amenazasQueBloquean(escaneo) {
+  const seen = {};
+  const out = [];
+  (escaneo && escaneo.amenazas ? escaneo.amenazas : []).forEach(function (a) {
+    if (!a || !a.bloquea_subida) return;
+    const codigo = String(a.codigo || '');
+    if (!codigo || seen[codigo]) return;
+    seen[codigo] = true;
+    out.push(a);
+  });
+  return out;
+}
+
+/**
+ * Genera un prompt listo para pegar en Cursor/Claude/ChatGPT,
+ * basado solo en las fallas que bloquearon ESTA subida.
+ */
+function generarPromptSolucion(escaneo) {
+  const fallas = _amenazasQueBloquean(escaneo);
+  if (!fallas.length) {
+    return (
+      'Mi mini app fue rechazada por el sistema de seguridad de Activos Digitales. ' +
+      'Corrige el HTML para que cumpla las reglas de seguridad SIN cambiar la funcionalidad visible. ' +
+      'Devuelveme el HTML completo corregido en un solo archivo.'
+    );
+  }
+
+  const lineas = fallas.map(function (a, i) {
+    const solucion = SOLUCION_POR_CODIGO[a.codigo] ||
+      ('Elimina o reescribe el patron detectado: ' + (a.mensaje || a.codigo));
+    return (i + 1) + ') ' + (a.mensaje || a.codigo) + ' -> ' + solucion;
+  });
+
+  return (
+    'Mi mini app HTML fue rechazada por el sistema de seguridad de Activos Digitales. ' +
+    'Corrige estos problemas SIN cambiar la funcionalidad visible para el usuario:\n\n' +
+    lineas.join('\n') +
+    '\n\nReglas generales: sin eval/new Function/document.write; sin localStorage/sessionStorage/cookies; ' +
+    'sin handlers inline (onclick/onerror); sin iframes/object/embed/meta refresh; ' +
+    'sin fetch externo salvo IA autorizada y solo al hacer clic si usa IA. ' +
+    'Devuelveme el HTML completo corregido en un solo archivo, listo para subir.'
+  );
+}
+
 /** Limpia patrones claramente maliciosos sin eliminar JS legitimo */
 function sanitizeMiniappHtml(html) {
   let s = String(html || '');
@@ -366,5 +526,6 @@ module.exports = {
   analizarHtmlMiniapp,
   sanitizeMiniappHtml,
   htmlContenedorSandbox,
-  mensajeRechazoCreador: _mensajeRechazoCreador
+  mensajeRechazoCreador: _mensajeRechazoCreador,
+  generarPromptSolucion
 };
