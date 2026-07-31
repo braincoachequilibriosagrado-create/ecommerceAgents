@@ -422,7 +422,7 @@ body.ea-shader-page {
 
 .vt-card-thumb {
   position: relative;
-  aspect-ratio: 16 / 10;
+  aspect-ratio: 4 / 3;
   background: linear-gradient(135deg, #f0f2fa 0%, #e8eaf5 100%);
   overflow: hidden;
 }
@@ -431,6 +431,7 @@ body.ea-shader-page {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center;
   display: block;
 }
 

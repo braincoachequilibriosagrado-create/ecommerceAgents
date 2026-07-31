@@ -228,6 +228,7 @@
     display: block;
     aspect-ratio: 4/3;
     object-fit: cover;
+    object-position: center;
     background: var(--paper);
   }
   .badge-float {
@@ -302,8 +303,8 @@
   .desc-wrap { background: var(--white); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow-sm); padding: 38px; }
   .desc-wrap h2 { font-size: 26px; font-weight: 800; letter-spacing: -.5px; margin-bottom: 16px; color: var(--ink); }
   .desc-wrap p { font-size: 16.5px; color: var(--slate); white-space: pre-line; }
-  .desc-gallery2 { margin-top: 26px; border-radius: var(--r); overflow: hidden; border: 1px solid var(--line); }
-  .desc-gallery2 img { width: 100%; display: block; }
+  .desc-gallery2 { margin-top: 26px; border-radius: var(--r); overflow: hidden; border: 1px solid var(--line); aspect-ratio: 4/3; background: var(--paper); }
+  .desc-gallery2 img { width: 100%; height: 100%; display: block; object-fit: cover; object-position: center; }
 
   /* steps */
   .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; counter-reset: step; }

@@ -5243,7 +5243,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;co
 .card{background:var(--white);border:none;border-radius:20px;overflow:hidden;box-shadow:0 20px 50px rgba(20,18,60,.22)}
 .card.ea-premium-card{border:none;background:var(--white)}
 .hero{padding:28px 24px 22px;text-align:center;border-bottom:1px solid var(--line)}
-.hero img{width:100%;max-height:220px;object-fit:cover;border-radius:14px;margin-bottom:18px;background:#f5f7fb}
+.hero img{width:100%;aspect-ratio:4/3;max-height:none;object-fit:cover;object-position:center;border-radius:14px;margin-bottom:18px;background:#f5f7fb;display:block}
 .hero h1{font-size:24px;font-weight:800;line-height:1.25;margin-bottom:8px}
 .hero p{font-size:14px;color:var(--slate);line-height:1.5}
 .price{font-size:32px;font-weight:800;background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin-top:14px}
@@ -5398,7 +5398,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-seri
 @media(max-width:500px){.ck-pay-opts{grid-template-columns:1fr}}
 /* ─── Summary ────────────────────────────── */
 .ck-prod-img-area{border-radius:var(--r) var(--r) 0 0;overflow:hidden;background:var(--bg);border-bottom:1px solid var(--bd)}
-.ck-prod-img-area img{width:100%;height:210px;object-fit:cover;display:block}
+.ck-prod-img-area img{width:100%;height:100%;aspect-ratio:4/3;object-fit:cover;object-position:center;display:block}
 .ck-prod-img-ph{height:120px;display:flex;align-items:center;justify-content:center;color:var(--bd)}
 .ck-prod-info{padding:14px 18px 10px}
 .ck-urgency{display:inline-flex;align-items:center;gap:5px;background:var(--accent);color:#fff;font-size:10px;font-weight:800;padding:3px 10px;border-radius:20px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:9px}

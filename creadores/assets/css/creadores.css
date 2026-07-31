@@ -1523,7 +1523,7 @@ a.cr-dash-tab {
   display: block;
   position: relative;
   width: 100%;
-  aspect-ratio: 16 / 10;
+  aspect-ratio: 4 / 3;
   border: 2px dashed var(--cr-border-strong);
   border-radius: 14px;
   overflow: hidden;
@@ -1541,6 +1541,7 @@ a.cr-dash-tab {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center;
   display: block;
 }
 
@@ -1718,7 +1719,7 @@ a.cr-dash-tab {
 }
 
 .cr-product-thumb {
-  aspect-ratio: 16 / 10;
+  aspect-ratio: 4 / 3;
   background: linear-gradient(135deg, rgba(43, 58, 245, 0.08) 0%, rgba(192, 45, 158, 0.1) 100%);
   overflow: hidden;
 }
@@ -1781,6 +1782,7 @@ a.cr-dash-tab {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center;
   display: block;
 }
 

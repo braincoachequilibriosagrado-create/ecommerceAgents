@@ -9,6 +9,11 @@ const MIME_IMAGEN = {
   'image/webp': 'webp'
 };
 
+/** Portada uniforme 4:3 (marketplace / venta / tarjetas) */
+const FOTO_PRODUCTO_W = 1200;
+const FOTO_PRODUCTO_H = 900;
+const FOTO_PRODUCTO_JPEG_QUALITY = 85;
+
 const MIME_PDF = ['application/pdf'];
 
 const MIME_VIDEO = {
@@ -27,6 +32,11 @@ async function _detectarTipo(buf) {
   return null;
 }
 
+/**
+ * Valida magic bytes y normaliza la foto de producto:
+ * recorte cover centrado a 1200x900 (4:3), JPEG ~85, sin metadata.
+ * Cualquier orientacion (vertical/horizontal/cuadrada) queda uniforme.
+ */
 async function validarImagenSubida(buffer) {
   const buf = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer || []);
   if (!buf.length) return { ok: false, error: 'Archivo de imagen vacio.' };
@@ -38,16 +48,15 @@ async function validarImagenSubida(buffer) {
   }
 
   try {
-    let pipeline = sharp(buf, { failOn: 'error' }).rotate();
-    if (tipo.mime === 'image/jpeg') {
-      pipeline = pipeline.jpeg({ quality: 90, mozjpeg: true });
-    } else if (tipo.mime === 'image/png') {
-      pipeline = pipeline.png({ compressionLevel: 9 });
-    } else {
-      pipeline = pipeline.webp({ quality: 90 });
-    }
-    const out = await pipeline.toBuffer();
-    return { ok: true, buffer: out, mime: tipo.mime, ext: MIME_IMAGEN[tipo.mime] };
+    const out = await sharp(buf, { failOn: 'error' })
+      .rotate()
+      .resize(FOTO_PRODUCTO_W, FOTO_PRODUCTO_H, {
+        fit: 'cover',
+        position: 'centre'
+      })
+      .jpeg({ quality: FOTO_PRODUCTO_JPEG_QUALITY, mozjpeg: true })
+      .toBuffer();
+    return { ok: true, buffer: out, mime: 'image/jpeg', ext: 'jpg' };
   } catch (e) {
     console.warn('[archivo-validacion/imagen]', e.message);
     return { ok: false, error: 'No se pudo procesar la imagen. Usa JPG, PNG o WebP valido.' };
@@ -82,5 +91,7 @@ async function validarVideoSubida(buffer, maxBytes) {
 module.exports = {
   validarImagenSubida,
   validarPdfSubida,
-  validarVideoSubida
+  validarVideoSubida,
+  FOTO_PRODUCTO_W,
+  FOTO_PRODUCTO_H
 };
