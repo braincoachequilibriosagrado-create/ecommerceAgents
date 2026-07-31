@@ -128,7 +128,9 @@
       var sub = cat === 'infoproducto' ? (p.subcategoria || 'pdf') : null;
       var subLabel = sub ? (p.subcategoria_label || SUB_LABELS[sub] || sub) : '';
       var thumb = p.foto1_url
-        ? '<img src="' + esc(p.foto1_url) + '" alt="' + esc(p.nombre) + '" loading="lazy" onerror="this.parentElement.classList.add(\'vt-card-thumb--empty\');this.remove();" />'
+        ? '<img class="thumb-blur" src="' + esc(p.foto1_url) + '" alt="" aria-hidden="true" />' +
+          '<span class="thumb-overlay" aria-hidden="true"></span>' +
+          '<img class="thumb-front" src="' + esc(p.foto1_url) + '" alt="' + esc(p.nombre) + '" loading="lazy" onerror="this.parentElement.classList.add(\'vt-card-thumb--empty\');" />'
         : '';
       var thumbClass = p.foto1_url ? 'vt-card-thumb' : 'vt-card-thumb vt-card-thumb--empty';
       var desc = p.descripcion_corta

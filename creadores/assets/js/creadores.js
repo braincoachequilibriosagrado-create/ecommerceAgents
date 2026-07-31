@@ -1087,7 +1087,9 @@ async function cargarMiniappsLista() {
       return (
         '<article class="cr-product-card" id="cr-ma-item-' + m.id + '">' +
           '<div class="cr-product-thumb">' +
-            '<img src="' + imgUrl + '" alt="' + _esc(m.nombre) + '" loading="lazy" onerror="this.parentElement.classList.add(\'cr-product-thumb--empty\')" />' +
+            '<img class="thumb-blur" src="' + imgUrl + '" alt="" aria-hidden="true" />' +
+            '<span class="thumb-overlay" aria-hidden="true"></span>' +
+            '<img class="thumb-front" src="' + imgUrl + '" alt="' + _esc(m.nombre) + '" loading="lazy" onerror="this.parentElement.classList.add(\'cr-product-thumb--empty\')" />' +
           '</div>' +
           '<div class="cr-product-body">' +
             '<h4 class="cr-product-name">' + _esc(m.nombre) + '</h4>' +
@@ -1293,7 +1295,9 @@ async function cargarCatalogoCreador() {
       return (
         '<article class="cr-product-card cr-catalogo-card">' +
           '<div class="cr-product-thumb">' +
-            '<img src="' + imgUrl + '" alt="' + _esc(m.nombre) + '" loading="lazy" onerror="this.parentElement.classList.add(\'cr-product-thumb--empty\')" />' +
+            '<img class="thumb-blur" src="' + imgUrl + '" alt="" aria-hidden="true" />' +
+            '<span class="thumb-overlay" aria-hidden="true"></span>' +
+            '<img class="thumb-front" src="' + imgUrl + '" alt="' + _esc(m.nombre) + '" loading="lazy" onerror="this.parentElement.classList.add(\'cr-product-thumb--empty\')" />' +
           '</div>' +
           '<div class="cr-product-body">' +
             '<h4 class="cr-product-name">' + _esc(m.nombre) + '</h4>' +

@@ -2428,7 +2428,11 @@ function _maCardHtml(m, modo) {
     '<article class="' + cardClass + '">' +
       badge +
       _maSeguridadHtml(m) +
-      '<div class="ma-card-thumb"><img src="' + imgUrl + '" alt="" loading="lazy" onerror="this.parentElement.classList.add(\'ma-card-thumb--err\')" /></div>' +
+      '<div class="ma-card-thumb">' +
+        '<img class="thumb-blur" src="' + imgUrl + '" alt="" aria-hidden="true" />' +
+        '<span class="thumb-overlay" aria-hidden="true"></span>' +
+        '<img class="thumb-front" src="' + imgUrl + '" alt="" loading="lazy" onerror="this.parentElement.classList.add(\'ma-card-thumb--err\')" />' +
+      '</div>' +
       '<div class="ma-card-body">' +
         '<h4 class="ma-card-title">' + _esc(m.nombre) + '</h4>' +
         '<p class="ma-card-slug">' + _esc(m.slug) + '</p>' +
