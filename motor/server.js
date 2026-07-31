@@ -2579,6 +2579,13 @@ function _emailCompradorOpcional(email) {
 
 async function _validarMiniappDisponibleCompra(miniapp) {
   if (!miniapp) return { ok: false, error: 'Producto no encontrado.' };
+  const est = String(miniapp.estado || 'activo').toLowerCase();
+  if (est === 'pausado') {
+    return { ok: false, error: 'Producto temporalmente no disponible.' };
+  }
+  if (est === 'eliminado' || est !== 'activo') {
+    return { ok: false, error: 'Producto no disponible.' };
+  }
   const cat = String(miniapp.categoria || 'miniapp').toLowerCase();
   if (cat === 'miniapp') {
     if (!miniapp.r2_key) return { ok: false, error: 'Producto no disponible.' };
@@ -3142,7 +3149,11 @@ app.get('/api/miniapps/asset/:slug/:file', async (req, res) => {
       .eq('slug', slug)
       .maybeSingle();
     if (error) throw error;
-    if (!data || data.estado !== 'activo') {
+    if (!data || data.estado === 'eliminado') {
+      return res.status(404).json({ ok: false, error: 'No encontrado.' });
+    }
+    // Fotos publicas solo si el producto sigue en catalogo (activo o pausado)
+    if (data.estado !== 'activo' && data.estado !== 'pausado') {
       return res.status(404).json({ ok: false, error: 'No encontrado.' });
     }
 
@@ -3672,6 +3683,7 @@ app.get('/api/catalogo/miniapps', async (req, res) => {
       .from('miniapps')
       .select('id, nombre, slug, descripcion, precio, precio_promocion, comision_vendedor, usa_ia, tipo_producto, categoria, foto1_key, pagina_venta_slug, creado_en')
       .eq('estado_aprobacion', 'aprobada')
+      .eq('estado', 'activo')
       .eq('disponible_vendedores', true)
       .not('pagina_venta_slug', 'is', null)
       .order('creado_en', { ascending: false });
@@ -4363,7 +4375,7 @@ async function _buscarMiniappPorPaginaSlug(slugPagina) {
   if (!slug) return null;
   const { data, error } = await supabase
     .from('miniapps')
-    .select('id, nombre, slug, precio, precio_promocion, r2_key, pdf_key, foto1_key, tipo_producto, categoria, comision_vendedor, pagina_venta_slug, estado_aprobacion')
+    .select('id, nombre, slug, precio, precio_promocion, r2_key, pdf_key, foto1_key, tipo_producto, categoria, comision_vendedor, pagina_venta_slug, estado_aprobacion, estado')
     .eq('pagina_venta_slug', slug)
     .maybeSingle();
   if (error) throw error;
@@ -6682,7 +6694,7 @@ app.get('/api/admin/miniapps', async (req, res) => {
       .from('miniapps')
       .select(`
         id, nombre, slug, descripcion, precio, precio_promocion, tipo_producto, categoria, subcategoria,
-        usa_ia, disponible_vendedores, comision_vendedor,
+        usa_ia, disponible_vendedores, comision_vendedor, estado,
         estado_aprobacion, motivo_rechazo, foto1_key, foto2_key, pagina_venta_slug, creado_en,
         requiere_revision_seguridad, escaneo_seguridad,
         creadores ( nombre, email )
@@ -6710,7 +6722,7 @@ app.get('/api/admin/miniapps', async (req, res) => {
         .from('miniapps')
         .select(`
           id, nombre, slug, descripcion, precio, precio_promocion, tipo_producto, categoria,
-          usa_ia, disponible_vendedores, comision_vendedor,
+          usa_ia, disponible_vendedores, comision_vendedor, estado,
           estado_aprobacion, motivo_rechazo, foto1_key, foto2_key, pagina_venta_slug, creado_en,
           creadores ( nombre, email )
         `)
@@ -6741,6 +6753,7 @@ app.get('/api/admin/miniapps', async (req, res) => {
         usa_ia:                m.usa_ia,
         disponible_vendedores: m.disponible_vendedores,
         comision_vendedor:     m.comision_vendedor,
+        estado:                m.estado || 'activo',
         estado_aprobacion:     m.estado_aprobacion || 'pendiente',
         motivo_rechazo:        m.motivo_rechazo,
         foto1_url:             _miniappFotoUrl(m.slug, 'foto1'),
@@ -6753,6 +6766,7 @@ app.get('/api/admin/miniapps', async (req, res) => {
         creado_en:             m.creado_en
       };
     }).filter(function (m) {
+      if (m.estado === 'eliminado') return false;
       if (!subcategoria || !INFOPRODUCTO_SUBCATEGORIAS.includes(subcategoria)) return true;
       return m.categoria === 'infoproducto' && m.subcategoria === subcategoria;
     });
@@ -7374,6 +7388,111 @@ app.post('/api/admin/miniapps/rechazar', async (req, res) => {
   }
 });
 
+async function _setPaginaVentaActivaPorSlug(slug, activa) {
+  const s = String(slug || '').trim();
+  if (!s) return;
+  await supabase.from('paginas_venta').update({ activa: !!activa }).eq('slug', s);
+}
+
+// POST /api/admin/miniapps/pausar — quita del marketplace sin borrar (estado=pausado)
+app.post('/api/admin/miniapps/pausar', async (req, res) => {
+  const miniapp_id = (req.body || {}).miniapp_id;
+  if (!miniapp_id) return res.status(400).json({ ok: false, error: 'Se requiere miniapp_id.' });
+  try {
+    const { data: existente, error: selErr } = await supabase
+      .from('miniapps')
+      .select('id, nombre, estado, estado_aprobacion, pagina_venta_slug')
+      .eq('id', miniapp_id)
+      .maybeSingle();
+    if (selErr) throw selErr;
+    if (!existente || existente.estado === 'eliminado') {
+      return res.status(404).json({ ok: false, error: 'Producto no encontrado.' });
+    }
+    const { data, error } = await supabase
+      .from('miniapps')
+      .update({ estado: 'pausado' })
+      .eq('id', miniapp_id)
+      .select('id, nombre, slug, estado, estado_aprobacion, pagina_venta_slug')
+      .single();
+    if (error) throw error;
+    try { await _setPaginaVentaActivaPorSlug(existente.pagina_venta_slug, false); } catch (e) {
+      console.warn('[admin/miniapps/pausar] pagina:', e.message);
+    }
+    console.log('[admin/miniapps/pausar] id=' + miniapp_id);
+    res.json({ ok: true, miniapp: data });
+  } catch (e) {
+    console.error('[admin/miniapps/pausar]', e.message);
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
+  }
+});
+
+// POST /api/admin/miniapps/publicar — reactiva producto pausado (estado=activo)
+app.post('/api/admin/miniapps/publicar', async (req, res) => {
+  const miniapp_id = (req.body || {}).miniapp_id;
+  if (!miniapp_id) return res.status(400).json({ ok: false, error: 'Se requiere miniapp_id.' });
+  try {
+    const { data: existente, error: selErr } = await supabase
+      .from('miniapps')
+      .select('id, nombre, estado, estado_aprobacion, pagina_venta_slug')
+      .eq('id', miniapp_id)
+      .maybeSingle();
+    if (selErr) throw selErr;
+    if (!existente || existente.estado === 'eliminado') {
+      return res.status(404).json({ ok: false, error: 'Producto no encontrado.' });
+    }
+    if (existente.estado_aprobacion !== 'aprobada') {
+      return res.status(400).json({ ok: false, error: 'Solo se pueden publicar productos aprobados.' });
+    }
+    const { data, error } = await supabase
+      .from('miniapps')
+      .update({ estado: 'activo' })
+      .eq('id', miniapp_id)
+      .select('id, nombre, slug, estado, estado_aprobacion, pagina_venta_slug')
+      .single();
+    if (error) throw error;
+    try { await _setPaginaVentaActivaPorSlug(existente.pagina_venta_slug, true); } catch (e) {
+      console.warn('[admin/miniapps/publicar] pagina:', e.message);
+    }
+    console.log('[admin/miniapps/publicar] id=' + miniapp_id);
+    res.json({ ok: true, miniapp: data });
+  } catch (e) {
+    console.error('[admin/miniapps/publicar]', e.message);
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
+  }
+});
+
+// POST /api/admin/miniapps/eliminar — soft delete (estado=eliminado). Conserva ventas y archivos R2.
+app.post('/api/admin/miniapps/eliminar', async (req, res) => {
+  const miniapp_id = (req.body || {}).miniapp_id;
+  if (!miniapp_id) return res.status(400).json({ ok: false, error: 'Se requiere miniapp_id.' });
+  try {
+    const { data: existente, error: selErr } = await supabase
+      .from('miniapps')
+      .select('id, nombre, estado, pagina_venta_slug')
+      .eq('id', miniapp_id)
+      .maybeSingle();
+    if (selErr) throw selErr;
+    if (!existente || existente.estado === 'eliminado') {
+      return res.status(404).json({ ok: false, error: 'Producto no encontrado.' });
+    }
+    const { data, error } = await supabase
+      .from('miniapps')
+      .update({ estado: 'eliminado' })
+      .eq('id', miniapp_id)
+      .select('id, nombre, slug, estado')
+      .single();
+    if (error) throw error;
+    try { await _setPaginaVentaActivaPorSlug(existente.pagina_venta_slug, false); } catch (e) {
+      console.warn('[admin/miniapps/eliminar] pagina:', e.message);
+    }
+    console.log('[admin/miniapps/eliminar] soft-delete id=' + miniapp_id + ' nombre=' + existente.nombre);
+    res.json({ ok: true, miniapp: data });
+  } catch (e) {
+    console.error('[admin/miniapps/eliminar]', e.message);
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
+  }
+});
+
 app.get('/api/ventas/usuario/:usuario_id', requireUsuario, async (req, res) => {
   const { usuario_id } = req.params;
   if (!_forbidUnlessSelf(req, res, usuario_id)) return;
@@ -7835,6 +7954,23 @@ app.get('/p/:slug', async (req, res) => {
       _setNoCacheHtml(res);
       return res.status(404).send('<!DOCTYPE html><html><body style="font-family:sans-serif;padding:40px;text-align:center"><h2>Pagina no encontrada</h2><p>Este link no esta disponible.</p></body></html>');
     }
+
+    // Si es pagina de mini app: no vender si esta pausada/eliminada
+    if (_isMiniappCheckoutSlug(slug)) {
+      try {
+        const mini = await _buscarMiniappPorPaginaSlug(slug);
+        if (mini) {
+          const est = String(mini.estado || 'activo').toLowerCase();
+          if (est !== 'activo' || mini.estado_aprobacion !== 'aprobada') {
+            _setNoCacheHtml(res);
+            return res.status(404).send('<!DOCTYPE html><html><body style="font-family:sans-serif;padding:40px;text-align:center"><h2>Producto no disponible</h2><p>Este producto no esta a la venta en este momento.</p></body></html>');
+          }
+        }
+      } catch (e) {
+        console.warn('[p/slug] check estado:', e.message);
+      }
+    }
+
     // Incrementar vistas (fire-and-forget)
     supabase.from('paginas_venta').update({ vistas: (data.vistas || 0) + 1 }).eq('id', data.id).then(() => {}).catch(() => {});
 
@@ -8182,6 +8318,9 @@ app.listen(PORT, () => {
   console.log('[motor]   Panel creadores reset URL base: ' + CREADORES_PANEL_URL + '/restablecer');
   console.log(`[motor]   GET  http://localhost:${PORT}/api/vendedor/miniapps-comisiones?usuario_id=`);
   console.log(`[motor]   GET  http://localhost:${PORT}/api/admin/miniapps/comisiones-vendedores`);
+  console.log(`[motor]   POST http://localhost:${PORT}/api/admin/miniapps/pausar`);
+  console.log(`[motor]   POST http://localhost:${PORT}/api/admin/miniapps/publicar`);
+  console.log(`[motor]   POST http://localhost:${PORT}/api/admin/miniapps/eliminar`);
   console.log(`[motor]   GET  http://localhost:${PORT}/mi-compra/:codigo`);
   console.log(`[motor]   GET  http://localhost:${PORT}/recuperar-compra`);
   console.log(`[motor]   GET  http://localhost:${PORT}/terminos`);

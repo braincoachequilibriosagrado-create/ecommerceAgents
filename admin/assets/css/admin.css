@@ -490,6 +490,21 @@ body {
 
 .adm-btn--success:hover { opacity: 0.85; }
 
+.adm-btn--warn {
+  background: transparent;
+  color: #b45309;
+  border-color: rgba(180, 83, 9, 0.45);
+}
+
+.adm-btn--warn:hover {
+  background: rgba(180, 83, 9, 0.12);
+}
+
+.adm-badge--warn {
+  background: rgba(180, 83, 9, 0.14);
+  color: #b45309;
+}
+
 /* ---- FORM ---- */
 .adm-form-wrap {
   padding-top: 20px;
@@ -2110,6 +2125,11 @@ body {
 
 .ma-card--aprobada {
   border-color: #c8e6c9;
+}
+
+.ma-card--pausada {
+  border-color: rgba(180, 83, 9, 0.4);
+  opacity: 0.92;
 }
 
 .ma-card-badge {

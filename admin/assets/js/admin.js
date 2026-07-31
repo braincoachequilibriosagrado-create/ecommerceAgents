@@ -2366,10 +2366,17 @@ function _maSeguridadHtml(m) {
 function _maCardHtml(m, modo) {
   var imgUrl = MOTOR_URL + '/api/miniapps/asset/' + encodeURIComponent(m.slug) + '/foto1';
   var tipo = _maTipoLabel(m);
-  var cardClass = 'ma-card' + (modo === 'pendiente' ? ' ma-card--pendiente' : ' ma-card--aprobada');
-  var badge = modo === 'aprobada'
-    ? '<span class="adm-badge adm-badge--ok ma-card-badge">Aprobada</span>'
-    : '<span class="adm-badge adm-badge--bajo ma-card-badge">Pendiente</span>';
+  var estPub = String(m.estado || 'activo').toLowerCase();
+  var pausado = estPub === 'pausado';
+  var cardClass = 'ma-card' + (modo === 'pendiente' ? ' ma-card--pendiente' : (pausado ? ' ma-card--pausada' : ' ma-card--aprobada'));
+  var badge;
+  if (modo === 'aprobada') {
+    badge = pausado
+      ? '<span class="adm-badge adm-badge--warn ma-card-badge">Pausada</span>'
+      : '<span class="adm-badge adm-badge--ok ma-card-badge">Aprobada</span>';
+  } else {
+    badge = '<span class="adm-badge adm-badge--bajo ma-card-badge">Pendiente</span>';
+  }
 
   var tags = '<span class="adm-badge ' + _maCategoriaBadgeClass(m.categoria || 'miniapp') + '">' +
     _maCategoriaLabel(m.categoria || 'miniapp') + '</span>';
@@ -2398,10 +2405,16 @@ function _maCardHtml(m, modo) {
   if (modo === 'aprobada') {
     var btnGenTxt = m.pagina_venta_slug ? 'Regenerar pagina' : 'Generar pagina de venta';
     acciones += ' <button type="button" class="adm-btn adm-btn--primary adm-btn--xs" id="ma-gen-btn-' + m.id + '" onclick="maGenerarPagina(\'' + m.id + '\')">' + btnGenTxt + '</button>';
+    if (pausado) {
+      acciones += ' <button type="button" class="adm-btn adm-btn--success adm-btn--xs" onclick="maPublicar(\'' + m.id + '\')">Publicar</button>';
+    } else {
+      acciones += ' <button type="button" class="adm-btn adm-btn--warn adm-btn--xs" onclick="maPausar(\'' + m.id + '\')">Pausar</button>';
+    }
   }
+  acciones += ' <button type="button" class="adm-btn adm-btn--danger adm-btn--xs" onclick="maEliminar(\'' + m.id + '\')">Eliminar</button>';
 
   var paginaLinkHtml = '';
-  if (modo === 'aprobada' && m.pagina_venta_slug) {
+  if (modo === 'aprobada' && m.pagina_venta_slug && !pausado) {
     var pagLink = PUBLIC_BASE_URL + '/p/' + m.pagina_venta_slug;
     paginaLinkHtml =
       '<div class="ma-pagina-link">' +
@@ -2669,6 +2682,59 @@ function maConfirmarRechazo(id) {
       renderMiniappsAdmin();
     })
     .catch(function (e) { alert(e.message || 'Error al rechazar.'); });
+}
+
+function maPausar(id) {
+  var m = _maById(id);
+  var nombre = m ? m.nombre : 'este producto';
+  if (!confirm('Pausar "' + nombre + '"?\n\nDejara de mostrarse en el marketplace y no se podran hacer nuevas ventas. Quien ya compro sigue teniendo acceso.')) return;
+  _adminFetch(MOTOR_URL + '/api/admin/miniapps/pausar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ miniapp_id: id })
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d.ok) throw new Error(d.error || 'Error al pausar.');
+      if (m) m.estado = 'pausado';
+      renderMaCards();
+    })
+    .catch(function (e) { alert(e.message || 'Error al pausar.'); });
+}
+
+function maPublicar(id) {
+  var m = _maById(id);
+  var nombre = m ? m.nombre : 'este producto';
+  if (!confirm('Publicar de nuevo "' + nombre + '"?\n\nVolvera al marketplace y se podra vender.')) return;
+  _adminFetch(MOTOR_URL + '/api/admin/miniapps/publicar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ miniapp_id: id })
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d.ok) throw new Error(d.error || 'Error al publicar.');
+      if (m) m.estado = 'activo';
+      renderMaCards();
+    })
+    .catch(function (e) { alert(e.message || 'Error al publicar.'); });
+}
+
+function maEliminar(id) {
+  var m = _maById(id);
+  var nombre = m ? m.nombre : 'este producto';
+  if (!confirm('¿Seguro que quieres eliminar "' + nombre + '"?\n\nEsta accion no se puede deshacer.\n\nSe quita del catalogo. El historial de ventas y las entregas a quien ya compro se conservan.')) return;
+  _adminFetch(MOTOR_URL + '/api/admin/miniapps/eliminar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ miniapp_id: id })
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d.ok) throw new Error(d.error || 'Error al eliminar.');
+      renderMiniappsAdmin();
+    })
+    .catch(function (e) { alert(e.message || 'Error al eliminar.'); });
 }
 
 function maGenerarPagina(id) {
