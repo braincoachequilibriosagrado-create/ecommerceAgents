@@ -2776,11 +2776,59 @@ async function _generarSlugMiniappUnico(nombre) {
 async function _miniappPerteneceCreador(miniapp_id, creador_id) {
   const { data, error } = await supabase
     .from('miniapps')
-    .select('id, creador_id, comision_vendedor, parte_plataforma, slug, nombre, precio')
+    .select('id, creador_id, comision_vendedor, parte_plataforma, slug, nombre, precio, estado')
     .eq('id', miniapp_id)
     .maybeSingle();
   if (error || !data || data.creador_id !== creador_id) return null;
+  if (String(data.estado || '') === 'eliminado') return null;
   return data;
+}
+
+/** Normaliza nombre para comparar duplicados (case-insensitive, espacios colapsados). */
+function _normalizarNombreProductoDup(nombre) {
+  return String(nombre || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+/**
+ * true si el creador ya tiene un producto no eliminado con el mismo nombre.
+ * Los soft-deleted (estado=eliminado) no cuentan: puede volver a subir ese nombre.
+ */
+async function _creadorTieneNombreDuplicado(creadorId, nombre) {
+  const norm = _normalizarNombreProductoDup(nombre);
+  if (!norm) return false;
+  const { data, error } = await supabase
+    .from('miniapps')
+    .select('id, nombre, estado')
+    .eq('creador_id', creadorId);
+  if (error) throw error;
+  return (data || []).some(function (m) {
+    if (String(m.estado || '') === 'eliminado') return false;
+    return _normalizarNombreProductoDup(m.nombre) === norm;
+  });
+}
+
+/**
+ * Opcional: detecta HTML identico (mismo hash SHA-256) entre miniapps no eliminadas del creador.
+ * Solo aplica a categoria miniapp con HTML. Requiere columna content_hash; si no existe, no bloquea.
+ */
+async function _creadorTieneHtmlDuplicado(creadorId, htmlContent) {
+  const hash = crypto.createHash('sha256').update(String(htmlContent || ''), 'utf8').digest('hex');
+  const { data, error } = await supabase
+    .from('miniapps')
+    .select('id, content_hash, estado')
+    .eq('creador_id', creadorId)
+    .eq('content_hash', hash)
+    .limit(5);
+  if (error) {
+    if (/content_hash|column|schema cache/i.test(String(error.message || ''))) {
+      return { duplicado: false, hash: hash, sinColumna: true };
+    }
+    throw error;
+  }
+  const vivo = (data || []).some(function (m) {
+    return String(m.estado || '') !== 'eliminado';
+  });
+  return { duplicado: vivo, hash: hash, sinColumna: false };
 }
 
 function _boolForm(val) {
@@ -2921,12 +2969,26 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
     return res.status(400).json({ ok: false, error: 'La foto 1 del producto es obligatoria.' });
   }
 
+  try {
+    if (await _creadorTieneNombreDuplicado(req.creador_id, nombreVal.nombre)) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Ya tienes un producto con ese nombre. Usa otro nombre o elimina/edita el existente.',
+        duplicado_nombre: true
+      });
+    }
+  } catch (e) {
+    console.error('[creador/miniapps/subir] check duplicado nombre', e.message);
+    return res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
+  }
+
   let r2Key = null;
   let pdfKey = null;
   let packKey = null;
   let tipo_producto = 'html';
   let escaneoHtml = null;
   const usaIaFinal = !!usa_ia;
+  let contentHashHtml = null;
 
   if (categoria === 'miniapp') {
     if (!htmlContent) {
@@ -2946,6 +3008,20 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
       });
     }
     htmlContent = miniappSeg.sanitizeMiniappHtml(htmlContent);
+    try {
+      const dupHtml = await _creadorTieneHtmlDuplicado(req.creador_id, htmlContent);
+      contentHashHtml = dupHtml.hash;
+      if (dupHtml.duplicado) {
+        return res.status(400).json({
+          ok: false,
+          error: 'Ya subiste una mini app con el mismo archivo HTML. No se creo un duplicado.',
+          duplicado_contenido: true
+        });
+      }
+    } catch (e) {
+      console.error('[creador/miniapps/subir] check duplicado html', e.message);
+      return res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
+    }
     if (pdfFile && pdfFile.size > 50 * 1024 * 1024) {
       return res.status(400).json({ ok: false, error: 'El PDF supera el limite de 50 MB.' });
     }
@@ -2969,13 +3045,13 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
   }
 
   try {
-    const foto1Val = await archivoVal.validarImagenSubida(_readUploadFile(foto1));
+    const foto1Val = await archivoVal.validarImagenSubida(_readUploadFile(foto1), { rol: 'foto1' });
     if (!foto1Val.ok) {
       return res.status(400).json({ ok: false, error: 'Foto 1: ' + foto1Val.error });
     }
     let foto2Val = null;
     if (foto2) {
-      foto2Val = await archivoVal.validarImagenSubida(_readUploadFile(foto2));
+      foto2Val = await archivoVal.validarImagenSubida(_readUploadFile(foto2), { rol: 'foto2' });
       if (!foto2Val.ok) {
         return res.status(400).json({ ok: false, error: 'Foto 2: ' + foto2Val.error });
       }
@@ -3065,6 +3141,9 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
       insertRow.requiere_revision_seguridad = !!escaneoHtml.requiere_revision_seguridad;
       insertRow.escaneo_seguridad = escaneoHtml.amenazas;
     }
+    if (categoria === 'miniapp' && contentHashHtml) {
+      insertRow.content_hash = contentHashHtml;
+    }
 
     let { data, error } = await supabase
       .from('miniapps')
@@ -3072,9 +3151,19 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
       .select('id, nombre, slug, categoria, subcategoria, precio, precio_promocion, tipo_producto, usa_ia, disponible_vendedores, comision_vendedor, estado, creado_en, r2_key, foto1_key, pack_key, requiere_revision_seguridad, escaneo_seguridad')
       .single();
 
+    if (error && /content_hash|column|schema cache/.test(String(error.message || ''))) {
+      delete insertRow.content_hash;
+      ({ data, error } = await supabase
+        .from('miniapps')
+        .insert(insertRow)
+        .select('id, nombre, slug, categoria, subcategoria, precio, precio_promocion, tipo_producto, usa_ia, disponible_vendedores, comision_vendedor, estado, creado_en, r2_key, foto1_key, pack_key, requiere_revision_seguridad, escaneo_seguridad')
+        .single());
+    }
+
     if (error && /requiere_revision_seguridad|escaneo_seguridad|column|schema cache/.test(String(error.message || ''))) {
       delete insertRow.requiere_revision_seguridad;
       delete insertRow.escaneo_seguridad;
+      delete insertRow.content_hash;
       ({ data, error } = await supabase
         .from('miniapps')
         .insert(insertRow)
@@ -3186,7 +3275,10 @@ app.get('/api/creador/miniapps', requireCreador, async (req, res) => {
         .order('creado_en', { ascending: false }));
     }
     if (error) throw error;
-    res.json({ ok: true, miniapps: (data || []).map(_miniappToClient) });
+    const vivos = (data || []).filter(function (m) {
+      return String(m.estado || '') !== 'eliminado';
+    });
+    res.json({ ok: true, miniapps: vivos.map(_miniappToClient) });
   } catch (e) {
     console.error('[creador/miniapps]', e.message);
     res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });

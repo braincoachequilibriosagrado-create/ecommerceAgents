@@ -559,24 +559,28 @@
             <div class="cr-photos-row">
               <div class="cr-field">
                 <label class="cr-label">Foto 1 <span class="cr-req">*</span></label>
+                <p class="cr-photo-hint">Vertical tipo Reels (9:16) — recomendado 1080×1920 px</p>
                 <div class="cr-photo-upload">
-                  <input type="file" id="cr-foto1" class="cr-file-input-hidden" accept="image/jpeg,image/png,image/webp" onchange="previewFoto(this,'cr-foto1-preview')" />
-                  <label for="cr-foto1" class="cr-photo-box" id="cr-foto1-box">
+                  <input type="file" id="cr-foto1" class="cr-file-input-hidden" accept="image/jpeg,image/png,image/webp" />
+                  <label for="cr-foto1" class="cr-photo-box cr-photo-box--vertical" id="cr-foto1-box">
                     <img id="cr-foto1-preview" class="cr-photo-preview" alt="" hidden />
                     <span class="cr-photo-placeholder" id="cr-foto1-ph">+ Agregar foto principal</span>
                   </label>
                 </div>
+                <p class="cr-photo-err" id="cr-foto1-err" hidden></p>
               </div>
 
               <div class="cr-field">
                 <label class="cr-label">Foto 2 <span class="cr-opt">(opcional)</span></label>
+                <p class="cr-photo-hint">Horizontal tipo portada (16:9) — recomendado 1920×1080 px</p>
                 <div class="cr-photo-upload">
-                  <input type="file" id="cr-foto2" class="cr-file-input-hidden" accept="image/jpeg,image/png,image/webp" onchange="previewFoto(this,'cr-foto2-preview')" />
-                  <label for="cr-foto2" class="cr-photo-box" id="cr-foto2-box">
+                  <input type="file" id="cr-foto2" class="cr-file-input-hidden" accept="image/jpeg,image/png,image/webp" />
+                  <label for="cr-foto2" class="cr-photo-box cr-photo-box--horizontal" id="cr-foto2-box">
                     <img id="cr-foto2-preview" class="cr-photo-preview" alt="" hidden />
                     <span class="cr-photo-placeholder" id="cr-foto2-ph">+ Agregar segunda foto</span>
                   </label>
                 </div>
+                <p class="cr-photo-err" id="cr-foto2-err" hidden></p>
               </div>
             </div>
           </div>

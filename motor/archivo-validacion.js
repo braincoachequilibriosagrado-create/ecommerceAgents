@@ -9,9 +9,13 @@ const MIME_IMAGEN = {
   'image/webp': 'webp'
 };
 
-/** Portada uniforme 4:3 (marketplace / venta / tarjetas) */
-const FOTO_PRODUCTO_W = 1200;
-const FOTO_PRODUCTO_H = 900;
+/** Foto 1 (Reels vertical 9:16) */
+const FOTO1_W = 1080;
+const FOTO1_H = 1920;
+/** Foto 2 (portada horizontal 16:9) */
+const FOTO2_W = 1920;
+const FOTO2_H = 1080;
+const FOTO_MIN_LADO = 600;
 const FOTO_PRODUCTO_JPEG_QUALITY = 85;
 
 const MIME_PDF = ['application/pdf'];
@@ -33,11 +37,13 @@ async function _detectarTipo(buf) {
 }
 
 /**
- * Valida magic bytes y normaliza la foto de producto:
- * recorte cover centrado a 1200x900 (4:3), JPEG ~85, sin metadata.
- * Cualquier orientacion (vertical/horizontal/cuadrada) queda uniforme.
+ * Valida magic bytes, orientacion (foto1 vertical / foto2 horizontal),
+ * resolucion minima, y re-encode JPEG con resize cover al estandar.
+ * @param {Buffer} buffer
+ * @param {{ rol?: 'foto1'|'foto2' }} [opts]
  */
-async function validarImagenSubida(buffer) {
+async function validarImagenSubida(buffer, opts) {
+  const rol = opts && opts.rol === 'foto2' ? 'foto2' : (opts && opts.rol === 'foto1' ? 'foto1' : 'foto1');
   const buf = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer || []);
   if (!buf.length) return { ok: false, error: 'Archivo de imagen vacio.' };
   if (buf.length > 5 * 1024 * 1024) return { ok: false, error: 'La imagen supera el limite de 5 MB.' };
@@ -48,15 +54,63 @@ async function validarImagenSubida(buffer) {
   }
 
   try {
+    // Orientacion EXIF aplicada; metadata de la imagen "real"
+    const metaIn = await sharp(buf, { failOn: 'error' }).rotate().metadata();
+    const w = Number(metaIn.width) || 0;
+    const h = Number(metaIn.height) || 0;
+    if (!w || !h) {
+      return { ok: false, error: 'No se pudo leer el tamano de la imagen.' };
+    }
+    const ladoMenor = Math.min(w, h);
+    if (ladoMenor < FOTO_MIN_LADO) {
+      return {
+        ok: false,
+        error: 'Resolucion muy baja, minimo 600 px en el lado menor.'
+      };
+    }
+    if (rol === 'foto1') {
+      if (w >= h) {
+        return {
+          ok: false,
+          error: 'La Foto 1 debe ser VERTICAL (mas alta que ancha), tipo Reels 9:16.'
+        };
+      }
+    } else {
+      if (h >= w) {
+        return {
+          ok: false,
+          error: 'La Foto 2 debe ser HORIZONTAL (mas ancha que alta), tipo portada 16:9.'
+        };
+      }
+    }
+
+    const targetW = rol === 'foto1' ? FOTO1_W : FOTO2_W;
+    const targetH = rol === 'foto1' ? FOTO1_H : FOTO2_H;
+
     const out = await sharp(buf, { failOn: 'error' })
       .rotate()
-      .resize(FOTO_PRODUCTO_W, FOTO_PRODUCTO_H, {
+      .resize(targetW, targetH, {
         fit: 'cover',
         position: 'centre'
       })
       .jpeg({ quality: FOTO_PRODUCTO_JPEG_QUALITY, mozjpeg: true })
       .toBuffer();
-    return { ok: true, buffer: out, mime: 'image/jpeg', ext: 'jpg' };
+
+    // Fail-closed: verificar metadata del archivo ya re-encoded
+    const metaOut = await sharp(out).metadata();
+    const ow = Number(metaOut.width) || 0;
+    const oh = Number(metaOut.height) || 0;
+    if (rol === 'foto1' && !(oh > ow)) {
+      return { ok: false, error: 'La Foto 1 debe ser VERTICAL (mas alta que ancha), tipo Reels 9:16.' };
+    }
+    if (rol === 'foto2' && !(ow > oh)) {
+      return { ok: false, error: 'La Foto 2 debe ser HORIZONTAL (mas ancha que alta), tipo portada 16:9.' };
+    }
+    if (Math.min(ow, oh) < FOTO_MIN_LADO) {
+      return { ok: false, error: 'Resolucion muy baja, minimo 600 px en el lado menor.' };
+    }
+
+    return { ok: true, buffer: out, mime: 'image/jpeg', ext: 'jpg', width: ow, height: oh };
   } catch (e) {
     console.warn('[archivo-validacion/imagen]', e.message);
     return { ok: false, error: 'No se pudo procesar la imagen. Usa JPG, PNG o WebP valido.' };
@@ -92,6 +146,9 @@ module.exports = {
   validarImagenSubida,
   validarPdfSubida,
   validarVideoSubida,
-  FOTO_PRODUCTO_W,
-  FOTO_PRODUCTO_H
+  FOTO1_W,
+  FOTO1_H,
+  FOTO2_W,
+  FOTO2_H,
+  FOTO_MIN_LADO
 };
