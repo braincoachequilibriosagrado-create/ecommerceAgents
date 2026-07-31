@@ -2140,15 +2140,19 @@ body {
 }
 
 .ma-card-thumb {
-  aspect-ratio: 4 / 3;
-  background: #f5f0ea;
+  aspect-ratio: 9 / 16;
+  max-height: 320px;
+  background: #f0f2f7;
   overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .ma-card-thumb img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   object-position: center;
   display: block;
 }

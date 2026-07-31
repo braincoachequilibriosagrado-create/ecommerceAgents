@@ -625,6 +625,118 @@ function previewFoto(input, previewId) {
   reader.readAsDataURL(file);
 }
 
+var _foto1Valida = false;
+var _foto2Valida = true; // opcional: ok si vacia
+
+function _setFotoErr(which, msg) {
+  var el = document.getElementById(which === 'foto1' ? 'cr-foto1-err' : 'cr-foto2-err');
+  if (!el) return;
+  if (msg) {
+    el.textContent = msg;
+    el.hidden = false;
+  } else {
+    el.textContent = '';
+    el.hidden = true;
+  }
+}
+
+function _limpiarPreviewFoto(which) {
+  var input = document.getElementById(which === 'foto1' ? 'cr-foto1' : 'cr-foto2');
+  var previewId = which === 'foto1' ? 'cr-foto1-preview' : 'cr-foto2-preview';
+  if (input) input.value = '';
+  previewFoto({ files: [] }, previewId);
+}
+
+function _validarArchivoFoto(file, rol) {
+  return new Promise(function (resolve) {
+    if (!file) {
+      resolve({ ok: false, error: rol === 'foto1' ? 'La Foto 1 es obligatoria.' : '' });
+      return;
+    }
+    if (!/^image\/(jpeg|png|webp)$/i.test(file.type || '')) {
+      resolve({ ok: false, error: 'Usa una imagen JPG, PNG o WebP.' });
+      return;
+    }
+    var url = URL.createObjectURL(file);
+    var img = new Image();
+    img.onload = function () {
+      var w = img.naturalWidth || 0;
+      var h = img.naturalHeight || 0;
+      URL.revokeObjectURL(url);
+      if (!w || !h) {
+        resolve({ ok: false, error: 'No se pudo leer la imagen.' });
+        return;
+      }
+      if (Math.min(w, h) < 600) {
+        resolve({ ok: false, error: 'Resolucion muy baja, minimo 600 px.' });
+        return;
+      }
+      if (rol === 'foto1') {
+        if (w >= h) {
+          resolve({
+            ok: false,
+            error: 'La Foto 1 debe ser VERTICAL (mas alta que ancha), tipo Reels 9:16'
+          });
+          return;
+        }
+      } else if (h >= w) {
+        resolve({
+          ok: false,
+          error: 'La Foto 2 debe ser HORIZONTAL (mas ancha que alta), tipo portada 16:9'
+        });
+        return;
+      }
+      resolve({ ok: true });
+    };
+    img.onerror = function () {
+      URL.revokeObjectURL(url);
+      resolve({ ok: false, error: 'No se pudo cargar la imagen.' });
+    };
+    img.src = url;
+  });
+}
+
+async function _onFotoInputChange(which) {
+  var input = document.getElementById(which === 'foto1' ? 'cr-foto1' : 'cr-foto2');
+  var previewId = which === 'foto1' ? 'cr-foto1-preview' : 'cr-foto2-preview';
+  var file = input && input.files && input.files[0];
+
+  if (!file) {
+    _setFotoErr(which, '');
+    previewFoto({ files: [] }, previewId);
+    if (which === 'foto1') _foto1Valida = false;
+    else _foto2Valida = true;
+    return;
+  }
+
+  var res = await _validarArchivoFoto(file, which);
+  if (!res.ok) {
+    _setFotoErr(which, res.error);
+    _limpiarPreviewFoto(which);
+    if (which === 'foto1') _foto1Valida = false;
+    else _foto2Valida = true;
+    _showMsg('cr-subir-msg', res.error, false);
+    return;
+  }
+
+  _setFotoErr(which, '');
+  previewFoto(input, previewId);
+  if (which === 'foto1') _foto1Valida = true;
+  else _foto2Valida = true;
+  _clearMsg('cr-subir-msg');
+}
+
+function _initFotoInputs() {
+  var f1 = document.getElementById('cr-foto1');
+  var f2 = document.getElementById('cr-foto2');
+  if (f1) {
+    f1.addEventListener('change', function () { _onFotoInputChange('foto1'); });
+  }
+  if (f2) {
+    f2.addEventListener('change', function () { _onFotoInputChange('foto2'); });
+  }
+}
+
 function onPdfSelected(input) {
   var file = input.files && input.files[0];
   var lbl = document.getElementById('cr-pdf-label');
@@ -764,6 +876,10 @@ function _resetSubirForm() {
   if (videosInput) videosInput.value = '';
   previewFoto({ files: [] }, 'cr-foto1-preview');
   previewFoto({ files: [] }, 'cr-foto2-preview');
+  _foto1Valida = false;
+  _foto2Valida = true;
+  _setFotoErr('foto1', '');
+  _setFotoErr('foto2', '');
   onPdfSelected({ files: [] });
   onPdfInfoSelected({ files: [] });
   onVideosSelected({ files: [] });
@@ -839,8 +955,12 @@ async function publicarMiniapp() {
   }
   if (!nombre) { _showMsg('cr-subir-msg', 'El nombre es obligatorio.', false); return; }
   if (!precio || precio <= 0) { _showMsg('cr-subir-msg', 'Ingresa un precio normal valido.', false); return; }
-  if (!foto1Input || !foto1Input.files || !foto1Input.files[0]) {
-    _showMsg('cr-subir-msg', 'La foto 1 del producto es obligatoria.', false);
+  if (!foto1Input || !foto1Input.files || !foto1Input.files[0] || !_foto1Valida) {
+    _showMsg('cr-subir-msg', 'La Foto 1 vertical (tipo Reels 9:16) es obligatoria y debe ser valida.', false);
+    return;
+  }
+  if (foto2Input && foto2Input.files && foto2Input.files[0] && !_foto2Valida) {
+    _showMsg('cr-subir-msg', 'La Foto 2 no es valida. Debe ser horizontal (16:9) o quitala.', false);
     return;
   }
 
@@ -1330,6 +1450,7 @@ async function cargarCuentasCreador() {
 
 document.addEventListener('DOMContentLoaded', function () {
   _initCatalogoCopyDelegation();
+  _initFotoInputs();
   switchHtmlMode('pegar');
   toggleComisionField();
   _updateCategoriaUI();

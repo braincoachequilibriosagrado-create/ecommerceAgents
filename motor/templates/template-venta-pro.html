@@ -300,32 +300,40 @@
     overflow: hidden;
     border: 1px solid color-mix(in srgb, var(--av-ink) 12%, transparent);
     box-shadow: var(--av-shadow), var(--av-glow);
-    background: var(--av-bg2);
+    background: color-mix(in srgb, var(--av-ink) 6%, var(--av-bg2));
+    aspect-ratio: 9 / 16;
+    max-height: 70vh;
+    width: min(100%, calc(70vh * 9 / 16));
+    margin-inline: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .av-hero-frame::before {
     content: '';
     position: absolute;
     inset: 0;
-    background: linear-gradient(180deg, transparent 55%, color-mix(in srgb, var(--av-bg) 70%, transparent));
-    z-index: 1;
+    background: linear-gradient(180deg, transparent 55%, color-mix(in srgb, var(--av-bg) 55%, transparent));
+    z-index: 2;
     pointer-events: none;
   }
 
-  .av-hero-frame img {
+  .av-hero-frame > img {
+    position: relative;
+    z-index: 1;
     width: 100%;
     height: 100%;
-    display: block;
-    aspect-ratio: 4 / 3;
-    object-fit: cover;
+    object-fit: contain;
     object-position: center;
+    display: block;
   }
 
   .av-cat-badge {
     position: absolute;
     top: 16px;
     left: 16px;
-    z-index: 2;
+    z-index: 4;
     padding: 8px 14px;
     border-radius: 999px;
     font-size: 11px;
@@ -495,14 +503,19 @@
     overflow: hidden;
     border: 1px solid color-mix(in srgb, var(--av-ink) 10%, transparent);
     box-shadow: var(--av-shadow);
+    position: relative;
+    aspect-ratio: 16 / 9;
+    background: color-mix(in srgb, var(--av-ink) 6%, var(--av-bg2));
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
-  .av-incluye-img img {
+  .av-incluye-img > img {
     width: 100%;
     height: 100%;
     display: block;
-    aspect-ratio: 4 / 3;
-    object-fit: cover;
+    object-fit: contain;
     object-position: center;
   }
 

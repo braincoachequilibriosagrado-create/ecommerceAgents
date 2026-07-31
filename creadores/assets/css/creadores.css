@@ -1519,6 +1519,20 @@ a.cr-dash-tab {
 /* ── Photo upload boxes ─────────────────────────────────── */
 .cr-photo-upload { margin-top: 4px; }
 
+.cr-photo-hint {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--slate, #5f6571);
+  margin: 0 0 10px;
+}
+
+.cr-photo-err {
+  font-size: 12.5px;
+  color: #c0392b;
+  margin: 8px 0 0;
+  line-height: 1.4;
+}
+
 .cr-photo-box {
   display: block;
   position: relative;
@@ -1528,8 +1542,18 @@ a.cr-dash-tab {
   border-radius: 14px;
   overflow: hidden;
   cursor: pointer;
-  background: var(--cr-surface);
+  background: #f0f2f7;
   transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.cr-photo-box--vertical {
+  aspect-ratio: 9 / 16;
+  max-height: 320px;
+  margin-inline: auto;
+}
+
+.cr-photo-box--horizontal {
+  aspect-ratio: 16 / 9;
 }
 
 .cr-photo-box:hover {
@@ -1540,9 +1564,10 @@ a.cr-dash-tab {
 .cr-photo-preview {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   object-position: center;
   display: block;
+  background: #f0f2f7;
 }
 
 .cr-photo-preview[hidden] { display: none !important; }
@@ -1719,9 +1744,13 @@ a.cr-dash-tab {
 }
 
 .cr-product-thumb {
-  aspect-ratio: 4 / 3;
-  background: linear-gradient(135deg, rgba(43, 58, 245, 0.08) 0%, rgba(192, 45, 158, 0.1) 100%);
+  aspect-ratio: 9 / 16;
+  max-height: 280px;
+  background: #f0f2f7;
   overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .cr-product-thumb--empty {
@@ -1781,7 +1810,7 @@ a.cr-dash-tab {
 .cr-product-thumb img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   object-position: center;
   display: block;
 }
