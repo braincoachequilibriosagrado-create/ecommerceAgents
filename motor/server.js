@@ -3609,7 +3609,7 @@ app.post('/api/mis-productos/quitar', requireUsuario, async (req, res) => {
 });
 
 // ── Marketplace publico (Activos Digitales) ─────────────────────────────────────
-const MARKETPLACE_ASSET_BUST = '23';
+const MARKETPLACE_ASSET_BUST = '24';
 
 async function _apiMarketplace(req, res) {
   try {
@@ -3704,10 +3704,13 @@ function _serveMarketplace(req, res) {
       <a href="/" class="vt-brand">
         <img src="${logoUrl}" alt="AGORATUM · Activos Digitales" class="vt-brand-logo" />
       </a>
-      <a class="vt-agentes-link" href="https://agoratum.com" target="_blank" rel="noopener noreferrer">
-        <span class="vt-agentes-full">¿Buscas Agentes de IA? → AGORATUM Agentes</span>
-        <span class="vt-agentes-short">AGORATUM Agentes</span>
-      </a>
+      <div class="vt-header-actions">
+        <a class="vt-home-btn" href="${CREADORES_PANEL_URL.replace(/"/g, '&quot;')}">Página principal</a>
+        <a class="vt-agentes-link" href="https://agoratum.com" target="_blank" rel="noopener noreferrer">
+          <span class="vt-agentes-full">¿Buscas Agentes de IA? → AGORATUM Agentes</span>
+          <span class="vt-agentes-short">AGORATUM Agentes</span>
+        </a>
+      </div>
     </div>
   </header>
   <main class="vt-main">
