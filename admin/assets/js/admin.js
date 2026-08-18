@@ -316,6 +316,34 @@ function renderVentasDigitales() {
   renderMaCuentas();
 }
 
+var _cuentaSubTab = 'pendientes';
+
+function switchCuentaSubTab(tabId) {
+  if (tabId !== 'pendientes' && tabId !== 'pagadas') tabId = 'pendientes';
+  _cuentaSubTab = tabId;
+  ['pendientes', 'pagadas'].forEach(function (id) {
+    var panel = document.getElementById('cuenta-subpanel-' + id);
+    var btn = document.getElementById('cuenta-subtab-btn-' + id);
+    var active = id === tabId;
+    if (panel) panel.hidden = !active;
+    if (btn) {
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-selected', active ? 'true' : 'false');
+    }
+  });
+}
+
+function _cuentaSetTabLabels(nPend, nPag) {
+  var btnPend = document.getElementById('cuenta-subtab-btn-pendientes');
+  var btnPag = document.getElementById('cuenta-subtab-btn-pagadas');
+  if (btnPend) {
+    btnPend.innerHTML = 'Pendientes <span class="cuenta-subtab-count">' + Number(nPend || 0) + '</span>';
+  }
+  if (btnPag) {
+    btnPag.innerHTML = 'Pagadas <span class="cuenta-subtab-count">' + Number(nPag || 0) + '</span>';
+  }
+}
+
 function renderCuentaResumen() {
   var sumEl = document.getElementById('cuenta-summary-row');
   var pendEl = document.getElementById('cuenta-pendientes-wrap');
@@ -365,6 +393,9 @@ function renderCuentaResumen() {
         _statCard((cuentasData.plataforma_pct || 12) + '%', 'Comision plataforma');
     }
 
+    _cuentaSetTabLabels(conDeuda, pagos.length);
+    switchCuentaSubTab(_cuentaSubTab);
+
     if (liqEl) {
       liqEl.innerHTML = _cuentaLiquidacionHtml(cuentas);
     }
@@ -394,23 +425,23 @@ function renderCuentaResumen() {
 }
 
 function _cuentaLiquidacionHtml(cuentas) {
-  if (!cuentas || !cuentas.length) {
-    return '<p class="adm-empty-text">No hay creadores con ventas registradas.</p>';
+  var pendientes = (cuentas || []).filter(function (c) {
+    return Number(c.total_a_pagar || 0) > 0;
+  });
+  if (!pendientes.length) {
+    return '<p class="adm-empty-text">No hay nada por pagar. Ningun creador tiene saldo pendiente.</p>';
   }
-  var rows = cuentas.map(function (c) {
+  var rows = pendientes.map(function (c) {
     var pendiente = Number(c.total_a_pagar || 0);
     var cid = _esc(c.creador_id || '');
     var nombre = _esc(c.creador_nombre || '—');
-    var btn = pendiente > 0
-      ? '<button type="button" class="adm-btn adm-btn--sm adm-btn--primary" id="liq-btn-' + cid + '" onclick="cuentaPagarCreador(\'' + cid + '\')">Pagar</button>'
-      : '<span class="adm-badge adm-badge--ok">Al dia</span>';
+    var btn = '<button type="button" class="adm-btn adm-btn--sm adm-btn--primary cuenta-liq-btn" id="liq-btn-' + cid + '" onclick="cuentaPagarCreador(\'' + cid + '\')">Pagar ' + _fmt(pendiente) + '</button>';
     return '<tr id="liq-row-' + cid + '">' +
       '<td class="adm-td-name">' + nombre + '</td>' +
       '<td class="ma-email">' + _esc(c.creador_email || '') + '</td>' +
       '<td>' + (Number(c.num_ventas) || 0) + '</td>' +
       '<td class="adm-td-money">' + _fmt(c.total_generado || 0) + '</td>' +
-      '<td class="adm-td-money ma-td-pagar"><strong>' + _fmt(pendiente) + '</strong></td>' +
-      '<td>' + (Number(c.num_ventas_pendientes) || 0) + '</td>' +
+      '<td class="adm-td-money ma-td-pagar"><span class="cuenta-debo">' + _fmt(pendiente) + '</span></td>' +
       '<td>' + btn + '</td>' +
     '</tr>';
   }).join('');
@@ -418,7 +449,7 @@ function _cuentaLiquidacionHtml(cuentas) {
   return '<div class="adm-table-wrap">' +
     '<table class="adm-table ma-cuentas-table">' +
     '<thead><tr>' +
-      '<th>Creador</th><th>Email</th><th>Ventas</th><th>Total vendido</th><th>Saldo pendiente</th><th>Ventas sin liquidar</th><th></th>' +
+      '<th>Creador</th><th>Email</th><th>Ventas</th><th>Total vendido</th><th>Le debo</th><th></th>' +
     '</tr></thead><tbody>' + rows + '</tbody></table></div>';
 }
 

@@ -433,7 +433,8 @@ async function generarPaginaVentaMiniapp(miniapp, opts) {
       FOTO2_URL:        foto2Url,
       CHECKOUT_URL:     '/checkout?slug=' + encodeURIComponent(paginaSlug),
       CATEGORIA_LABEL:  categoriaLabel(categoria, subcategoria),
-      LOGO_URL:         baseUrl + '/assets/logo-activos.png?v=27'
+      LOGO_URL:         baseUrl + '/assets/logo-activos.png?v=27',
+      FAVICON_URL:      baseUrl + '/assets/favicon.png?v=1'
     }
   );
 

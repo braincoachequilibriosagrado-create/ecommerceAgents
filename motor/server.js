@@ -217,6 +217,7 @@ function _serveLegalPage(res, templatePath) {
     let html = fs.readFileSync(templatePath, 'utf-8');
     html = html
       .replace(/\{\{LOGO_URL\}\}/g, _assetUrl('/assets/logo-activos.png'))
+      .replace(/\{\{FAVICON_URL\}\}/g, _assetUrl('/assets/favicon.png'))
       .replace(/\{\{CSS_URL\}\}/g, _assetUrl('/assets/legal.css'))
       .replace(/\{\{PREMIUM_CSS_URL\}\}/g, _assetUrl('/assets/premium-platform.css'))
       .replace(/\{\{HERO_JS_URL\}\}/g, _assetUrl('/assets/premium-hero.js'))
@@ -3609,7 +3610,7 @@ app.post('/api/mis-productos/quitar', requireUsuario, async (req, res) => {
 });
 
 // ── Marketplace publico (Activos Digitales) ─────────────────────────────────────
-const MARKETPLACE_ASSET_BUST = '28';
+const MARKETPLACE_ASSET_BUST = '29';
 
 async function _apiMarketplace(req, res) {
   try {
@@ -3690,7 +3691,7 @@ function _serveMarketplace(req, res) {
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>AGORATUM · Activos Digitales</title>
 <meta name="description" content="Marketplace de activos digitales: mini apps, infoproductos y contenido digital. Compra segura y acceso inmediato.">
-<link rel="icon" type="image/png" href="${_assetUrl('/assets/logo-activos.png')}${bust}">
+<link rel="icon" type="image/png" href="${_assetUrl('/assets/favicon.png')}${bust}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
@@ -5348,6 +5349,7 @@ function _serveCheckoutMiniapp(req, res) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Comprar · AGORATUM · Activos Digitales</title>
+<link rel="icon" type="image/png" href="${_assetUrl('/assets/favicon.png')}">
 <link rel="stylesheet" href="${premiumCss}">
 <style>
 :root{--c1:#2f86ff;--c2:#7c3aed;--c3:#ff5a3c;--grad:linear-gradient(120deg,var(--c1),var(--c2),var(--c3));--ink:#0d1117;--slate:#5f6571;--line:#e4e7eb;--white:#fff;--err:#c0392b}
@@ -6215,6 +6217,7 @@ function _serveRecuperarCompra(req, res) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Recupera tu compra · AGORATUM · Activos Digitales</title>
+<link rel="icon" type="image/png" href="${_assetUrl('/assets/favicon.png')}">
 <link rel="stylesheet" href="${premiumCss}">
 <style>
 :root{--c1:${c1};--c2:${c2};--c3:${c3};--grad:linear-gradient(120deg,var(--c1),var(--c2),var(--c3));--ink:#0d1117;--slate:#5f6571;--line:#e4e7eb;--white:#fff;--err:#c0392b}
@@ -8092,6 +8095,7 @@ app.get('/p/:slug', async (req, res) => {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${pageTitle.replace(/</g,'&lt;')}</title>
+<link rel="icon" type="image/png" href="${_assetUrl('/assets/favicon.png')}">
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
   html,body{width:100%;height:100%;overflow:hidden;background:#fff}

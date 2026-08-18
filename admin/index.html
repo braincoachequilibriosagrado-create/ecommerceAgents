@@ -4,11 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AGORATUM · Activos Digitales</title>
-  <link rel="icon" type="image/png" href="assets/img/logo-activos.png?v=10">
+  <link rel="icon" type="image/png" href="assets/img/favicon.png?v=1">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=Syne:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/css/premium-platform.css?v=4">
-  <link rel="stylesheet" href="assets/css/admin.css?v=34">
+  <link rel="stylesheet" href="assets/css/admin.css?v=35">
 </head>
 <body class="ea-shader-page">
 
@@ -145,23 +145,37 @@
     <section id="adm-panel-cuenta" class="adm-panel" role="tabpanel" hidden>
       <div class="adm-panel-header">
         <h2 class="adm-panel-title">Cuentas</h2>
-        <p class="adm-panel-desc">Saldo pendiente por creador (su parte de ventas Stripe). Al pagar, el historial se conserva, el pendiente vuelve a $0 y se descarga el comprobante PDF.</p>
+        <p class="adm-panel-desc">Lo que debes pagar a creadores (Pendientes) y lo que ya liquidaste (Pagadas). Al pagar, el creador sale de Pendientes y el comprobante queda en Pagadas.</p>
       </div>
       <div class="adm-summary-row" id="cuenta-summary-row"></div>
-      <div class="adm-section">
-        <h3 class="adm-section-title">Liquidacion a creadores</h3>
-        <p class="ma-subpanel-hint ma-subpanel-hint--info">
-          El monto pendiente usa el reparto guardado en cada venta (no se recalcula si cambia la comision). Comision vigente nuevas ventas: 12% plataforma / 88% creador.
-        </p>
-        <div id="cuenta-liquidacion-wrap"></div>
+
+      <nav class="ma-subtabs" role="tablist" aria-label="Estado de liquidacion">
+        <button type="button" class="ma-subtab-btn active" id="cuenta-subtab-btn-pendientes"
+          role="tab" aria-selected="true" onclick="switchCuentaSubTab('pendientes')">Pendientes</button>
+        <button type="button" class="ma-subtab-btn" id="cuenta-subtab-btn-pagadas"
+          role="tab" aria-selected="false" onclick="switchCuentaSubTab('pagadas')">Pagadas</button>
+      </nav>
+
+      <div id="cuenta-subpanel-pendientes" class="cuenta-subpanel" role="tabpanel">
+        <div class="adm-section" style="margin-top:0;padding-top:0;border:none;box-shadow:none;">
+          <h3 class="adm-section-title">Por pagar</h3>
+          <p class="ma-subpanel-hint ma-subpanel-hint--info">
+            Solo creadores con saldo mayor a $0. El monto es lo que TÚ les debes (su parte de ventas Stripe). El reparto queda guardado en cada venta.
+          </p>
+          <div id="cuenta-liquidacion-wrap"></div>
+        </div>
       </div>
-      <div class="adm-section">
-        <h3 class="adm-section-title">Historial de comprobantes</h3>
-        <p class="ma-subpanel-hint">Re-descarga PDF de liquidaciones anteriores.</p>
-        <div id="cuenta-historial-wrap"></div>
+
+      <div id="cuenta-subpanel-pagadas" class="cuenta-subpanel" role="tabpanel" hidden>
+        <div class="adm-section" style="margin-top:0;padding-top:0;border:none;box-shadow:none;">
+          <h3 class="adm-section-title">Ya pagadas</h3>
+          <p class="ma-subpanel-hint">Historial de liquidaciones. Podés re-descargar el PDF de cada comprobante.</p>
+          <div id="cuenta-historial-wrap"></div>
+        </div>
       </div>
+
       <div class="adm-section">
-        <h3 class="adm-section-title">Pendientes de aprobacion</h3>
+        <h3 class="adm-section-title">Productos por aprobar</h3>
         <div id="cuenta-pendientes-wrap" class="cuenta-pendientes-grid"></div>
       </div>
     </section>
@@ -586,7 +600,7 @@
   </div><!-- /adm-main-content -->
 
   <script src="assets/js/premium-hero.js?v=6"></script>
-  <script src="assets/js/admin.js?v=31"></script>
+  <script src="assets/js/admin.js?v=32"></script>
   <script>
     (function () {
       function bootShader() {

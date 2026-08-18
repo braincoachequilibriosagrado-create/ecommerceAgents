@@ -2307,6 +2307,36 @@ body {
   font-size: 14px;
 }
 
+.cuenta-subtab-count {
+  display: inline-block;
+  min-width: 18px;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(26, 107, 255, 0.12);
+  color: #1a6bff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.ma-subtab-btn.active .cuenta-subtab-count {
+  background: #1a6bff;
+  color: #fff;
+}
+
+.cuenta-debo {
+  display: inline-block;
+  font-size: 15px;
+  font-weight: 800;
+  color: #0a1628;
+  letter-spacing: -0.02em;
+}
+
+.cuenta-liq-btn {
+  white-space: nowrap;
+}
+
 .ma-cuentas-table th:last-child,
 .ma-cuentas-table td:last-child {
   text-align: right;
