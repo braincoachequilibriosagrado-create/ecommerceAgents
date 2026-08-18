@@ -77,8 +77,8 @@ body.ea-shader-page {
 
 .vt-brand-logo {
   width: auto;
-  height: 80px;
-  max-width: 500px;
+  height: 128px;
+  max-width: 800px;
   border-radius: 0;
   object-fit: contain;
   border: none;
@@ -125,7 +125,7 @@ body.ea-shader-page {
 @media (max-width: 720px) {
   .vt-agentes-full { display: none; }
   .vt-agentes-short { display: inline; }
-  .vt-brand-logo { height: 58px; max-width: 360px; }
+  .vt-brand-logo { height: 93px; max-width: 576px; }
 }
 
 /* ── Main ─────────────────────────────────────────────── */
