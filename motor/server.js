@@ -3609,7 +3609,7 @@ app.post('/api/mis-productos/quitar', requireUsuario, async (req, res) => {
 });
 
 // ── Marketplace publico (Activos Digitales) ─────────────────────────────────────
-const MARKETPLACE_ASSET_BUST = '25';
+const MARKETPLACE_ASSET_BUST = '26';
 
 async function _apiMarketplace(req, res) {
   try {
