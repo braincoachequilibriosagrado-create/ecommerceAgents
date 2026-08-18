@@ -2218,8 +2218,8 @@ body.cr-body--landing {
 
 .lp-brand-logo {
   width: auto;
-  height: 44px;
-  max-width: 260px;
+  height: 64px;
+  max-width: 400px;
   border-radius: 0;
   object-fit: contain;
   display: block;
@@ -2266,17 +2266,15 @@ body.cr-body--landing {
 
 .lp-agentes-link {
   flex-shrink: 0;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 700;
   color: var(--c-blue);
   text-decoration: none;
   line-height: 1.35;
-  text-align: right;
+  letter-spacing: 0.02em;
 }
 
 .lp-agentes-link:hover { text-decoration: underline; }
-
-.lp-agentes-short { display: none; }
 
 .lp-nav-actions {
   display: flex;
@@ -3042,8 +3040,10 @@ body.cr-body--landing {
   .lp-nav-inner { flex-wrap: wrap; }
   .lp-nav-links { display: none; }
   .lp-nav-actions { margin-left: auto; }
-  .lp-agentes-full { display: none; }
-  .lp-agentes-short { display: inline; }
+  .lp-brand-logo {
+    height: 52px;
+    max-width: 300px;
+  }
   .lp-stats-grid { grid-template-columns: repeat(2, 1fr); }
   .lp-steps { grid-template-columns: repeat(2, 1fr); }
   .lp-cats { grid-template-columns: 1fr; }
