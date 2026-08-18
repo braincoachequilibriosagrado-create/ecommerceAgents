@@ -1,21 +1,21 @@
 /* AGORATUM · Activos Digitales — fondo y botones premium compartidos */
 :root {
   --ea-blue: #1a6bff;
-  --ea-indigo: #5b28e0;
-  --ea-purple: #8b2fd6;
-  --ea-violet: #7c3aed;
-  --ea-magenta: #c02d9e;
+  --ea-indigo: #1a6bff;
+  --ea-purple: #1a6bff;
+  --ea-violet: #1a6bff;
+  --ea-magenta: #1a6bff;
   --ea-navy: #0a1628;
-  --ea-grad-bg: linear-gradient(135deg, #1a6bff 0%, #5b28e0 50%, #8b2fd6 100%);
-  --ea-premium-shadow: 0 12px 32px rgba(20, 18, 60, 0.14);
-  --ea-premium-shadow-lg: 0 20px 50px rgba(20, 18, 60, 0.22);
+  --ea-grad-bg: #0a1628;
+  --ea-premium-shadow: 0 12px 32px rgba(10, 22, 40, 0.14);
+  --ea-premium-shadow-lg: 0 20px 50px rgba(10, 22, 40, 0.22);
 }
 
 .ea-premium-bg {
   background:
-    radial-gradient(1200px 600px at 15% 0%, rgba(26, 107, 255, 0.55), transparent 55%),
-    radial-gradient(1000px 700px at 85% 15%, rgba(192, 45, 158, 0.32), transparent 55%),
-    radial-gradient(900px 600px at 50% 100%, rgba(139, 47, 214, 0.55), transparent 60%),
+    radial-gradient(1200px 600px at 15% 0%, rgba(26, 107, 255, 0.50), transparent 55%),
+    radial-gradient(1000px 700px at 85% 15%, rgba(77, 148, 255, 0.28), transparent 55%),
+    radial-gradient(900px 600px at 50% 100%, rgba(255, 255, 255, 0.10), transparent 60%),
     var(--ea-grad-bg);
   background-attachment: fixed;
 }
@@ -27,11 +27,11 @@
   z-index: 0;
   pointer-events: none;
   overflow: hidden;
-  background-color: #05060f;
+  background-color: #0a1628;
   background-image:
-    radial-gradient(ellipse 90% 70% at 12% 18%, rgba(26, 107, 255, 0.42), transparent 55%),
-    radial-gradient(ellipse 70% 60% at 88% 22%, rgba(139, 47, 214, 0.38), transparent 52%),
-    radial-gradient(ellipse 80% 55% at 50% 98%, rgba(192, 45, 158, 0.28), transparent 58%);
+    radial-gradient(ellipse 90% 70% at 12% 18%, rgba(26, 107, 255, 0.45), transparent 55%),
+    radial-gradient(ellipse 70% 60% at 88% 22%, rgba(77, 148, 255, 0.28), transparent 52%),
+    radial-gradient(ellipse 80% 55% at 50% 98%, rgba(255, 255, 255, 0.08), transparent 58%);
 }
 
 .premium-hero--page .premium-hero-canvas {
@@ -51,7 +51,7 @@
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(ellipse 75% 65% at 50% 42%, rgba(5, 6, 15, 0.45) 0%, rgba(5, 6, 15, 0.15) 50%, transparent 75%);
+    radial-gradient(ellipse 75% 65% at 50% 42%, rgba(10, 22, 40, 0.45) 0%, rgba(10, 22, 40, 0.15) 50%, transparent 75%);
   pointer-events: none;
 }
 
@@ -59,32 +59,32 @@
   position: relative;
   overflow: hidden;
   min-height: 100vh;
-  background: #05060f;
+  background: #0a1628;
 }
 
 .premium-hero-overlay--soft {
   background:
-    radial-gradient(ellipse 85% 75% at 50% 35%, rgba(5, 6, 15, 0.68) 0%, rgba(5, 6, 15, 0.32) 45%, transparent 72%),
-    linear-gradient(180deg, rgba(5, 6, 15, 0.22) 0%, transparent 35%, rgba(5, 6, 15, 0.3) 100%);
+    radial-gradient(ellipse 85% 75% at 50% 35%, rgba(10, 22, 40, 0.68) 0%, rgba(10, 22, 40, 0.32) 45%, transparent 72%),
+    linear-gradient(180deg, rgba(10, 22, 40, 0.22) 0%, transparent 35%, rgba(10, 22, 40, 0.3) 100%);
 }
 
 .premium-hero--page.premium-hero--static,
 .premium-hero--viewport.premium-hero--static {
-  background-color: #05060f;
+  background-color: #0a1628;
   background-image:
-    radial-gradient(ellipse 90% 70% at 12% 18%, rgba(26, 107, 255, 0.42), transparent 55%),
-    radial-gradient(ellipse 70% 60% at 88% 22%, rgba(139, 47, 214, 0.38), transparent 52%),
-    radial-gradient(ellipse 80% 55% at 50% 98%, rgba(192, 45, 158, 0.28), transparent 58%);
+    radial-gradient(ellipse 90% 70% at 12% 18%, rgba(26, 107, 255, 0.45), transparent 55%),
+    radial-gradient(ellipse 70% 60% at 88% 22%, rgba(77, 148, 255, 0.28), transparent 52%),
+    radial-gradient(ellipse 80% 55% at 50% 98%, rgba(255, 255, 255, 0.08), transparent 58%);
 }
 
 body.ea-shader-page,
 body.cr-body--auth,
 body.cr-body--dash {
-  background-color: #05060f;
+  background-color: #0a1628;
   background-image:
-    radial-gradient(ellipse 90% 70% at 12% 18%, rgba(26, 107, 255, 0.42), transparent 55%),
-    radial-gradient(ellipse 70% 60% at 88% 22%, rgba(139, 47, 214, 0.38), transparent 52%),
-    radial-gradient(ellipse 80% 55% at 50% 98%, rgba(192, 45, 158, 0.28), transparent 58%);
+    radial-gradient(ellipse 90% 70% at 12% 18%, rgba(26, 107, 255, 0.45), transparent 55%),
+    radial-gradient(ellipse 70% 60% at 88% 22%, rgba(77, 148, 255, 0.28), transparent 52%),
+    radial-gradient(ellipse 80% 55% at 50% 98%, rgba(255, 255, 255, 0.08), transparent 58%);
 }
 
 body.ea-shader-page > *:not(#ea-page-shader):not(.premium-hero--page) {
@@ -133,18 +133,10 @@ body.ea-shader-page > *:not(#ea-page-shader):not(.premium-hero--page) {
   isolation: isolate;
   color: #fff !important;
   border: none;
-  background: linear-gradient(
-    120deg,
-    #1a6bff 0%,
-    #5b28e0 33%,
-    #8b2fd6 66%,
-    #1a6bff 100%
-  ) !important;
-  background-size: 250% 100% !important;
-  animation: ea-premium-btn-shift 6s ease infinite;
+  background: #1a6bff !important;
   box-shadow:
     0 10px 32px rgba(26, 107, 255, 0.35),
-    0 4px 16px rgba(139, 47, 214, 0.25) !important;
+    0 4px 16px rgba(13, 78, 204, 0.22) !important;
   transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease !important;
 }
 
@@ -194,7 +186,7 @@ body.ea-shader-page > *:not(#ea-page-shader):not(.premium-hero--page) {
   filter: brightness(1.06);
   box-shadow:
     0 16px 40px rgba(26, 107, 255, 0.45),
-    0 8px 24px rgba(192, 45, 158, 0.28) !important;
+    0 8px 24px rgba(26, 107, 255, 0.28) !important;
 }
 
 @keyframes ea-premium-btn-shift {
@@ -221,8 +213,7 @@ body.ea-shader-page > *:not(#ea-page-shader):not(.premium-hero--page) {
   #page-dashboard .btn-primary,
   .btn-primary.ea-premium-btn {
     animation: none;
-    background: linear-gradient(120deg, #1a6bff, #5b28e0, #8b2fd6) !important;
-    background-size: 100% 100% !important;
+    background: #1a6bff !important;
   }
   .premium-btn::before,
   .cr-btn-primary:not(.cr-btn-outline)::before,
