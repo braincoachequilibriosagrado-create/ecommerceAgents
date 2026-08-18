@@ -1,9 +1,9 @@
 /* AGORATUM · Activos Digitales — paginas legales */
 :root {
   --c1: #1a6bff;
-  --c2: #7c3aed;
-  --c3: #8b2fd6;
-  --grad: linear-gradient(120deg, #1a6bff, #5b28e0, #8b2fd6);
+  --c2: #1a6bff;
+  --c3: #4d8fff;
+  --grad: #1a6bff;
   --ink: #0a1628;
   --slate: #5f6571;
   --mist: #8b939e;
@@ -101,7 +101,7 @@ body {
 .legal-nav a:hover { background: var(--paper); color: var(--ink); }
 
 .legal-nav a.legal-nav--active {
-  background: rgba(124, 58, 237, 0.1);
+  background: rgba(26, 107, 255, 0.1);
   color: var(--c2);
 }
 

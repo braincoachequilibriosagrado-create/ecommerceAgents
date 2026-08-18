@@ -1,20 +1,20 @@
 :root {
   --c1: #1a6bff;
-  --c2: #7c3aed;
-  --c3: #8b2fd6;
+  --c2: #1a6bff;
+  --c3: #4d8fff;
   --c-blue: var(--c1);
-  --c-indigo: #5b28e0;
-  --c-purple: var(--c2);
-  --c-magenta: #c02d9e;
-  --c-orange: var(--c-magenta);
+  --c-indigo: #1a6bff;
+  --c-purple: #1a6bff;
+  --c-magenta: #1a6bff;
+  --c-orange: #1a6bff;
   --ink: #0a1628;
   --ink-soft: #5f6571;
   --ink-mist: #8b919e;
   --line: #e4e7eb;
   --paper: #f5f7fb;
   --white: #ffffff;
-  --grad-bg: linear-gradient(120deg, #1a6bff, #5b28e0, #8b2fd6);
-  --grad-btn: var(--grad-bg);
+  --grad-bg: #1a6bff;
+  --grad-btn: #1a6bff;
   --font-display: 'Sora', system-ui, sans-serif;
   --font-ui: 'Inter', system-ui, -apple-system, sans-serif;
   --shadow-card: 0 20px 60px rgba(13, 17, 23, 0.12);
@@ -157,7 +157,7 @@ body.ea-shader-page {
   padding: 40px 20px 48px;
   margin: 0 -20px 28px;
   border-radius: 0 0 24px 24px;
-  box-shadow: 0 16px 48px rgba(124, 58, 237, 0.22);
+  box-shadow: 0 16px 48px rgba(26, 107, 255, 0.22);
 }
 
 .vt-hero-content {
@@ -231,7 +231,7 @@ body.ea-shader-page {
 .vt-hero.premium-hero {
   position: relative;
   overflow: hidden;
-  background: #05060f;
+  background: #0a1628;
   color: #f4f6fc;
   text-align: center;
   padding: 56px 20px 64px;
@@ -258,8 +258,8 @@ body.ea-shader-page {
   z-index: 1;
   pointer-events: none;
   background:
-    radial-gradient(ellipse 75% 65% at 50% 42%, rgba(5, 6, 15, 0.92) 0%, rgba(5, 6, 15, 0.55) 45%, transparent 72%),
-    linear-gradient(180deg, rgba(5, 6, 15, 0.35) 0%, transparent 30%, rgba(5, 6, 15, 0.5) 100%);
+    radial-gradient(ellipse 75% 65% at 50% 42%, rgba(10, 22, 40, 0.92) 0%, rgba(10, 22, 40, 0.55) 45%, transparent 72%),
+    linear-gradient(180deg, rgba(10, 22, 40, 0.35) 0%, transparent 30%, rgba(10, 22, 40, 0.5) 100%);
 }
 
 .premium-hero-content {
@@ -270,11 +270,11 @@ body.ea-shader-page {
 }
 
 .premium-hero--static {
-  background-color: #05060f;
+  background-color: #0a1628;
   background-image:
-    radial-gradient(ellipse 90% 70% at 12% 18%, rgba(26, 107, 255, 0.42), transparent 55%),
-    radial-gradient(ellipse 70% 60% at 88% 22%, rgba(139, 47, 214, 0.38), transparent 52%),
-    radial-gradient(ellipse 80% 55% at 50% 98%, rgba(192, 45, 158, 0.28), transparent 58%);
+    radial-gradient(ellipse 90% 70% at 12% 18%, rgba(26, 107, 255, 0.45), transparent 55%),
+    radial-gradient(ellipse 70% 60% at 88% 22%, rgba(77, 148, 255, 0.28), transparent 52%),
+    radial-gradient(ellipse 80% 55% at 50% 98%, rgba(255, 255, 255, 0.08), transparent 58%);
 }
 
 .vt-hero.premium-hero--static .premium-hero-canvas { display: none; }
@@ -298,8 +298,8 @@ body.ea-shader-page {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--c-orange);
-  box-shadow: 0 0 10px rgba(192, 45, 158, 0.85);
+  background: #1a6bff;
+  box-shadow: 0 0 10px rgba(26, 107, 255, 0.85);
 }
 
 .vt-hero-title {
@@ -350,7 +350,7 @@ body.ea-shader-page {
 
 .vt-search:focus {
   border-color: var(--c2);
-  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12);
+  box-shadow: 0 0 0 3px rgba(26, 107, 255, 0.12);
 }
 
 .vt-filters {
@@ -378,10 +378,10 @@ body.ea-shader-page {
 }
 
 .vt-chip--active {
-  background: var(--grad-bg);
+  background: #1a6bff;
   border-color: transparent;
   color: var(--white);
-  box-shadow: 0 12px 32px rgba(124, 58, 237, 0.28);
+  box-shadow: 0 12px 32px rgba(26, 107, 255, 0.28);
 }
 
 .vt-chip--active:hover {
@@ -551,13 +551,13 @@ body.ea-shader-page {
 }
 
 .vt-badge--infoproducto {
-  background: rgba(139, 47, 214, 0.1);
-  color: var(--c-purple);
+  background: rgba(26, 107, 255, 0.1);
+  color: #1a6bff;
 }
 
 .vt-badge--contenido_digital {
-  background: rgba(192, 45, 158, 0.12);
-  color: #c02d9e;
+  background: rgba(26, 107, 255, 0.12);
+  color: #1a6bff;
 }
 
 .vt-badge--sub-pdf {
@@ -626,10 +626,7 @@ body.ea-shader-page {
   font-size: 22px;
   font-weight: 800;
   font-family: var(--font-display);
-  background: var(--grad-btn);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: #1a6bff;
 }
 
 .vt-card-btn {
@@ -653,10 +650,8 @@ body.ea-shader-page {
   position: relative;
   overflow: hidden;
   isolation: isolate;
-  background: var(--grad-bg) !important;
-  background-size: 100% 100% !important;
-  animation: none;
-  box-shadow: 0 12px 32px rgba(124, 58, 237, 0.28) !important;
+  background: #1a6bff !important;
+  box-shadow: 0 12px 32px rgba(26, 107, 255, 0.28) !important;
   transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease !important;
 }
 
@@ -666,7 +661,7 @@ body.ea-shader-page {
 
 .premium-btn:hover {
   transform: translateY(-2px) !important;
-  box-shadow: 0 16px 40px rgba(124, 58, 237, 0.35) !important;
+  box-shadow: 0 16px 40px rgba(26, 107, 255, 0.35) !important;
   filter: brightness(1.04);
   color: var(--white);
 }
@@ -684,8 +679,7 @@ body.ea-shader-page {
 @media (prefers-reduced-motion: reduce) {
   .premium-btn {
     animation: none;
-    background: linear-gradient(120deg, #1a6bff, #5b28e0, #8b2fd6) !important;
-    background-size: 100% 100% !important;
+    background: #1a6bff !important;
   }
   .premium-btn::before { animation: none; display: none; }
 }
