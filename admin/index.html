@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&family=Syne:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/css/premium-platform.css?v=4">
-  <link rel="stylesheet" href="assets/css/admin.css?v=35">
+  <link rel="stylesheet" href="assets/css/admin.css?v=36">
 </head>
 <body class="ea-shader-page">
 
@@ -87,12 +87,7 @@
         <button type="button" class="ma-cat-chip" id="ma-cat-btn-miniapp" onclick="switchMaCategoria('miniapp')">Mini Apps</button>
       </div>
 
-      <div id="ma-subcategoria-filtro" class="ma-cat-filtro" hidden>
-        <button type="button" class="ma-cat-chip active" id="ma-sub-btn-todas" onclick="switchMaSubcategoria('')">Todas</button>
-        <button type="button" class="ma-cat-chip" id="ma-sub-btn-pdf" onclick="switchMaSubcategoria('pdf')">PDF</button>
-        <button type="button" class="ma-cat-chip" id="ma-sub-btn-arte" onclick="switchMaSubcategoria('arte')">Arte</button>
-        <button type="button" class="ma-cat-chip" id="ma-sub-btn-prompts" onclick="switchMaSubcategoria('prompts')">Prompts</button>
-      </div>
+      <div id="ma-subcategoria-filtro" class="ma-cat-filtro" hidden></div>
 
       <div id="ma-panel-por-aprobar" class="ma-subpanel active">
         <p class="ma-subpanel-hint" id="ma-hint-pendientes">Pendientes de revision. Verifica contenido y seguridad antes de aprobar.</p>
@@ -600,7 +595,7 @@
   </div><!-- /adm-main-content -->
 
   <script src="assets/js/premium-hero.js?v=6"></script>
-  <script src="assets/js/admin.js?v=32"></script>
+  <script src="assets/js/admin.js?v=33"></script>
   <script>
     (function () {
       function bootShader() {

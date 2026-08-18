@@ -2096,6 +2096,14 @@ body {
   background: #e3f6ec;
   color: #0f7a4a;
 }
+.adm-badge--sub-contenido {
+  background: #e6f4ff;
+  color: #1565a8;
+}
+.adm-badge--sub-miniapp {
+  background: #eef1f6;
+  color: #0a1628;
+}
 
 .ma-subtabs {
   display: flex;

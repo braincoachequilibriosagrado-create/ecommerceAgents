@@ -103,14 +103,22 @@ function replaceAll(html, map) {
 
 function categoriaLabel(categoria, subcategoria) {
   const cat = String(categoria || 'miniapp').toLowerCase();
+  const sub = String(subcategoria || '').toLowerCase();
   if (cat === 'infoproducto') {
-    const sub = String(subcategoria || '').toLowerCase();
     if (sub === 'arte') return 'Arte digital';
     if (sub === 'prompts') return 'Prompts';
     if (sub === 'pdf') return 'PDF / Documentos';
     return 'Infoproducto';
   }
-  if (cat === 'contenido_digital') return 'Contenido Digital';
+  if (cat === 'contenido_digital') {
+    if (sub === 'avatar_ugc') return 'Avatar UGC';
+    if (sub === 'audios') return 'Audios';
+    if (sub === 'videos') return 'Videos';
+    return 'Contenido Digital';
+  }
+  if (sub === 'juegos') return 'Juegos';
+  if (sub === 'educacion') return 'Educacion';
+  if (sub === 'entretenimiento') return 'Entretenimiento';
   return 'Mini App';
 }
 

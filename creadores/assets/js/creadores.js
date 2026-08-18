@@ -21,7 +21,28 @@ var _categoriaActiva = null;
 var _subcategoriaActiva = null;
 
 var CR_CATEGORIAS = ['infoproducto', 'contenido_digital', 'miniapp'];
-var CR_SUBCATEGORIAS = ['pdf', 'arte', 'prompts'];
+var CR_SUBCATEGORIAS_POR_CAT = {
+  infoproducto: [
+    { id: 'pdf', name: 'PDF / Documentos', desc: 'Guias, ebooks, plantillas, workbooks' },
+    { id: 'arte', name: 'Arte / Fotos', desc: 'Ilustraciones, fotos, cuadros, disenos' },
+    { id: 'prompts', name: 'Prompts', desc: 'Colecciones de prompts de IA' }
+  ],
+  contenido_digital: [
+    { id: 'videos', name: 'Videos', desc: 'Reels, packs de video, clips' },
+    { id: 'avatar_ugc', name: 'Avatar UGC', desc: 'Avatares y contenido UGC' },
+    { id: 'audios', name: 'Audios', desc: 'Audios, voces, podcasts' }
+  ],
+  miniapp: [
+    { id: 'juegos', name: 'Juegos', desc: 'Juegos y experiencias interactivas' },
+    { id: 'educacion', name: 'Educacion', desc: 'Herramientas educativas' },
+    { id: 'entretenimiento', name: 'Entretenimiento', desc: 'Utilidades y entretenimiento' }
+  ]
+};
+var CR_SUBCAT_HINT = {
+  infoproducto: 'Elige el tipo de infoproducto. La entrega sigue siendo un archivo PDF descargable.',
+  contenido_digital: 'Elige el tipo de contenido digital. La entrega sigue siendo videos por ahora.',
+  miniapp: 'Elige el tipo de mini app.'
+};
 
 var CR_CATEGORIA_META = {
   infoproducto: {
@@ -817,27 +838,53 @@ function _updateCategoriaUI() {
   if (optIa)        optIa.hidden        = _categoriaActiva !== 'miniapp';
 
   var blockSub = document.getElementById('cr-block-subcategoria');
-  if (blockSub) blockSub.hidden = _categoriaActiva !== 'infoproducto';
-  if (_categoriaActiva === 'infoproducto') {
-    if (!_subcategoriaActiva) _subcategoriaActiva = 'pdf';
-    _updateSubcategoriaUI();
+  if (blockSub) blockSub.hidden = !_categoriaActiva;
+  if (_categoriaActiva) {
+    var allowed = CR_SUBCATEGORIAS_POR_CAT[_categoriaActiva] || [];
+    var ids = allowed.map(function (s) { return s.id; });
+    if (!ids.length || ids.indexOf(_subcategoriaActiva) === -1) {
+      _subcategoriaActiva = ids[0] || null;
+    }
+    _renderSubcategoriaPicker();
   } else {
     _subcategoriaActiva = null;
   }
 }
 
-function _updateSubcategoriaUI() {
-  CR_SUBCATEGORIAS.forEach(function (sub) {
-    var btn = document.getElementById('cr-subcat-btn-' + sub);
-    if (btn) btn.classList.toggle('active', sub === _subcategoriaActiva);
-  });
+function _crSubsDeCategoria(cat) {
+  return (CR_SUBCATEGORIAS_POR_CAT[cat] || []).map(function (s) { return s.id; });
 }
 
-function switchSubcategoriaInfoproducto(sub) {
-  if (CR_SUBCATEGORIAS.indexOf(sub) === -1) return;
+function _renderSubcategoriaPicker() {
+  var picker = document.getElementById('cr-subcat-picker');
+  var hint = document.getElementById('cr-subcat-hint');
+  var cat = _categoriaActiva;
+  var items = CR_SUBCATEGORIAS_POR_CAT[cat] || [];
+  if (hint) hint.textContent = CR_SUBCAT_HINT[cat] || 'Elige el tipo de producto.';
+  if (!picker) return;
+  picker.innerHTML = items.map(function (s) {
+    var active = s.id === _subcategoriaActiva ? ' active' : '';
+    return '<button type="button" class="cr-subcat-card' + active + '" id="cr-subcat-btn-' + s.id + '" data-sub="' + s.id + '" onclick="switchSubcategoria(\'' + s.id + '\')">' +
+      '<span class="cr-subcat-name">' + _esc(s.name) + '</span>' +
+      '<span class="cr-subcat-desc">' + _esc(s.desc) + '</span>' +
+    '</button>';
+  }).join('');
+}
+
+function _updateSubcategoriaUI() {
+  _renderSubcategoriaPicker();
+}
+
+function switchSubcategoria(sub) {
+  var ids = _crSubsDeCategoria(_categoriaActiva);
+  if (ids.indexOf(sub) === -1) return;
   _subcategoriaActiva = sub;
   _updateSubcategoriaUI();
   _clearMsg('cr-subir-msg');
+}
+
+function switchSubcategoriaInfoproducto(sub) {
+  switchSubcategoria(sub);
 }
 
 function switchCategoriaActivo(cat) {
@@ -926,11 +973,15 @@ async function publicarMiniapp() {
     _showMsg('cr-subir-msg', 'El HTML no puede estar vacio.', false);
     return;
   }
+  if (!_subcategoriaActiva || _crSubsDeCategoria(_categoriaActiva).indexOf(_subcategoriaActiva) === -1) {
+    var msgSub = CR_SUBCAT_HINT[_categoriaActiva] || 'Elige una subcategoria.';
+    if (_categoriaActiva === 'infoproducto') msgSub = 'Elige una subcategoria: PDF / Documentos, Arte / Fotos o Prompts.';
+    if (_categoriaActiva === 'contenido_digital') msgSub = 'Elige una subcategoria: Videos, Avatar UGC o Audios.';
+    if (_categoriaActiva === 'miniapp') msgSub = 'Elige una subcategoria: Juegos, Educacion o Entretenimiento.';
+    _showMsg('cr-subir-msg', msgSub, false);
+    return;
+  }
   if (_categoriaActiva === 'infoproducto') {
-    if (!_subcategoriaActiva || CR_SUBCATEGORIAS.indexOf(_subcategoriaActiva) === -1) {
-      _showMsg('cr-subir-msg', 'Elige una subcategoria: PDF / Documentos, Arte / Fotos o Prompts.', false);
-      return;
-    }
     if (!pdfInfoInput || !pdfInfoInput.files || !pdfInfoInput.files[0]) {
       _showMsg('cr-subir-msg', 'El PDF es obligatorio para un infoproducto.', false);
       return;
@@ -966,7 +1017,7 @@ async function publicarMiniapp() {
 
   var fd = new FormData();
   fd.append('categoria', _categoriaActiva);
-  if (_categoriaActiva === 'infoproducto' && _subcategoriaActiva) {
+  if (_subcategoriaActiva) {
     fd.append('subcategoria', _subcategoriaActiva);
   }
   if (_categoriaActiva === 'miniapp') fd.append('html', html);
@@ -1134,7 +1185,11 @@ function _crCategoriaLabel(cat) {
 }
 
 function _crSubcategoriaLabel(sub) {
-  var map = { pdf: 'PDF', arte: 'Arte', prompts: 'Prompts' };
+  var map = {
+    pdf: 'PDF', arte: 'Arte', prompts: 'Prompts',
+    videos: 'Videos', avatar_ugc: 'Avatar UGC', audios: 'Audios',
+    juegos: 'Juegos', educacion: 'Educacion', entretenimiento: 'Entretenimiento'
+  };
   return map[String(sub || '').toLowerCase()] || '';
 }
 
@@ -1304,7 +1359,7 @@ async function cargarCatalogoCreador() {
             '<p class="cr-product-slug">' + _esc(m.slug) + '</p>' +
             '<div class="cr-product-tags">' +
               '<span class="cr-product-tag cr-product-tag--cat">' + _crCategoriaLabel(cat) + '</span>' +
-              (cat === 'infoproducto' && m.subcategoria
+              (m.subcategoria
                 ? '<span class="cr-product-tag ' + _crSubcategoriaTagClass(m.subcategoria) + '">' + _esc(_crSubcategoriaLabel(m.subcategoria)) + '</span>'
                 : '') +
               _crEstadoBadge(estado, m.motivo_rechazo) +

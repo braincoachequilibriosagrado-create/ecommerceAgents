@@ -15,7 +15,19 @@
   var SUB_LABELS = {
     pdf: 'PDF',
     arte: 'Arte',
-    prompts: 'Prompts'
+    prompts: 'Prompts',
+    videos: 'Videos',
+    avatar_ugc: 'Avatar UGC',
+    audios: 'Audios',
+    juegos: 'Juegos',
+    educacion: 'Educacion',
+    entretenimiento: 'Entretenimiento'
+  };
+
+  var SUBS_POR_CAT = {
+    infoproducto:      ['pdf', 'arte', 'prompts'],
+    contenido_digital: ['videos', 'avatar_ugc', 'audios'],
+    miniapp:           ['juegos', 'educacion', 'entretenimiento']
   };
 
   var gridEl   = document.getElementById('vt-grid');
@@ -59,26 +71,40 @@
   function subBadgeClass(sub) {
     if (sub === 'arte') return 'vt-badge--sub-arte';
     if (sub === 'prompts') return 'vt-badge--sub-prompts';
+    if (sub === 'videos' || sub === 'avatar_ugc' || sub === 'audios') return 'vt-badge--sub-contenido';
+    if (sub === 'juegos' || sub === 'educacion' || sub === 'entretenimiento') return 'vt-badge--sub-miniapp';
     return 'vt-badge--sub-pdf';
   }
 
-  function updateSubfiltersVisibility() {
+  function subsDeCategoria(cat) {
+    return SUBS_POR_CAT[cat] || [];
+  }
+
+  function renderSubfilters() {
     if (!subfiltersEl) return;
-    var show = filtroCat === 'infoproducto';
-    subfiltersEl.hidden = !show;
-    if (!show) filtroSub = 'all';
-    if (show) {
-      subfiltersEl.querySelectorAll('.vt-chip').forEach(function (c) {
-        c.classList.toggle('vt-chip--active', (c.getAttribute('data-sub') || 'all') === filtroSub);
-      });
+    var show = filtroCat !== 'all' && subsDeCategoria(filtroCat).length > 0;
+    if (!show) {
+      filtroSub = 'all';
+      subfiltersEl.hidden = true;
+      subfiltersEl.innerHTML = '';
+      return;
     }
+    var subs = subsDeCategoria(filtroCat);
+    if (filtroSub !== 'all' && subs.indexOf(filtroSub) === -1) filtroSub = 'all';
+    var html = '<button type="button" class="vt-chip vt-chip--sub' + (filtroSub === 'all' ? ' vt-chip--active' : '') + '" data-sub="all">Todos</button>';
+    html += subs.map(function (sub) {
+      var active = filtroSub === sub ? ' vt-chip--active' : '';
+      return '<button type="button" class="vt-chip vt-chip--sub' + active + '" data-sub="' + sub + '">' + esc(SUB_LABELS[sub] || sub) + '</button>';
+    }).join('');
+    subfiltersEl.innerHTML = html;
+    subfiltersEl.hidden = false;
   }
 
   function productosFiltrados() {
     return productos.filter(function (p) {
       if (filtroCat !== 'all' && p.categoria !== filtroCat) return false;
-      if (filtroCat === 'infoproducto' && filtroSub !== 'all') {
-        var sub = p.subcategoria || 'pdf';
+      if (filtroCat !== 'all' && filtroSub !== 'all') {
+        var sub = p.subcategoria || '';
         if (sub !== filtroSub) return false;
       }
       if (busqueda) {
@@ -97,7 +123,7 @@
   }
 
   function render() {
-    updateSubfiltersVisibility();
+    renderSubfilters();
     var list = productosFiltrados();
 
     if (!productos.length) {
@@ -125,7 +151,7 @@
     gridEl.innerHTML = list.map(function (p) {
       var cat = p.categoria || 'miniapp';
       var catLabel = CAT_LABELS[cat] || 'Mini App';
-      var sub = cat === 'infoproducto' ? (p.subcategoria || 'pdf') : null;
+      var sub = p.subcategoria || null;
       var subLabel = sub ? (p.subcategoria_label || SUB_LABELS[sub] || sub) : '';
       var thumb = p.foto1_url
         ? '<img class="thumb-blur" src="' + esc(p.foto1_url) + '" alt="" aria-hidden="true" />' +
@@ -183,7 +209,7 @@
       var btn = e.target.closest('.vt-chip');
       if (!btn) return;
       filtroCat = btn.getAttribute('data-cat') || 'all';
-      if (filtroCat !== 'infoproducto') filtroSub = 'all';
+      filtroSub = 'all';
       filtersEl.querySelectorAll('.vt-chip').forEach(function (c) {
         c.classList.toggle('vt-chip--active', c === btn);
       });

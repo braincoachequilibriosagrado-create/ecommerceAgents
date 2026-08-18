@@ -164,9 +164,8 @@ function _miniappToVitrina(m) {
   const miniSlug = String(m.slug || '').trim();
   const promo = m.precio_promocion != null ? Number(m.precio_promocion) : null;
   const categoria = String(m.categoria || 'miniapp').toLowerCase();
-  const subcategoria = categoria === 'infoproducto'
-    ? _normalizarSubcategoriaInfoproducto(m.subcategoria || 'pdf', 'infoproducto')
-    : null;
+  const subcategoria = _normalizarSubcategoria(m.subcategoria, categoria)
+    || _subcategoriaDefault(categoria);
   return {
     nombre:              String(m.nombre || '').trim(),
     descripcion_corta:   _vitrinaDescCorta(m.descripcion, 140),
@@ -446,23 +445,72 @@ const uploadMiniappFields = multer({
 ]);
 
 const CREADOR_CATEGORIAS = ['infoproducto', 'contenido_digital', 'miniapp'];
-const INFOPRODUCTO_SUBCATEGORIAS = ['pdf', 'arte', 'prompts'];
+const SUBCATEGORIAS_POR_CATEGORIA = {
+  infoproducto:      ['pdf', 'arte', 'prompts'],
+  contenido_digital: ['videos', 'avatar_ugc', 'audios'],
+  miniapp:           ['juegos', 'educacion', 'entretenimiento']
+};
+const SUBCATEGORIA_DEFAULT = {
+  infoproducto:      'pdf',
+  contenido_digital: 'videos',
+  miniapp:           'entretenimiento'
+};
+const INFOPRODUCTO_SUBCATEGORIAS = SUBCATEGORIAS_POR_CATEGORIA.infoproducto;
 
-function _normalizarSubcategoriaInfoproducto(raw, categoria) {
-  const cat = String(categoria || '').trim().toLowerCase();
-  if (cat !== 'infoproducto') return null;
+function _subsDeCategoria(categoria) {
+  return SUBCATEGORIAS_POR_CATEGORIA[String(categoria || '').trim().toLowerCase()] || [];
+}
+
+function _subcategoriaDefault(categoria) {
+  return SUBCATEGORIA_DEFAULT[String(categoria || '').trim().toLowerCase()] || null;
+}
+
+function _normalizarSubcategoria(raw, categoria) {
+  const allowed = _subsDeCategoria(categoria);
+  if (!allowed.length) return null;
   const sub = String(raw || '').trim().toLowerCase();
-  if (!INFOPRODUCTO_SUBCATEGORIAS.includes(sub)) return null;
+  if (!allowed.includes(sub)) return null;
   return sub;
 }
 
+function _normalizarSubcategoriaInfoproducto(raw, categoria) {
+  return _normalizarSubcategoria(raw, categoria);
+}
+
+function _subcategoriaErrorMsg(categoria) {
+  const cat = String(categoria || '').trim().toLowerCase();
+  if (cat === 'contenido_digital') return 'Elige una subcategoria: Videos, Avatar UGC o Audios.';
+  if (cat === 'miniapp') return 'Elige una subcategoria: Juegos, Educacion o Entretenimiento.';
+  return 'Elige una subcategoria: PDF / Documentos, Arte / Fotos o Prompts.';
+}
+
 function _subcategoriaLabel(sub) {
-  const map = { pdf: 'PDF / Documentos', arte: 'Arte / Fotos', prompts: 'Prompts' };
+  const map = {
+    pdf: 'PDF / Documentos',
+    arte: 'Arte / Fotos',
+    prompts: 'Prompts',
+    videos: 'Videos',
+    avatar_ugc: 'Avatar UGC',
+    audios: 'Audios',
+    juegos: 'Juegos',
+    educacion: 'Educacion',
+    entretenimiento: 'Entretenimiento'
+  };
   return map[String(sub || '').toLowerCase()] || '';
 }
 
 function _subcategoriaLabelCorta(sub) {
-  const map = { pdf: 'PDF', arte: 'Arte', prompts: 'Prompts' };
+  const map = {
+    pdf: 'PDF',
+    arte: 'Arte',
+    prompts: 'Prompts',
+    videos: 'Videos',
+    avatar_ugc: 'Avatar UGC',
+    audios: 'Audios',
+    juegos: 'Juegos',
+    educacion: 'Educacion',
+    entretenimiento: 'Entretenimiento'
+  };
   return map[String(sub || '').toLowerCase()] || '';
 }
 
@@ -2939,15 +2987,12 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
     return res.status(400).json({ ok: false, error: 'Categoria invalida. Use infoproducto, contenido_digital o miniapp.' });
   }
 
-  let subcategoria = null;
-  if (categoria === 'infoproducto') {
-    subcategoria = _normalizarSubcategoriaInfoproducto(body.subcategoria, categoria);
-    if (!subcategoria) {
-      return res.status(400).json({
-        ok: false,
-        error: 'Elige una subcategoria: PDF / Documentos, Arte / Fotos o Prompts.'
-      });
-    }
+  let subcategoria = _normalizarSubcategoria(body.subcategoria, categoria);
+  if (!subcategoria) {
+    return res.status(400).json({
+      ok: false,
+      error: _subcategoriaErrorMsg(categoria)
+    });
   }
 
   const files      = req.files || {};
@@ -3610,7 +3655,7 @@ app.post('/api/mis-productos/quitar', requireUsuario, async (req, res) => {
 });
 
 // ── Marketplace publico (Activos Digitales) ─────────────────────────────────────
-const MARKETPLACE_ASSET_BUST = '29';
+const MARKETPLACE_ASSET_BUST = '30';
 
 async function _apiMarketplace(req, res) {
   try {
@@ -3733,12 +3778,7 @@ function _serveMarketplace(req, res) {
         <button type="button" class="vt-chip" data-cat="contenido_digital">Contenido Digital</button>
         <button type="button" class="vt-chip" data-cat="miniapp">Mini Apps</button>
       </div>
-      <div class="vt-subfilters" id="vt-subfilters" hidden role="tablist" aria-label="Filtrar infoproductos">
-        <button type="button" class="vt-chip vt-chip--sub vt-chip--active" data-sub="all">Todos</button>
-        <button type="button" class="vt-chip vt-chip--sub" data-sub="pdf">PDF</button>
-        <button type="button" class="vt-chip vt-chip--sub" data-sub="arte">Arte</button>
-        <button type="button" class="vt-chip vt-chip--sub" data-sub="prompts">Prompts</button>
-      </div>
+      <div class="vt-subfilters" id="vt-subfilters" hidden role="tablist" aria-label="Filtrar por subcategoria"></div>
     </div>
 
     <div id="vt-status" class="vt-status" aria-live="polite">Cargando productos...</div>
@@ -6818,7 +6858,13 @@ app.get('/api/admin/miniapps', async (req, res) => {
     }
 
     const subcategoria = String(req.query.subcategoria || '').trim().toLowerCase();
-    if (subcategoria && INFOPRODUCTO_SUBCATEGORIAS.includes(subcategoria)) {
+    const subOk = categoria
+      ? !!_normalizarSubcategoria(subcategoria, categoria)
+      : _subsDeCategoria('infoproducto').concat(
+          _subsDeCategoria('contenido_digital'),
+          _subsDeCategoria('miniapp')
+        ).includes(subcategoria);
+    if (subcategoria && subOk) {
       query = query.eq('subcategoria', subcategoria);
     }
 
@@ -6842,9 +6888,7 @@ app.get('/api/admin/miniapps', async (req, res) => {
     const miniapps = (data || []).map(function (m) {
       const cr = m.creadores || {};
       const cat = m.categoria || 'miniapp';
-      const sub = cat === 'infoproducto'
-        ? _normalizarSubcategoriaInfoproducto(m.subcategoria || 'pdf', 'infoproducto')
-        : null;
+      const sub = _normalizarSubcategoria(m.subcategoria, cat) || _subcategoriaDefault(cat);
       return {
         id:                    m.id,
         nombre:                m.nombre,
@@ -6873,8 +6917,8 @@ app.get('/api/admin/miniapps', async (req, res) => {
       };
     }).filter(function (m) {
       if (m.estado === 'eliminado') return false;
-      if (!subcategoria || !INFOPRODUCTO_SUBCATEGORIAS.includes(subcategoria)) return true;
-      return m.categoria === 'infoproducto' && m.subcategoria === subcategoria;
+      if (!subcategoria || !subOk) return true;
+      return m.subcategoria === subcategoria;
     });
 
     res.json({ ok: true, miniapps });

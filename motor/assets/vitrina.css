@@ -612,6 +612,14 @@ body.ea-shader-page {
   background: rgba(15, 122, 74, 0.12);
   color: #0f7a4a;
 }
+.vt-badge--sub-contenido {
+  background: rgba(26, 107, 255, 0.12);
+  color: #1565a8;
+}
+.vt-badge--sub-miniapp {
+  background: rgba(10, 22, 40, 0.08);
+  color: #0a1628;
+}
 
 .vt-subfilters {
   display: flex;
@@ -621,6 +629,10 @@ body.ea-shader-page {
   margin-top: 10px;
   padding-top: 10px;
   border-top: 1px solid rgba(15, 18, 34, 0.08);
+}
+
+.vt-subfilters[hidden] {
+  display: none !important;
 }
 
 .vt-chip--sub {

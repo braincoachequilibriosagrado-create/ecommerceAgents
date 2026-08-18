@@ -2262,7 +2262,11 @@ var _maCuentasCache = [];
 
 var MA_SUBTABS = ['por-aprobar', 'aprobados'];
 var MA_CATEGORIAS = ['', 'infoproducto', 'contenido_digital', 'miniapp'];
-var MA_SUBCATEGORIAS = ['', 'pdf', 'arte', 'prompts'];
+var MA_SUBS_POR_CAT = {
+  infoproducto:      ['pdf', 'arte', 'prompts'],
+  contenido_digital: ['videos', 'avatar_ugc', 'audios'],
+  miniapp:           ['juegos', 'educacion', 'entretenimiento']
+};
 
 function _maCategoriaLabel(cat) {
   var map = {
@@ -2274,7 +2278,11 @@ function _maCategoriaLabel(cat) {
 }
 
 function _maSubcategoriaLabel(sub) {
-  var map = { pdf: 'PDF', arte: 'Arte', prompts: 'Prompts' };
+  var map = {
+    pdf: 'PDF', arte: 'Arte', prompts: 'Prompts',
+    videos: 'Videos', avatar_ugc: 'Avatar UGC', audios: 'Audios',
+    juegos: 'Juegos', educacion: 'Educacion', entretenimiento: 'Entretenimiento'
+  };
   return map[String(sub || '').toLowerCase()] || '';
 }
 
@@ -2282,6 +2290,8 @@ function _maSubcategoriaBadgeClass(sub) {
   var s = String(sub || '').toLowerCase();
   if (s === 'arte') return 'adm-badge--sub-arte';
   if (s === 'prompts') return 'adm-badge--sub-prompts';
+  if (s === 'videos' || s === 'avatar_ugc' || s === 'audios') return 'adm-badge--sub-contenido';
+  if (s === 'juegos' || s === 'educacion' || s === 'entretenimiento') return 'adm-badge--sub-miniapp';
   return 'adm-badge--sub-pdf';
 }
 
@@ -2307,7 +2317,7 @@ function _maFetchUrl() {
   var url = MOTOR_URL + '/api/admin/miniapps';
   var qs = [];
   if (_maCategoriaActiva) qs.push('categoria=' + encodeURIComponent(_maCategoriaActiva));
-  if (_maCategoriaActiva === 'infoproducto' && _maSubcategoriaActiva) {
+  if (_maCategoriaActiva && _maSubcategoriaActiva) {
     qs.push('subcategoria=' + encodeURIComponent(_maSubcategoriaActiva));
   }
   if (qs.length) url += '?' + qs.join('&');
@@ -2325,20 +2335,31 @@ function _maUpdateCategoriaFiltroUI() {
 
   var subFiltro = document.getElementById('ma-subcategoria-filtro');
   if (subFiltro) {
-    var showSub = _maCategoriaActiva === 'infoproducto';
-    subFiltro.hidden = !showSub;
-    if (!showSub) _maSubcategoriaActiva = '';
-    MA_SUBCATEGORIAS.forEach(function (sub) {
-      var id = sub ? 'ma-sub-btn-' + sub : 'ma-sub-btn-todas';
-      var btn = document.getElementById(id);
-      if (btn) btn.classList.toggle('active', sub === _maSubcategoriaActiva);
-    });
+    var subs = MA_SUBS_POR_CAT[_maCategoriaActiva] || [];
+    var showSub = subs.length > 0;
+    if (!showSub) {
+      _maSubcategoriaActiva = '';
+      subFiltro.hidden = true;
+      subFiltro.innerHTML = '';
+    } else {
+      if (_maSubcategoriaActiva && subs.indexOf(_maSubcategoriaActiva) === -1) {
+        _maSubcategoriaActiva = '';
+      }
+      var html = '<button type="button" class="ma-cat-chip' + (!_maSubcategoriaActiva ? ' active' : '') + '" onclick="switchMaSubcategoria(\'\')">Todas</button>';
+      html += subs.map(function (sub) {
+        var active = sub === _maSubcategoriaActiva ? ' active' : '';
+        return '<button type="button" class="ma-cat-chip' + active + '" onclick="switchMaSubcategoria(\'' + sub + '\')">' +
+          _esc(_maSubcategoriaLabel(sub) || sub) + '</button>';
+      }).join('');
+      subFiltro.innerHTML = html;
+      subFiltro.hidden = false;
+    }
   }
 }
 
 function switchMaCategoria(cat) {
   _maCategoriaActiva = cat || '';
-  if (_maCategoriaActiva !== 'infoproducto') _maSubcategoriaActiva = '';
+  _maSubcategoriaActiva = '';
   _maUpdateCategoriaFiltroUI();
   loadMaData();
 }
@@ -2411,10 +2432,10 @@ function _maCardHtml(m, modo) {
 
   var tags = '<span class="adm-badge ' + _maCategoriaBadgeClass(m.categoria || 'miniapp') + '">' +
     _maCategoriaLabel(m.categoria || 'miniapp') + '</span>';
-  if ((m.categoria || '') === 'infoproducto') {
-    var sub = m.subcategoria || 'pdf';
+  if (m.subcategoria) {
+    var sub = m.subcategoria;
     tags += ' <span class="adm-badge ' + _maSubcategoriaBadgeClass(sub) + '">' +
-      _esc(_maSubcategoriaLabel(sub) || 'PDF') + '</span>';
+      _esc(_maSubcategoriaLabel(sub) || sub) + '</span>';
   }
   tags += ' <span class="adm-badge adm-badge--html">' + tipo + '</span>';
   if (m.usa_ia) tags += ' <span class="adm-badge adm-badge--pagina">Usa IA</span>';

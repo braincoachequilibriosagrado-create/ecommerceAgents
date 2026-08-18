@@ -1,5 +1,6 @@
 -- Subcategorias de infoproducto (Activos Digitales)
--- Ejecutar en Supabase SQL Editor. No toca entrega ni ventas.
+-- NO volver a correr el bloque que pone subcategoria = NULL en miniapp/contenido_digital.
+-- Para defaults de productos viejos usar: miniapps-subcategoria-defaults.sql
 
 ALTER TABLE miniapps
   ADD COLUMN IF NOT EXISTS subcategoria text NULL;
