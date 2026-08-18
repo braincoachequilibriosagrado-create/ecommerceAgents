@@ -1,10 +1,10 @@
-/* EcommerceAgents — paginas legales */
+/* AGORATUM · Activos Digitales — paginas legales */
 :root {
-  --c1: #2f86ff;
+  --c1: #1a6bff;
   --c2: #7c3aed;
-  --c3: #ff5a3c;
-  --grad: linear-gradient(120deg, var(--c1), var(--c2), var(--c3));
-  --ink: #0d1117;
+  --c3: #8b2fd6;
+  --grad: linear-gradient(120deg, #1a6bff, #5b28e0, #8b2fd6);
+  --ink: #0a1628;
   --slate: #5f6571;
   --mist: #8b939e;
   --line: #e4e7eb;
@@ -54,17 +54,32 @@ body {
 
 .legal-brand img {
   width: auto;
-  height: 44px;
-  max-width: 140px;
+  height: 40px;
+  max-width: 260px;
   border-radius: 0;
   object-fit: contain;
+}
+
+.legal-brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 
 .legal-brand-name {
   font-family: 'Sora', sans-serif;
   font-size: 17px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: var(--ink);
+}
+
+.legal-brand-sub {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--slate);
 }
 
 .legal-nav {

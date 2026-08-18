@@ -18,7 +18,7 @@
   --adm-amber-lt: rgba(184, 151, 58, 0.13);
   --adm-red:     #9B3333;
   --adm-red-lt:  rgba(190, 80, 80, 0.10);
-  --adm-blue:    #3456A0;
+  --adm-blue:    #1a6bff;
   --adm-blue-lt: rgba(100, 130, 220, 0.13);
   --adm-gray-lt: rgba(170, 170, 170, 0.15);
   --font-display: 'Cormorant Garamond', serif;
@@ -59,20 +59,32 @@ body {
 .adm-login-logo {
   display: block;
   width: auto;
-  height: 120px;
-  max-width: 200px;
+  height: 80px;
+  max-width: 360px;
   margin: 0 auto 12px;
   object-fit: contain;
 }
 
+.adm-login-lockup {
+  margin: 0 0 8px;
+}
+
 .adm-login-brand {
   font-family: var(--font-ui);
-  font-size: 17px;
-  font-weight: 700;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: var(--adm-text);
-  margin-bottom: 4px;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  text-transform: none;
+  color: var(--adm-navy);
+  margin-bottom: 2px;
+}
+
+.adm-login-sub {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--adm-muted);
+  margin-bottom: 8px;
 }
 
 .adm-login-tag {
@@ -154,9 +166,33 @@ body {
   display: block;
   width: auto;
   height: 40px;
-  max-width: 140px;
+  max-width: 260px;
   object-fit: contain;
   flex-shrink: 0;
+}
+
+.adm-brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.adm-brand-name {
+  font-family: var(--font-ui);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #fff;
+  line-height: 1.1;
+}
+
+.adm-brand-sub {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.62);
+  white-space: nowrap;
 }
 
 .adm-brand {
@@ -2030,7 +2066,7 @@ body {
 
 .adm-badge--sub-pdf {
   background: #e8ecff;
-  color: #2b3af5;
+  color: #1a6bff;
 }
 .adm-badge--sub-arte {
   background: #ffe8dc;
@@ -2331,7 +2367,7 @@ body {
   font-family: 'Syne', sans-serif;
   font-size: 28px;
   font-weight: 700;
-  color: #2b3af5;
+  color: #1a6bff;
   line-height: 1;
 }
 

@@ -2356,14 +2356,14 @@ async function _enviarCorreoRecuperarCreador(email, nombre, resetUrl) {
   const logoAbs = String(PUBLIC_BASE_URL || '').replace(/\/$/, '') + '/assets/logo-activos.png';
   const displayName = String(nombre || '').trim() || 'Creador';
   const html =
-    '<div style="font-family:Inter,Arial,sans-serif;max-width:520px;margin:0 auto;color:#0f1222">' +
+    '<div style="font-family:Inter,Arial,sans-serif;max-width:520px;margin:0 auto;color:#0a1628">' +
     '<div style="text-align:center;margin:0 0 20px">' +
-    '<img src="' + logoAbs + '" alt="Activos Digitales" width="140" height="140" style="width:140px;height:auto;max-width:180px;display:inline-block" />' +
+    '<img src="' + logoAbs + '" alt="AGORATUM · Activos Digitales" width="280" height="70" style="width:280px;height:auto;max-width:100%;display:inline-block" />' +
     '</div>' +
-    '<h2 style="color:#5b28e0;margin:0 0 12px">Recupera tu contraseña</h2>' +
+    '<h2 style="color:#1a6bff;margin:0 0 12px">Recupera tu contraseña</h2>' +
     '<p>Hola ' + displayName.replace(/</g, '&lt;') + ',</p>' +
-    '<p>Recibimos una solicitud para restablecer la contraseña de tu cuenta en <strong>Activos Digitales</strong>.</p>' +
-    '<p style="margin:28px 0"><a href="' + resetUrl + '" style="display:inline-block;background:linear-gradient(120deg,#2b3af5,#8b2fd6);color:#fff;text-decoration:none;padding:14px 24px;border-radius:10px;font-weight:700">Restablecer contraseña</a></p>' +
+    '<p>Recibimos una solicitud para restablecer la contraseña de tu cuenta en <strong>AGORATUM · Activos Digitales</strong>.</p>' +
+    '<p style="margin:28px 0"><a href="' + resetUrl + '" style="display:inline-block;background:linear-gradient(120deg,#1a6bff,#5b28e0,#8b2fd6);color:#fff;text-decoration:none;padding:14px 24px;border-radius:10px;font-weight:700">Restablecer contraseña</a></p>' +
     '<p style="font-size:13px;color:#5a5f74">O copia este enlace en tu navegador:<br><a href="' + resetUrl + '">' + resetUrl + '</a></p>' +
     '<p style="font-size:13px;color:#8b90a4;margin-top:24px">Este enlace expira en <strong>1 hora</strong>. Si no solicitaste este cambio, ignora este correo.</p>' +
     '</div>';
@@ -2371,7 +2371,7 @@ async function _enviarCorreoRecuperarCreador(email, nombre, resetUrl) {
     const { error } = await resend.emails.send({
       from:    RESEND_FROM_EMAIL,
       to:      email,
-      subject: 'Recupera tu contraseña - Activos Digitales',
+      subject: 'Recupera tu contraseña - AGORATUM · Activos Digitales',
       html
     });
     if (error) {
@@ -3609,7 +3609,7 @@ app.post('/api/mis-productos/quitar', requireUsuario, async (req, res) => {
 });
 
 // ── Marketplace publico (Activos Digitales) ─────────────────────────────────────
-const MARKETPLACE_ASSET_BUST = '13';
+const MARKETPLACE_ASSET_BUST = '16';
 
 async function _apiMarketplace(req, res) {
   try {
@@ -3688,7 +3688,7 @@ function _serveMarketplace(req, res) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Activos Digitales — Marketplace</title>
+<title>AGORATUM · Activos Digitales</title>
 <meta name="description" content="Marketplace de activos digitales: mini apps, infoproductos y contenido digital. Compra segura y acceso inmediato.">
 <link rel="icon" type="image/png" href="${_assetUrl('/assets/logo-activos.png')}${bust}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -3699,14 +3699,22 @@ function _serveMarketplace(req, res) {
 </head>
 <body class="ea-shader-page">
 <div class="vt-page">
+  <header class="vt-header">
+    <div class="vt-header-inner">
+      <a href="/" class="vt-brand">
+        <img src="${logoUrl}" alt="AGORATUM · Activos Digitales" class="vt-brand-logo" />
+      </a>
+      <a class="vt-agentes-link" href="https://agoratum.com" target="_blank" rel="noopener noreferrer">
+        <span class="vt-agentes-full">¿Buscas Agentes de IA? → AGORATUM Agentes</span>
+        <span class="vt-agentes-short">AGORATUM Agentes</span>
+      </a>
+    </div>
+  </header>
   <main class="vt-main">
     <section class="vt-hero vt-hero--over-shader" id="vt-hero">
       <div class="vt-hero-content">
-        <a href="/" class="vt-hero-brand">
-          <img src="${logoUrl}" alt="Activos Digitales" class="vt-hero-logo" />
-        </a>
-        <p class="vt-hero-badge"><span class="vt-hero-badge-dot" aria-hidden="true"></span> Marketplace oficial</p>
-        <h1 class="vt-hero-title">Marketplace de Activos Digitales</h1>
+        <p class="vt-hero-badge"><span class="vt-hero-badge-dot" aria-hidden="true"></span> Una división de AGORATUM</p>
+        <h1 class="vt-hero-title">Marketplace</h1>
         <p class="vt-hero-sub">Explora mini apps, infoproductos y contenido digital listos para usar. Compra segura y acceso inmediato.</p>
       </div>
     </section>
@@ -3738,7 +3746,7 @@ function _serveMarketplace(req, res) {
   </main>
 
   <footer class="vt-footer">
-    <p>Distribuido por <strong>EcommerceAgents</strong> · Marketplace de activos digitales</p>
+    <p>Parte de <a href="https://agoratum.com" target="_blank" rel="noopener noreferrer">AGORATUM</a> · Marketplace de activos digitales</p>
     <p class="vt-footer-legal"><a href="/terminos">Terminos y Condiciones</a> · <a href="/privacidad">Politica de Privacidad</a></p>
   </footer>
 </div>
@@ -5336,7 +5344,7 @@ function _serveCheckoutMiniapp(req, res) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Comprar mini app · EcommerceAgents</title>
+<title>Comprar · AGORATUM · Activos Digitales</title>
 <link rel="stylesheet" href="${premiumCss}">
 <style>
 :root{--c1:#2f86ff;--c2:#7c3aed;--c3:#ff5a3c;--grad:linear-gradient(120deg,var(--c1),var(--c2),var(--c3));--ink:#0d1117;--slate:#5f6571;--line:#e4e7eb;--white:#fff;--err:#c0392b}
@@ -5411,7 +5419,7 @@ app.get('/checkout', (req, res) => {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Confirmar pedido · EcommerceAgents</title>
+<title>Confirmar pedido · AGORATUM · Activos Digitales</title>
 <link rel="stylesheet" href="${premiumCss}">
 <style>
 :root{--accent:#b89368;--accent-dk:#9a7850;--accent-shadow:rgba(184,147,104,.13);--bg:#f7f5f1;--white:#fff;--txt:#1a1714;--txt-mid:#5a4f44;--txt-lt:#8a7a68;--bd:#e0d8cc;--suc:#2d7a3a;--err:#c0392b;--r:6px}
@@ -5551,7 +5559,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-seri
 <!-- ── Header ──────────────────────────────────────────────────────── -->
 <header class="ck-hd">
   <div class="ck-hd-in">
-    <span class="ck-logo">Ecommerce<em>Agents</em></span>
+    <span class="ck-logo">AGORATUM · Activos Digitales</span>
     <div class="ck-ssl">
       <svg width="12" height="14" viewBox="0 0 12 14" fill="none">
         <rect x="1" y="6" width="10" height="8" rx="1.5" fill="currentColor"/>
@@ -6203,7 +6211,7 @@ function _serveRecuperarCompra(req, res) {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Recupera tu compra · EcommerceAgents</title>
+<title>Recupera tu compra · AGORATUM · Activos Digitales</title>
 <link rel="stylesheet" href="${premiumCss}">
 <style>
 :root{--c1:${c1};--c2:${c2};--c3:${c3};--grad:linear-gradient(120deg,var(--c1),var(--c2),var(--c3));--ink:#0d1117;--slate:#5f6571;--line:#e4e7eb;--white:#fff;--err:#c0392b}
@@ -6212,7 +6220,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;co
 .card{background:var(--white);border:none;border-radius:20px;box-shadow:0 20px 50px rgba(20,18,60,.22);width:100%;max-width:480px;overflow:hidden}
 .card.ea-premium-card{border:none;background:var(--white)}
 .top{background:#ffffff;color:var(--ink);padding:36px 28px 28px;text-align:center;margin:0;border-bottom:1px solid var(--line)}
-.brand-logo{width:auto;height:88px;max-width:200px;border-radius:0;object-fit:contain;display:block;margin:0 auto 16px;border:none;box-shadow:none}
+.brand-logo{width:auto;height:60px;max-width:280px;border-radius:0;object-fit:contain;display:block;margin:0 auto 16px;border:none;box-shadow:none}
 .top h1{font-size:26px;font-weight:800;margin-bottom:8px;color:#0b0e1a}
 .top p{font-size:15px;line-height:1.5;color:#5a5f74;opacity:1}
 .body{padding:28px}
@@ -6230,7 +6238,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;co
 <body class="ea-shader-page">
 <div class="card ea-premium-card">
   <div class="top">
-    <img src="${_assetUrl('/assets/logo-activos.png')}" alt="Activos Digitales" class="brand-logo" />
+    <img src="${_assetUrl('/assets/logo-activos.png')}" alt="AGORATUM · Activos Digitales" class="brand-logo" />
     <h1>Recupera tu compra</h1>
     <p>Ingresa el codigo de acceso que recibiste al comprar para volver a tu producto.</p>
   </div>

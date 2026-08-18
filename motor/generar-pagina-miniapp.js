@@ -13,9 +13,9 @@ const DEFAULT_PALETTE = {
   bg2:          '#161232',
   ink:          '#f4f2ff',
   ink_dim:      '#a29dc4',
-  brand:        '#6d3ce0',
-  brand_bright: '#9a6bff',
-  accent:       '#ff6a3d'
+  brand:        '#1a6bff',
+  brand_bright: '#5b28e0',
+  accent:       '#8b2fd6'
 };
 
 const TEXT_KEYS = [
@@ -248,7 +248,7 @@ function buildFallbackTextos(nombre, descripcion, categoria) {
     incluye_3_titulo: 'Entrega digital segura',
     incluye_3_texto: 'Descarga o uso online protegido, sin compartir archivos por email.',
     incluye_4_titulo: 'Soporte de la plataforma',
-    incluye_4_texto: 'Infraestructura de Ecommerce Agents para una experiencia fluida.',
+    incluye_4_texto: 'Infraestructura de AGORATUM Activos Digitales para una experiencia fluida.',
     formato_titulo: 'Como recibes el producto',
     formato_desc: 'Compra, accede y usa. Todo el flujo esta automatizado para que empieces en minutos.',
     pilar_1_titulo: 'Compra instantanea',

@@ -1,18 +1,19 @@
 :root {
-  --c1: #2f86ff;
+  --c1: #1a6bff;
   --c2: #7c3aed;
-  --c3: #ff5a3c;
+  --c3: #8b2fd6;
   --c-blue: var(--c1);
+  --c-indigo: #5b28e0;
   --c-purple: var(--c2);
-  --c-orange: var(--c3);
   --c-magenta: #c02d9e;
-  --ink: #0d1117;
+  --c-orange: var(--c-magenta);
+  --ink: #0a1628;
   --ink-soft: #5f6571;
   --ink-mist: #8b919e;
   --line: #e4e7eb;
   --paper: #f5f7fb;
   --white: #ffffff;
-  --grad-bg: linear-gradient(120deg, var(--c1), var(--c2), var(--c3));
+  --grad-bg: linear-gradient(120deg, #1a6bff, #5b28e0, #8b2fd6);
   --grad-btn: var(--grad-bg);
   --font-display: 'Sora', system-ui, sans-serif;
   --font-ui: 'Inter', system-ui, -apple-system, sans-serif;
@@ -45,14 +46,24 @@ body.ea-shader-page {
 
 /* ── Header ─────────────────────────────────────────────── */
 .vt-header {
-  padding: 16px 20px;
-  position: relative;
-  z-index: 10;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  padding: 12px 20px;
+  background: rgba(255, 255, 255, 0.94);
+  border-bottom: 1px solid #e8eaf0;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 4px 20px rgba(10, 22, 40, 0.06);
 }
 
 .vt-header-inner {
   max-width: 1200px;
   margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
 }
 
 .vt-brand {
@@ -61,29 +72,60 @@ body.ea-shader-page {
   gap: 12px;
   text-decoration: none;
   color: var(--ink);
-  padding: 10px 16px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(15, 18, 34, 0.08);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  box-shadow: 0 4px 20px rgba(15, 18, 34, 0.06);
+  min-width: 0;
 }
 
 .vt-brand-logo {
   width: auto;
   height: 40px;
-  max-width: 140px;
+  max-width: 260px;
   border-radius: 0;
   object-fit: contain;
   border: none;
 }
 
+.vt-brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
 .vt-brand-name {
   font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 15px;
-  letter-spacing: -0.02em;
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  line-height: 1.1;
+}
+
+.vt-brand-sub {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.vt-agentes-link {
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c1);
+  text-decoration: none;
+  text-align: right;
+  line-height: 1.35;
+}
+
+.vt-agentes-link:hover { text-decoration: underline; }
+
+.vt-agentes-short { display: none; }
+
+@media (max-width: 720px) {
+  .vt-agentes-full { display: none; }
+  .vt-agentes-short { display: inline; }
+  .vt-brand-logo { height: 36px; max-width: 220px; }
 }
 
 /* ── Main ─────────────────────────────────────────────── */
@@ -210,7 +252,7 @@ body.ea-shader-page {
   pointer-events: none;
 }
 
-.premium-hero-overlay {
+.vt-hero .premium-hero-overlay {
   position: absolute;
   inset: 0;
   z-index: 1;
@@ -230,12 +272,12 @@ body.ea-shader-page {
 .premium-hero--static {
   background-color: #05060f;
   background-image:
-    radial-gradient(ellipse 90% 70% at 12% 18%, rgba(43, 58, 245, 0.42), transparent 55%),
+    radial-gradient(ellipse 90% 70% at 12% 18%, rgba(26, 107, 255, 0.42), transparent 55%),
     radial-gradient(ellipse 70% 60% at 88% 22%, rgba(139, 47, 214, 0.38), transparent 52%),
-    radial-gradient(ellipse 80% 55% at 50% 98%, rgba(255, 106, 61, 0.3), transparent 58%);
+    radial-gradient(ellipse 80% 55% at 50% 98%, rgba(192, 45, 158, 0.28), transparent 58%);
 }
 
-.premium-hero--static .premium-hero-canvas { display: none; }
+.vt-hero.premium-hero--static .premium-hero-canvas { display: none; }
 
 .vt-hero-badge {
   display: inline-flex;
@@ -257,7 +299,7 @@ body.ea-shader-page {
   height: 7px;
   border-radius: 50%;
   background: var(--c-orange);
-  box-shadow: 0 0 10px rgba(255, 106, 61, 0.85);
+  box-shadow: 0 0 10px rgba(192, 45, 158, 0.85);
 }
 
 .vt-hero-title {
@@ -504,7 +546,7 @@ body.ea-shader-page {
 }
 
 .vt-badge--miniapp {
-  background: rgba(43, 58, 245, 0.1);
+  background: rgba(26, 107, 255, 0.1);
   color: var(--c-blue);
 }
 
@@ -514,13 +556,13 @@ body.ea-shader-page {
 }
 
 .vt-badge--contenido_digital {
-  background: rgba(255, 106, 43, 0.12);
-  color: #e85a1f;
+  background: rgba(192, 45, 158, 0.12);
+  color: #c02d9e;
 }
 
 .vt-badge--sub-pdf {
-  background: rgba(43, 58, 245, 0.1);
-  color: #2b3af5;
+  background: rgba(26, 107, 255, 0.1);
+  color: #1a6bff;
 }
 .vt-badge--sub-arte {
   background: rgba(232, 90, 31, 0.12);
@@ -642,7 +684,7 @@ body.ea-shader-page {
 @media (prefers-reduced-motion: reduce) {
   .premium-btn {
     animation: none;
-    background: linear-gradient(120deg, #2b3af5, #8b2fd6, #ff6a3d) !important;
+    background: linear-gradient(120deg, #1a6bff, #5b28e0, #8b2fd6) !important;
     background-size: 100% 100% !important;
   }
   .premium-btn::before { animation: none; display: none; }
@@ -657,10 +699,14 @@ body.ea-shader-page {
   text-shadow: 0 1px 8px rgba(15, 18, 34, 0.2);
 }
 
-.vt-footer strong {
-  font-weight: 700;
+.vt-footer a {
   color: #fff;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
+
+.vt-footer a:hover { opacity: 0.85; }
 
 .vt-footer-legal {
   margin-top: 10px;

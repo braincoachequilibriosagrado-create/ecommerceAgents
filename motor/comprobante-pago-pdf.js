@@ -5,9 +5,9 @@ const path = require('path');
 const PDFDocument = require('pdfkit');
 
 const BRAND = {
-  indigo: '#2b3af5',
+  indigo: '#1a6bff',
   violet: '#8b2fd6',
-  ink: '#0b0e1a',
+  ink: '#0a1628',
   muted: '#5a5f74',
   line: '#e8eaf0',
   soft: '#f6f7fb',
@@ -72,7 +72,7 @@ function generarComprobantePagoPdf(pago) {
         margin: 48,
         info: {
           Title: 'Comprobante ' + (pago.numero_comprobante || ''),
-          Author: 'Activos Digitales',
+          Author: 'AGORATUM · Activos Digitales',
           Subject: 'Comprobante de pago a creador'
         }
       });
@@ -94,18 +94,14 @@ function generarComprobantePagoPdf(pago) {
       let textX = left;
       if (logo) {
         try {
-          doc.image(logo, left, 14, { fit: [72, 72], align: 'center', valign: 'center' });
-          textX = left + 84;
+          doc.image(logo, left, 22, { fit: [240, 52], align: 'left', valign: 'center' });
+          textX = left + 252;
         } catch (_) { /* logo opcional */ }
       }
-      doc.fillColor('#ffffff')
-        .font('Helvetica-Bold')
-        .fontSize(18)
-        .text('Activos Digitales', textX, 28, { width: contentW - (textX - left) });
-      doc.font('Helvetica')
-        .fontSize(11)
-        .fillColor('#c9cde0')
-        .text('Comprobante de pago a creador', textX, 52, { width: contentW - (textX - left) });
+      doc.fillColor('#c9cde0')
+        .font('Helvetica')
+        .fontSize(10)
+        .text('Comprobante de pago a creador', textX, 40, { width: Math.max(80, contentW - (textX - left)) });
 
       let y = 120;
 
@@ -209,7 +205,7 @@ function generarComprobantePagoPdf(pago) {
 
       doc.fillColor(BRAND.muted).font('Helvetica').fontSize(8)
         .text(
-          'Documento generado por Activos Digitales. Los montos corresponden al reparto guardado en cada venta (snapshot). ' +
+          'Documento generado por AGORATUM · Activos Digitales. Los montos corresponden al reparto guardado en cada venta (snapshot). ' +
           'La tarifa vigente para ventas nuevas es ' + platPct + '% plataforma / ' + creadorPct + '% creador.',
           left,
           y,
