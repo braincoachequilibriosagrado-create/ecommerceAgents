@@ -88,8 +88,9 @@ function generarComprobantePagoPdf(pago) {
       const platPct = Number(pago.plataforma_pct) || 12;
       const creadorPct = Number(pago.creador_pct) || (100 - platPct);
 
-      // Header bar
-      doc.rect(0, 0, pageW, 96).fill(BRAND.ink);
+      // Header bar — blanco fijo para que el logo se vea
+      doc.rect(0, 0, pageW, 96).fill('#ffffff');
+      doc.moveTo(0, 96).lineTo(pageW, 96).strokeColor(BRAND.line).lineWidth(1).stroke();
       const logo = _logoPath();
       let textX = left;
       if (logo) {
@@ -98,7 +99,7 @@ function generarComprobantePagoPdf(pago) {
           textX = left + 252;
         } catch (_) { /* logo opcional */ }
       }
-      doc.fillColor('#c9cde0')
+      doc.fillColor(BRAND.ink)
         .font('Helvetica')
         .fontSize(10)
         .text('Comprobante de pago a creador', textX, 40, { width: Math.max(80, contentW - (textX - left)) });
