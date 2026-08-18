@@ -11,7 +11,7 @@ const CR_EMAIL_KEY = 'ea_creador_last_email';
 const CR_REMEMBER_PREF_KEY = 'ea_creador_remember';
 const CR_TABS = ['cuentas', 'catalogo', 'subir', 'info', 'contactar'];
 const CR_SOPORTE_WHATSAPP = '393246864824';
-const CR_SOPORTE_EMAIL = 'ecommerceagentadmi@gmail.com';
+const CR_SOPORTE_EMAIL = 'hola@agoratum.com';
 const CR_SOPORTE_WA_MSG = 'Hola, soy creador en MiniApps y necesito ayuda con...';
 
 var currentCreador = { id: null, nombre: '', email: '' };
