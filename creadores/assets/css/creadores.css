@@ -2218,8 +2218,8 @@ body.cr-body--landing {
 
 .lp-brand-logo {
   width: auto;
-  height: 128px;
-  max-width: 780px;
+  height: 102px;
+  max-width: 624px;
   border-radius: 0;
   object-fit: contain;
   display: block;
@@ -3041,8 +3041,8 @@ body.cr-body--landing {
   .lp-nav-links { display: none; }
   .lp-nav-actions { margin-left: auto; }
   .lp-brand-logo {
-    height: 96px;
-    max-width: 560px;
+    height: 77px;
+    max-width: 448px;
   }
   .lp-stats-grid { grid-template-columns: repeat(2, 1fr); }
   .lp-steps { grid-template-columns: repeat(2, 1fr); }
