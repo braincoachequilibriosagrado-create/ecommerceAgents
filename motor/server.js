@@ -7395,7 +7395,7 @@ app.post('/api/admin/miniapps/aprobar', async (req, res) => {
   }
 });
 
-// POST /api/admin/miniapps/generar-pagina  — Claude vision + Groq + template → paginas_venta
+// POST /api/admin/miniapps/generar-pagina  — paleta AGORATUM + Groq + template → paginas_venta
 app.post('/api/admin/miniapps/generar-pagina', async (req, res) => {
   const { miniapp_id } = req.body || {};
   if (!miniapp_id) {

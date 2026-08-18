@@ -9,13 +9,13 @@ const CLAUDE_MODEL  = 'claude-sonnet-4-6';
 const groqChat = require('./groq-chat');
 
 const DEFAULT_PALETTE = {
-  bg:           '#0d0b1f',
-  bg2:          '#161232',
-  ink:          '#f4f2ff',
-  ink_dim:      '#a29dc4',
+  bg:           '#0a1628',
+  bg2:          '#0d1f3c',
+  ink:          '#f4f6fc',
+  ink_dim:      '#8b90a4',
   brand:        '#1a6bff',
-  brand_bright: '#5b28e0',
-  accent:       '#8b2fd6'
+  brand_bright: '#4d8fff',
+  accent:       '#1a6bff'
 };
 
 const TEXT_KEYS = [
@@ -73,8 +73,8 @@ function escapeHtml(s) {
 function sanitizeHexColor(value, fallback) {
   const s = String(value || '').trim();
   if (/^#[0-9a-fA-F]{6}$/.test(s)) return s.toLowerCase();
-  const fb = String(fallback || '#0d0b1f').trim();
-  return /^#[0-9a-fA-F]{6}$/.test(fb) ? fb.toLowerCase() : '#0d0b1f';
+  const fb = String(fallback || '#0a1628').trim();
+  return /^#[0-9a-fA-F]{6}$/.test(fb) ? fb.toLowerCase() : '#0a1628';
 }
 
 function replaceAll(html, map) {
@@ -398,7 +398,7 @@ async function generarPaginaVentaMiniapp(miniapp, opts) {
     if (img2) imagenes.push(img2);
   }
 
-  const paleta = await obtenerPaletaColores(miniapp.nombre, imagenes, anthropicKey);
+  const paleta = { ...DEFAULT_PALETTE };
   const textos = await generarTextosGroq(
     miniapp.nombre,
     miniapp.descripcion || '',
@@ -432,7 +432,8 @@ async function generarPaginaVentaMiniapp(miniapp, opts) {
       FOTO1_URL:        foto1Url,
       FOTO2_URL:        foto2Url,
       CHECKOUT_URL:     '/checkout?slug=' + encodeURIComponent(paginaSlug),
-      CATEGORIA_LABEL:  categoriaLabel(categoria, subcategoria)
+      CATEGORIA_LABEL:  categoriaLabel(categoria, subcategoria),
+      LOGO_URL:         baseUrl + '/assets/logo-activos.png?v=27'
     }
   );
 

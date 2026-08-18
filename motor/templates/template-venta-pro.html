@@ -105,20 +105,12 @@
     flex-shrink: 0;
   }
 
-  .av-brand-badge {
-    width: 42px;
-    height: 42px;
-    border-radius: 50%;
-    background: var(--av-grad);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-family: var(--av-font-display);
-    font-size: 14px;
-    font-weight: 800;
-    color: #fff;
-    letter-spacing: -0.02em;
-    box-shadow: 0 8px 24px color-mix(in srgb, var(--av-brand) 40%, transparent);
+  .av-brand-logo {
+    width: auto;
+    height: 48px;
+    max-width: 280px;
+    object-fit: contain;
+    display: block;
   }
 
   .av-brand-text {
@@ -802,18 +794,12 @@
     text-align: center;
   }
 
-  .av-footer-badge {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    background: var(--av-grad);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-family: var(--av-font-display);
-    font-size: 13px;
-    font-weight: 800;
-    color: #fff;
+  .av-footer-logo {
+    height: 44px;
+    max-width: 240px;
+    width: auto;
+    object-fit: contain;
+    display: block;
     margin: 0 auto 14px;
   }
 
@@ -855,12 +841,8 @@
   <!-- 1. NAV -->
   <nav class="av-nav">
     <div class="av-nav-inner">
-      <a href="#" class="av-brand" onclick="return false;">
-        <span class="av-brand-badge">AG</span>
-        <span class="av-brand-text">
-          <span class="av-brand-name">AGORATUM</span>
-          <span class="av-brand-sub">Activos Digitales</span>
-        </span>
+      <a href="https://activosdigitales.click" class="av-brand">
+        <img src="{{LOGO_URL}}" alt="AGORATUM · Activos Digitales" class="av-brand-logo" />
       </a>
       <div class="av-nav-links">
         <a href="#problemas">Problemas</a>
@@ -1099,7 +1081,7 @@
   <!-- 9. FOOTER -->
   <footer class="av-footer">
     <div class="av-wrap">
-      <div class="av-footer-badge">AG</div>
+      <img src="{{LOGO_URL}}" alt="AGORATUM · Activos Digitales" class="av-footer-logo" />
       <p>Parte de <a href="https://agoratum.com" target="_blank" rel="noopener noreferrer" style="color:inherit;font-weight:700">AGORATUM</a> — Vende, gana y escala sin preocupaciones.</p>
       <p style="margin-top:12px;font-size:12px;opacity:.85"><a href="/terminos" style="color:inherit;text-decoration:underline">Terminos y Condiciones</a> · <a href="/privacidad" style="color:inherit;text-decoration:underline">Politica de Privacidad</a></p>
     </div>
