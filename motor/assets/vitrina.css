@@ -49,8 +49,8 @@ body.ea-shader-page {
   position: sticky;
   top: 0;
   z-index: 50;
-  padding: 0 20px;
-  height: 62px;
+  padding: 10px 24px;
+  height: auto;
   background: rgba(255, 255, 255, 0.94);
   border-bottom: 1px solid #e8eaf0;
   backdrop-filter: blur(12px);
@@ -60,7 +60,8 @@ body.ea-shader-page {
 
 .vt-header-inner {
   max-width: 1200px;
-  height: 62px;
+  height: auto;
+  min-height: 56px;
   margin: 0 auto;
   display: flex;
   align-items: center;
@@ -71,8 +72,8 @@ body.ea-shader-page {
 .vt-brand {
   display: inline-flex;
   align-items: center;
-  height: 62px;
-  overflow: hidden;
+  height: auto;
+  overflow: visible;
   gap: 12px;
   text-decoration: none;
   color: var(--ink);
@@ -82,8 +83,8 @@ body.ea-shader-page {
 
 .vt-brand-logo {
   width: auto;
-  height: 110px;
-  max-width: 650px;
+  height: 52px;
+  max-width: 360px;
   border-radius: 0;
   object-fit: contain;
   object-position: left center;
@@ -160,10 +161,10 @@ body.ea-shader-page {
 @media (max-width: 720px) {
   .vt-agentes-full { display: none; }
   .vt-agentes-short { display: inline; }
-  .vt-header,
+  .vt-header { padding: 8px 16px; }
   .vt-header-inner,
-  .vt-brand { height: 56px; }
-  .vt-brand-logo { height: 96px; max-width: 380px; }
+  .vt-brand { height: auto; }
+  .vt-brand-logo { height: 44px; max-width: 280px; }
   .vt-home-btn { height: 32px; padding: 0 10px; font-size: 12px; }
 }
 
