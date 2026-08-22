@@ -2287,6 +2287,20 @@ async function _rehashCodigoSeguridadVendedorSiLegacy(usuarioId, stored, plain) 
 // ── Creadores de mini apps ────────────────────────────────────────────────────
 
 const CREADOR_SALT_ROUNDS = 10;
+const CREADOR_PASSWORD_MIN = 10;
+
+/** Solo para contraseñas NUEVAS (registro / restablecer). El login no usa esto. */
+function _validarPasswordCreadorNueva(password) {
+  const pass = String(password || '');
+  if (pass.length < CREADOR_PASSWORD_MIN) {
+    return { ok: false, error: 'La contraseña debe tener al menos 10 caracteres.' };
+  }
+  // Complejidad razonable: al menos una letra y un número (sin exigir mayúsculas ni símbolos).
+  if (!/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/.test(pass) || !/[0-9]/.test(pass)) {
+    return { ok: false, error: 'La contraseña debe incluir al menos una letra y un numero.' };
+  }
+  return { ok: true };
+}
 
 // POST /api/creador/registro
 app.post('/api/creador/registro', authRateLimiter, async (req, res) => {
@@ -2298,8 +2312,9 @@ app.post('/api/creador/registro', authRateLimiter, async (req, res) => {
   if (!emailNorm || !pass) {
     return res.status(400).json({ ok: false, error: 'Email y contraseña son obligatorios.' });
   }
-  if (pass.length < 6) {
-    return res.status(400).json({ ok: false, error: 'La contraseña debe tener al menos 6 caracteres.' });
+  const passCheck = _validarPasswordCreadorNueva(pass);
+  if (!passCheck.ok) {
+    return res.status(400).json({ ok: false, error: passCheck.error });
   }
 
   try {
@@ -2508,8 +2523,9 @@ app.post('/api/creador/restablecer-password', authRateLimiter, async (req, res) 
   if (!token) {
     return res.status(400).json({ ok: false, error: 'El enlace no es valido o ha expirado.' });
   }
-  if (!nueva || nueva.length < 6) {
-    return res.status(400).json({ ok: false, error: 'La contraseña debe tener al menos 6 caracteres.' });
+  const passCheck = _validarPasswordCreadorNueva(nueva);
+  if (!passCheck.ok) {
+    return res.status(400).json({ ok: false, error: passCheck.error });
   }
 
   try {

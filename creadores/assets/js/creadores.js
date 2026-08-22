@@ -417,13 +417,25 @@ async function enviarRecuperarPassword() {
   }
 }
 
+function _validarPasswordCreadorNueva(password) {
+  var pass = String(password || '');
+  if (pass.length < 10) {
+    return { ok: false, error: 'La contraseña debe tener al menos 10 caracteres.' };
+  }
+  if (!/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/.test(pass) || !/[0-9]/.test(pass)) {
+    return { ok: false, error: 'La contraseña debe incluir al menos una letra y un numero.' };
+  }
+  return { ok: true };
+}
+
 async function enviarRestablecerPassword() {
   var token    = (document.getElementById('cr-reset-token').value || '').trim();
   var password = (document.getElementById('cr-reset-password').value || '');
   var confirm  = (document.getElementById('cr-reset-confirm').value || '');
   var btn      = document.getElementById('cr-restablecer-btn');
   if (!token) { _showMsg('cr-restablecer-msg', 'Enlace invalido. Solicita uno nuevo.', false); return; }
-  if (password.length < 6) { _showMsg('cr-restablecer-msg', 'La contraseña debe tener al menos 6 caracteres.', false); return; }
+  var passCheck = _validarPasswordCreadorNueva(password);
+  if (!passCheck.ok) { _showMsg('cr-restablecer-msg', passCheck.error, false); return; }
   if (password !== confirm) { _showMsg('cr-restablecer-msg', 'Las contraseñas no coinciden.', false); return; }
   if (btn) btn.disabled = true;
   _clearMsg('cr-restablecer-msg');
@@ -599,7 +611,8 @@ async function creadorRegistro() {
   var confirm  = (document.getElementById('cr-reg-confirm').value  || '');
   var btn      = document.getElementById('cr-reg-btn');
   if (!email || !password) { _showMsg('cr-reg-msg', 'Email y contraseña son obligatorios.', false); return; }
-  if (password.length < 6) { _showMsg('cr-reg-msg', 'La contraseña debe tener al menos 6 caracteres.', false); return; }
+  var passCheck = _validarPasswordCreadorNueva(password);
+  if (!passCheck.ok) { _showMsg('cr-reg-msg', passCheck.error, false); return; }
   if (password !== confirm) { _showMsg('cr-reg-msg', 'Las contraseñas no coinciden.', false); return; }
   if (btn) btn.disabled = true;
   _clearMsg('cr-reg-msg');
