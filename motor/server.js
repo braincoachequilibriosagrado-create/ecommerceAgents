@@ -2401,6 +2401,15 @@ app.post('/api/creador/login', authRateLimiter, async (req, res) => {
   }
 });
 
+// GET /api/creador/me — ping de sesion (JWT valido + creador activo)
+app.get('/api/creador/me', requireCreador, (req, res) => {
+  const c = req.creador || {};
+  res.json({
+    ok: true,
+    creador: { id: c.id, nombre: c.nombre, email: c.email }
+  });
+});
+
 const CREADOR_MSG_RECUPERAR_OK = 'Si el email esta registrado, recibiras un correo con instrucciones.';
 
 function _hashPasswordResetToken(token) {

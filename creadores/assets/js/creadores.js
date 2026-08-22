@@ -205,6 +205,35 @@ function _creadorFetch(url, opts) {
   });
 }
 
+/** B4: valida JWT contra el motor antes de mostrar el dashboard con sesion guardada. */
+async function _revalidarSesionCreador() {
+  if (!_getCreadorToken()) return false;
+  try {
+    var r = await _creadorFetch(MOTOR_URL + '/api/creador/me');
+    var d = await r.json();
+    if (!d || !d.ok || !d.creador || !d.creador.id) {
+      _limpiarSesion();
+      mostrarAuth();
+      switchAuthTab('login');
+      return false;
+    }
+    _aplicarSesionMemoria(d.creador);
+    _actualizarSesionAlmacenada({
+      id: d.creador.id,
+      nombre: d.creador.nombre,
+      email: d.creador.email
+    });
+    return true;
+  } catch (e) {
+    // 401 ya limpia sesion en _creadorFetch; otros errores → login (no dashboard con token dudoso)
+    if (!_getCreadorToken()) return false;
+    _limpiarSesion();
+    mostrarAuth();
+    switchAuthTab('login');
+    return false;
+  }
+}
+
 /** Thumbs: aprobados usan URL publica; pendientes/rechazados cargan via JWT del creador. */
 function _crThumbHtml(m) {
   var slug = m.slug || '';
@@ -1589,9 +1618,11 @@ document.addEventListener('DOMContentLoaded', function () {
   } catch (e) {}
   try {
     var stored = _leerSesionAlmacenada();
-    if (stored && stored.c && stored.c.id) {
+    if (stored && stored.c && stored.c.id && stored.token) {
       _aplicarSesionMemoria(stored.c);
-      mostrarDashboard();
+      _revalidarSesionCreador().then(function (ok) {
+        if (ok) mostrarDashboard();
+      });
       return;
     }
   } catch (e) {}

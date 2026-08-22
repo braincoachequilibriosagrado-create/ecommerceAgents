@@ -6,7 +6,8 @@ const JWT_SECRET = process.env.JWT_SECRET || '';
 
 const JWT_EXPIRES = {
   vendedor: process.env.JWT_EXPIRES_VENDEDOR || '7d',
-  creador:  process.env.JWT_EXPIRES_CREADOR  || '7d',
+  // Punto 9: TTL corto por defecto (48h). Override con JWT_EXPIRES_CREADOR (ej. 24h, 7d).
+  creador:  process.env.JWT_EXPIRES_CREADOR  || '48h',
   admin:    process.env.JWT_EXPIRES_ADMIN    || '12h'
 };
 
