@@ -404,7 +404,7 @@ function _requireCompraPruebaAuth(req, res, next) {
   }
   const envSecret = process.env.COMPRA_PRUEBA_SECRET || '';
   const headerSecret = String(req.headers['x-compra-prueba-secret'] || '').trim();
-  if (envSecret && headerSecret && headerSecret === envSecret) {
+  if (envSecret && headerSecret && _timingSafeEqualStr(headerSecret, envSecret)) {
     return next();
   }
   return requireAdmin(req, res, next);
@@ -2286,7 +2286,7 @@ async function _rehashCodigoSeguridadVendedorSiLegacy(usuarioId, stored, plain) 
 
 // ── Creadores de mini apps ────────────────────────────────────────────────────
 
-const CREADOR_SALT_ROUNDS = 10;
+const CREADOR_SALT_ROUNDS = 12; // alineado con vendedor; hashes viejos (cost 10) siguen validos en login
 const CREADOR_PASSWORD_MIN = 10;
 
 /** Solo para contraseñas NUEVAS (registro / restablecer). El login no usa esto. */
