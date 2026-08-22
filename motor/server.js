@@ -419,15 +419,19 @@ const storage = multer.diskStorage({
     cb(null, unique);
   }
 });
-const upload = multer({ storage, limits: { fileSize: 500 * 1024 * 1024 } }); // 500 MB
 
-const uploadModular        = upload.single('video');
-const uploadEditorFields   = upload.fields([{ name: 'video', maxCount: 1 }, { name: 'video2', maxCount: 1 }]);
-const uploadReaccionFields = upload.fields([{ name: 'reaccionMemeFile', maxCount: 1 }]);
-const uploadContenidoImg   = upload.single('imagen');
-const uploadAvatarFields   = upload.fields([{ name: 'fotoAvatar', maxCount: 1 }, { name: 'fotoProducto', maxCount: 1 }]);
+// Videos IA (EcommerceAgents): modular / editor / reaccion — max 200 MB por archivo
+const uploadVideoIa = multer({ storage, limits: { fileSize: 200 * 1024 * 1024 } });
+const uploadModular        = uploadVideoIa.single('video');
+const uploadEditorFields   = uploadVideoIa.fields([{ name: 'video', maxCount: 1 }, { name: 'video2', maxCount: 1 }]);
+const uploadReaccionFields = uploadVideoIa.fields([{ name: 'reaccionMemeFile', maxCount: 1 }]);
 
-// Multer en disco para subida de activos digitales (fotos, PDF, videos)
+// Imagenes IA: contenido organico / avatar — max 10 MB por archivo
+const uploadImgIa = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
+const uploadContenidoImg   = uploadImgIa.single('imagen');
+const uploadAvatarFields   = uploadImgIa.fields([{ name: 'fotoAvatar', maxCount: 1 }, { name: 'fotoProducto', maxCount: 1 }]);
+
+// Multer activos digitales (fotos, PDF, videos) — 100 MB/file; HTML en campo texto hasta 6 MB
 const uploadMiniappFields = multer({
   storage: multer.diskStorage({
     destination: TEMP_DIR,
@@ -436,7 +440,10 @@ const uploadMiniappFields = multer({
       cb(null, Date.now() + '_' + Math.random().toString(36).slice(2) + ext);
     }
   }),
-  limits: { fileSize: 100 * 1024 * 1024 }
+  limits: {
+    fileSize:  100 * 1024 * 1024,
+    fieldSize: 6 * 1024 * 1024
+  }
 }).fields([
   { name: 'pdf',    maxCount: 1 },
   { name: 'foto1',  maxCount: 1 },
@@ -660,7 +667,9 @@ function _aplicarCspPorRuta(req, res, next) {
 
 app.use(_aplicarCspPorRuta);
 
-app.use(express.json({ limit: '50mb' })); // 50 MB para soportar imagenes base64
+// JSON: admin productos (base64 legacy) 12 MB; resto de APIs 2 MB
+app.use('/api/admin/productos', express.json({ limit: '12mb' }));
+app.use(express.json({ limit: '2mb' }));
 app.use('/assets', express.static(MOTOR_ASSETS_DIR, {
   setHeaders: function (res) {
     res.setHeader('Cache-Control', 'no-cache, must-revalidate');
@@ -1118,14 +1127,13 @@ app.post('/api/monetizacion/desarrollar', requireUsuario, iaRateMotor, async (re
 app.post('/api/monetizacion/modular', requireUsuario, iaRateFfmpeg, function (req, res, next) {
   uploadModular(req, res, function (err) {
     if (err) {
-      if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ error: 'El video es demasiado grande. Maximo 500 MB.' });
+      if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ error: 'El video es demasiado grande. Maximo 200 MB.' });
       return res.status(400).json({ error: 'Error al subir el archivo.' });
     }
     next();
   });
 }, async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Se requiere un archivo de video (campo "video").' });
-
   const _costo = COSTO_MOTOR_IA['modular'];
   let _credRest = null;
   try {
@@ -1307,7 +1315,10 @@ app.post('/api/monetizacion/modular', requireUsuario, iaRateFfmpeg, function (re
 // OBJETIVO 1: limpiarArchivos() en finally con lista pre-registrada.
 app.post('/api/editor/procesar-video', requireUsuario, iaRateFfmpeg, function (req, res, next) {
   uploadEditorFields(req, res, function (err) {
-    if (err) return res.status(400).json({ ok: false, error: 'Error al subir archivo.' });
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ ok: false, error: 'El video es demasiado grande. Maximo 200 MB.' });
+      return res.status(400).json({ ok: false, error: 'Error al subir archivo.' });
+    }
     next();
   });
 }, async (req, res) => {
@@ -1509,7 +1520,10 @@ app.post('/api/editor/procesar-video', requireUsuario, iaRateFfmpeg, function (r
 // OBJETIVO 1: limpiarArchivos() garantizado en finally.
 app.post('/api/editor/procesar-reaccion', requireUsuario, iaRateFfmpeg, function (req, res, next) {
   uploadReaccionFields(req, res, function (err) {
-    if (err) return res.status(400).json({ ok: false, error: 'Error al subir archivo.' });
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ ok: false, error: 'El archivo es demasiado grande. Maximo 200 MB.' });
+      return res.status(400).json({ ok: false, error: 'Error al subir archivo.' });
+    }
     next();
   });
 }, async (req, res) => {
@@ -1752,7 +1766,10 @@ async function buscarProductoInternet(producto, anthropicKey) {
 // ── Endpoint: POST /api/contenido/organico ────────────────────────────────────
 app.post('/api/contenido/organico', requireUsuario, iaRateMotor, function (req, res, next) {
   uploadContenidoImg(req, res, function (err) {
-    if (err) return res.status(400).json({ ok: false, error: 'Error al subir imagen.' });
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ ok: false, error: 'La imagen es demasiado grande. Maximo 10 MB.' });
+      return res.status(400).json({ ok: false, error: 'Error al subir imagen.' });
+    }
     next();
   });
 }, async (req, res) => {
@@ -1850,7 +1867,10 @@ app.post('/api/contenido/organico', requireUsuario, iaRateMotor, function (req, 
 // ── Endpoint: POST /api/contenido/anuncio ─────────────────────────────────────
 app.post('/api/contenido/anuncio', requireUsuario, iaRateMotor, function (req, res, next) {
   uploadContenidoImg(req, res, function (err) {
-    if (err) return res.status(400).json({ ok: false, error: 'Error al subir imagen.' });
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ ok: false, error: 'La imagen es demasiado grande. Maximo 10 MB.' });
+      return res.status(400).json({ ok: false, error: 'Error al subir imagen.' });
+    }
     next();
   });
 }, async (req, res) => {
@@ -1980,7 +2000,10 @@ async function analizarImagenAvatar(imagePath, anthropicKey) {
 // ── Endpoint: POST /api/contenido/avatar ──────────────────────────────────────
 app.post('/api/contenido/avatar', requireUsuario, iaRateMotor, function (req, res, next) {
   uploadAvatarFields(req, res, function (err) {
-    if (err) return res.status(400).json({ ok: false, error: 'Error al subir imagen.' });
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ ok: false, error: 'La imagen es demasiado grande. Maximo 10 MB.' });
+      return res.status(400).json({ ok: false, error: 'Error al subir imagen.' });
+    }
     next();
   });
 }, async (req, res) => {
@@ -2996,7 +3019,20 @@ function _buildVideosEntregaHtml(videos, codigo, descargasRestantesMap) {
 }
 
 // POST /api/creador/miniapps/subir  (multipart/form-data)
-app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, async (req, res) => {
+app.post('/api/creador/miniapps/subir', requireCreador, function (req, res, next) {
+  uploadMiniappFields(req, res, function (err) {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ ok: false, error: 'Archivo demasiado grande. Maximo 100 MB por archivo.' });
+      }
+      if (err.code === 'LIMIT_FIELD_SIZE') {
+        return res.status(400).json({ ok: false, error: 'El HTML supera el limite permitido (maximo 5 MB).' });
+      }
+      return res.status(400).json({ ok: false, error: 'Error al subir archivos.' });
+    }
+    next();
+  });
+}, async (req, res) => {
   const body            = req.body || {};
   const categoria       = String(body.categoria || 'miniapp').trim().toLowerCase();
   let htmlContent       = String(body.html || '').trim();
