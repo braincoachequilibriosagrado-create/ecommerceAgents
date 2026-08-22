@@ -3268,7 +3268,9 @@ app.post('/api/creador/miniapps/subir', requireCreador, uploadMiniappFields, asy
   }
 });
 
-// GET /api/miniapps/asset/:slug/:file  — SOLO fotos de venta (publicas). Productos (html/pdf/video) nunca aqui.
+// GET /api/miniapps/asset/:slug/:file  — fotos de venta SOLO si el producto esta aprobado.
+// Pendientes/rechazados: usar rutas autenticadas admin o creador (dueno).
+// Productos (html/pdf/video) NUNCA se sirven aqui.
 app.get('/api/miniapps/asset/:slug/:file', async (req, res) => {
   const slug = String(req.params.slug || '').trim();
   const file = String(req.params.file || '').trim();
@@ -3280,15 +3282,18 @@ app.get('/api/miniapps/asset/:slug/:file', async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('miniapps')
-      .select('foto1_key, foto2_key, estado')
+      .select('foto1_key, foto2_key, estado, estado_aprobacion')
       .eq('slug', slug)
       .maybeSingle();
     if (error) throw error;
     if (!data || data.estado === 'eliminado') {
       return res.status(404).json({ ok: false, error: 'No encontrado.' });
     }
-    // Fotos publicas solo si el producto sigue en catalogo (activo o pausado)
+    // Catalogo publico: activo o pausado, y SOLO aprobados
     if (data.estado !== 'activo' && data.estado !== 'pausado') {
+      return res.status(404).json({ ok: false, error: 'No encontrado.' });
+    }
+    if (String(data.estado_aprobacion || '').toLowerCase() !== 'aprobada') {
       return res.status(404).json({ ok: false, error: 'No encontrado.' });
     }
 
@@ -3301,6 +3306,35 @@ app.get('/api/miniapps/asset/:slug/:file', async (req, res) => {
     res.send(buf);
   } catch (e) {
     console.error('[miniapps/asset]', e.message);
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
+  }
+});
+
+// GET /api/creador/miniapps/:slug/asset/:file — fotos del dueno (pendiente/aprobada/rechazada)
+app.get('/api/creador/miniapps/:slug/asset/:file', requireCreador, async (req, res) => {
+  const slug = String(req.params.slug || '').trim();
+  const file = String(req.params.file || '').trim();
+  if (!slug || !['foto1', 'foto2'].includes(file)) {
+    return res.status(404).json({ ok: false, error: 'No encontrado.' });
+  }
+  try {
+    const { data, error } = await supabase
+      .from('miniapps')
+      .select('foto1_key, foto2_key, estado, creador_id')
+      .eq('slug', slug)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data || data.estado === 'eliminado' || String(data.creador_id) !== String(req.creador_id)) {
+      return res.status(404).json({ ok: false, error: 'No encontrado.' });
+    }
+    const key = file === 'foto1' ? data.foto1_key : data.foto2_key;
+    if (!key) return res.status(404).json({ ok: false, error: 'Archivo no disponible.' });
+    const buf = await obtenerArchivoBuffer(key);
+    res.setHeader('Content-Type', _mimeFromKey(key));
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.send(buf);
+  } catch (e) {
+    console.error('[creador/miniapps/asset]', e.message);
     res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });
@@ -7367,6 +7401,35 @@ app.get('/api/admin/miniapps/comisiones-vendedores', async (req, res) => {
     });
   } catch (e) {
     console.error('[admin/miniapps/comisiones-vendedores]', e.message);
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
+  }
+});
+
+// GET /api/admin/miniapps/:slug/asset/:file  — fotos para revision (cualquier estado no eliminado)
+app.get('/api/admin/miniapps/:slug/asset/:file', async (req, res) => {
+  const slug = String(req.params.slug || '').trim();
+  const file = String(req.params.file || '').trim();
+  if (!slug || !['foto1', 'foto2'].includes(file)) {
+    return res.status(404).json({ ok: false, error: 'No encontrado.' });
+  }
+  try {
+    const { data, error } = await supabase
+      .from('miniapps')
+      .select('foto1_key, foto2_key, estado')
+      .eq('slug', slug)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data || data.estado === 'eliminado') {
+      return res.status(404).json({ ok: false, error: 'No encontrado.' });
+    }
+    const key = file === 'foto1' ? data.foto1_key : data.foto2_key;
+    if (!key) return res.status(404).json({ ok: false, error: 'Archivo no disponible.' });
+    const buf = await obtenerArchivoBuffer(key);
+    res.setHeader('Content-Type', _mimeFromKey(key));
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.send(buf);
+  } catch (e) {
+    console.error('[admin/miniapps/asset]', e.message);
     res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
   }
 });

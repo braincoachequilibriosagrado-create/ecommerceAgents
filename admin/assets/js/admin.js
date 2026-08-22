@@ -2416,7 +2416,15 @@ function _maSeguridadHtml(m) {
 }
 
 function _maCardHtml(m, modo) {
-  var imgUrl = MOTOR_URL + '/api/miniapps/asset/' + encodeURIComponent(m.slug) + '/foto1';
+  var publicUrl = MOTOR_URL + '/api/miniapps/asset/' + encodeURIComponent(m.slug) + '/foto1';
+  var needAuthThumb = modo === 'pendiente';
+  var thumbImgs = needAuthThumb
+    ? '<img class="thumb-blur" data-ma-admin-asset="' + _esc(m.slug) + '" data-ma-file="foto1" alt="" aria-hidden="true" />' +
+      '<span class="thumb-overlay" aria-hidden="true"></span>' +
+      '<img class="thumb-front" data-ma-admin-asset="' + _esc(m.slug) + '" data-ma-file="foto1" alt="" loading="lazy" onerror="this.parentElement.classList.add(\'ma-card-thumb--err\')" />'
+    : '<img class="thumb-blur" src="' + publicUrl + '" alt="" aria-hidden="true" />' +
+      '<span class="thumb-overlay" aria-hidden="true"></span>' +
+      '<img class="thumb-front" src="' + publicUrl + '" alt="" loading="lazy" onerror="this.parentElement.classList.add(\'ma-card-thumb--err\')" />';
   var tipo = _maTipoLabel(m);
   var estPub = String(m.estado || 'activo').toLowerCase();
   var pausado = estPub === 'pausado';
@@ -2481,9 +2489,7 @@ function _maCardHtml(m, modo) {
       badge +
       _maSeguridadHtml(m) +
       '<div class="ma-card-thumb">' +
-        '<img class="thumb-blur" src="' + imgUrl + '" alt="" aria-hidden="true" />' +
-        '<span class="thumb-overlay" aria-hidden="true"></span>' +
-        '<img class="thumb-front" src="' + imgUrl + '" alt="" loading="lazy" onerror="this.parentElement.classList.add(\'ma-card-thumb--err\')" />' +
+        thumbImgs +
       '</div>' +
       '<div class="ma-card-body">' +
         '<h4 class="ma-card-title">' + _esc(m.nombre) + '</h4>' +
@@ -2497,6 +2503,40 @@ function _maCardHtml(m, modo) {
       '</div>' +
     '</article>'
   );
+}
+
+function _maHydrateAdminAssets(root) {
+  if (!root) return;
+  var nodes = root.querySelectorAll('[data-ma-admin-asset]');
+  if (!nodes.length) return;
+  var byKey = {};
+  Array.prototype.forEach.call(nodes, function (el) {
+    var slug = el.getAttribute('data-ma-admin-asset');
+    var file = el.getAttribute('data-ma-file') || 'foto1';
+    if (!slug) return;
+    var key = slug + '|' + file;
+    if (!byKey[key]) byKey[key] = [];
+    byKey[key].push(el);
+  });
+  Object.keys(byKey).forEach(function (key) {
+    var parts = key.split('|');
+    var slug = parts[0];
+    var file = parts[1];
+    _adminFetch(MOTOR_URL + '/api/admin/miniapps/' + encodeURIComponent(slug) + '/asset/' + encodeURIComponent(file))
+      .then(function (r) {
+        if (!r.ok) throw new Error('img');
+        return r.blob();
+      })
+      .then(function (blob) {
+        var url = URL.createObjectURL(blob);
+        byKey[key].forEach(function (el) { el.src = url; });
+      })
+      .catch(function () {
+        byKey[key].forEach(function (el) {
+          if (el.parentElement) el.parentElement.classList.add('ma-card-thumb--err');
+        });
+      });
+  });
 }
 
 function renderMaCards() {
@@ -2516,6 +2556,7 @@ function renderMaCards() {
     elP.innerHTML = pendientes.length
       ? pendientes.map(function (m) { return _maCardHtml(m, 'pendiente'); }).join('')
       : '<p class="adm-empty-text">No hay ' + label + ' pendientes de aprobacion.</p>';
+    _maHydrateAdminAssets(elP);
   }
   if (elA) {
     elA.innerHTML = aprobadas.length
@@ -2671,15 +2712,28 @@ function maVerHtml(slug) {
 }
 
 function maVerFotos(slug, tieneFoto2) {
-  var url1 = MOTOR_URL + '/api/miniapps/asset/' + encodeURIComponent(slug) + '/foto1';
-  var html = '<div class="ma-fotos-modal">' +
-    '<div class="ma-foto-block"><p class="ma-foto-label">Foto 1</p><img src="' + url1 + '" alt="Foto 1" class="ma-foto-lg" /></div>';
-  if (tieneFoto2) {
-    var url2 = MOTOR_URL + '/api/miniapps/asset/' + encodeURIComponent(slug) + '/foto2';
-    html += '<div class="ma-foto-block"><p class="ma-foto-label">Foto 2</p><img src="' + url2 + '" alt="Foto 2" class="ma-foto-lg" /></div>';
-  }
-  html += '</div>';
-  admAbrirModal('Fotos — ' + slug, html);
+  var files = ['foto1'];
+  if (tieneFoto2) files.push('foto2');
+  Promise.all(files.map(function (f) {
+    return _adminFetch(MOTOR_URL + '/api/admin/miniapps/' + encodeURIComponent(slug) + '/asset/' + encodeURIComponent(f))
+      .then(function (r) {
+        if (!r.ok) throw new Error('No se pudo cargar ' + f + '.');
+        return r.blob();
+      })
+      .then(function (blob) { return URL.createObjectURL(blob); });
+  }))
+    .then(function (urls) {
+      var html = '<div class="ma-fotos-modal">' +
+        '<div class="ma-foto-block"><p class="ma-foto-label">Foto 1</p><img src="' + urls[0] + '" alt="Foto 1" class="ma-foto-lg" /></div>';
+      if (urls[1]) {
+        html += '<div class="ma-foto-block"><p class="ma-foto-label">Foto 2</p><img src="' + urls[1] + '" alt="Foto 2" class="ma-foto-lg" /></div>';
+      }
+      html += '</div>';
+      admAbrirModal('Fotos — ' + slug, html);
+    })
+    .catch(function (e) {
+      alert(e.message || 'Error al cargar fotos.');
+    });
 }
 
 function maAprobar(id) {

@@ -205,6 +205,56 @@ function _creadorFetch(url, opts) {
   });
 }
 
+/** Thumbs: aprobados usan URL publica; pendientes/rechazados cargan via JWT del creador. */
+function _crThumbHtml(m) {
+  var slug = m.slug || '';
+  var estado = String(m.estado_aprobacion || 'pendiente').toLowerCase();
+  var alt = _esc(m.nombre || '');
+  if (estado === 'aprobada') {
+    var imgUrl = MOTOR_URL + '/api/miniapps/asset/' + encodeURIComponent(slug) + '/foto1';
+    return '<img class="thumb-blur" src="' + imgUrl + '" alt="" aria-hidden="true" />' +
+      '<span class="thumb-overlay" aria-hidden="true"></span>' +
+      '<img class="thumb-front" src="' + imgUrl + '" alt="' + alt + '" loading="lazy" onerror="this.parentElement.classList.add(\'cr-product-thumb--empty\')" />';
+  }
+  return '<img class="thumb-blur" data-cr-owner-asset="' + _esc(slug) + '" data-cr-file="foto1" alt="" aria-hidden="true" />' +
+    '<span class="thumb-overlay" aria-hidden="true"></span>' +
+    '<img class="thumb-front" data-cr-owner-asset="' + _esc(slug) + '" data-cr-file="foto1" alt="' + alt + '" loading="lazy" onerror="this.parentElement.classList.add(\'cr-product-thumb--empty\')" />';
+}
+
+function _crHydrateOwnerAssets(root) {
+  if (!root) return;
+  var nodes = root.querySelectorAll('[data-cr-owner-asset]');
+  if (!nodes.length) return;
+  var byKey = {};
+  Array.prototype.forEach.call(nodes, function (el) {
+    var slug = el.getAttribute('data-cr-owner-asset');
+    var file = el.getAttribute('data-cr-file') || 'foto1';
+    if (!slug) return;
+    var key = slug + '|' + file;
+    if (!byKey[key]) byKey[key] = [];
+    byKey[key].push(el);
+  });
+  Object.keys(byKey).forEach(function (key) {
+    var parts = key.split('|');
+    var slug = parts[0];
+    var file = parts[1];
+    _creadorFetch(MOTOR_URL + '/api/creador/miniapps/' + encodeURIComponent(slug) + '/asset/' + encodeURIComponent(file))
+      .then(function (r) {
+        if (!r.ok) throw new Error('img');
+        return r.blob();
+      })
+      .then(function (blob) {
+        var url = URL.createObjectURL(blob);
+        byKey[key].forEach(function (el) { el.src = url; });
+      })
+      .catch(function () {
+        byKey[key].forEach(function (el) {
+          if (el.parentElement) el.parentElement.classList.add('cr-product-thumb--empty');
+        });
+      });
+  });
+}
+
 function _fmtUsd(n) {
   return '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -1103,7 +1153,6 @@ async function cargarMiniappsLista() {
     }
 
     wrap.innerHTML = list.map(function (m) {
-      var imgUrl = MOTOR_URL + '/api/miniapps/asset/' + encodeURIComponent(m.slug) + '/foto1';
       var cat = m.categoria || 'miniapp';
       var catLabels = { infoproducto: 'Infoproducto', contenido_digital: 'Contenido Digital', miniapp: 'Mini App' };
       var catLabel = catLabels[cat] || 'Mini App';
@@ -1138,9 +1187,7 @@ async function cargarMiniappsLista() {
       return (
         '<article class="cr-product-card" id="cr-ma-item-' + m.id + '">' +
           '<div class="cr-product-thumb">' +
-            '<img class="thumb-blur" src="' + imgUrl + '" alt="" aria-hidden="true" />' +
-            '<span class="thumb-overlay" aria-hidden="true"></span>' +
-            '<img class="thumb-front" src="' + imgUrl + '" alt="' + _esc(m.nombre) + '" loading="lazy" onerror="this.parentElement.classList.add(\'cr-product-thumb--empty\')" />' +
+            _crThumbHtml(m) +
           '</div>' +
           '<div class="cr-product-body">' +
             '<h4 class="cr-product-name">' + _esc(m.nombre) + '</h4>' +
@@ -1156,6 +1203,7 @@ async function cargarMiniappsLista() {
         '</article>'
       );
     }).join('');
+    _crHydrateOwnerAssets(wrap);
   } catch (e) {
     wrap.innerHTML = '<p class="cr-empty cr-empty--err">' + _esc(e.message) + '</p>';
   }
@@ -1327,7 +1375,6 @@ async function cargarCatalogoCreador() {
     }
 
     wrap.innerHTML = list.map(function (m) {
-      var imgUrl = MOTOR_URL + '/api/miniapps/asset/' + encodeURIComponent(m.slug) + '/foto1';
       var cat = m.categoria || 'miniapp';
       var estado = (m.estado_aprobacion || 'pendiente').toLowerCase();
       var paginaHtml = '';
@@ -1350,9 +1397,7 @@ async function cargarCatalogoCreador() {
       return (
         '<article class="cr-product-card cr-catalogo-card">' +
           '<div class="cr-product-thumb">' +
-            '<img class="thumb-blur" src="' + imgUrl + '" alt="" aria-hidden="true" />' +
-            '<span class="thumb-overlay" aria-hidden="true"></span>' +
-            '<img class="thumb-front" src="' + imgUrl + '" alt="' + _esc(m.nombre) + '" loading="lazy" onerror="this.parentElement.classList.add(\'cr-product-thumb--empty\')" />' +
+            _crThumbHtml(m) +
           '</div>' +
           '<div class="cr-product-body">' +
             '<h4 class="cr-product-name">' + _esc(m.nombre) + '</h4>' +
@@ -1370,6 +1415,7 @@ async function cargarCatalogoCreador() {
         '</article>'
       );
     }).join('');
+    _crHydrateOwnerAssets(wrap);
   } catch (e) {
     wrap.innerHTML = '<p class="cr-empty cr-empty--err">' + _esc(e.message) + '</p>';
   }
