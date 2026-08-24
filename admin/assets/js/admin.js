@@ -4,12 +4,43 @@
    ============================================================ */
 
 /* ============================================================
-   AUTH — login / logout del panel admin
+   AUTH — login / logout del panel admin (+ 2FA TOTP)
    ============================================================ */
 var _ADMIN_TOKEN_STORAGE = 'ea_admin_jwt';
+var _admin2faChallenge = '';
 
 function _getAdminToken() {
   return sessionStorage.getItem(_ADMIN_TOKEN_STORAGE) || '';
+}
+
+function _adminMotorLoginUrl() {
+  return (window.MOTOR_URL_LOGIN || 'https://api.activosdigitales.click');
+}
+
+function _adminShowLoginError(msg) {
+  var errEl = document.getElementById('adm-login-error');
+  if (!errEl) return;
+  if (msg) {
+    errEl.textContent = msg;
+    errEl.style.display = 'block';
+  } else {
+    errEl.textContent = '';
+    errEl.style.display = 'none';
+  }
+}
+
+function _adminShowLoginStep(step) {
+  var stepPw = document.getElementById('adm-login-step-password');
+  var step2fa = document.getElementById('adm-login-step-2fa');
+  if (stepPw) stepPw.style.display = step === '2fa' ? 'none' : 'block';
+  if (step2fa) step2fa.style.display = step === '2fa' ? 'block' : 'none';
+  if (step === '2fa') {
+    var totpEl = document.getElementById('adm-login-totp');
+    if (totpEl) { totpEl.value = ''; totpEl.focus(); }
+  } else {
+    var pwEl = document.getElementById('adm-login-password');
+    if (pwEl) pwEl.focus();
+  }
 }
 
 function _adminShowLogin() {
@@ -17,8 +48,13 @@ function _adminShowLogin() {
   var contentEl = document.getElementById('adm-main-content');
   if (loginEl)   loginEl.style.display   = 'flex';
   if (contentEl) contentEl.style.display = 'none';
+  _admin2faChallenge = '';
+  _adminShowLoginError('');
+  _adminShowLoginStep('password');
   var pwEl = document.getElementById('adm-login-password');
   if (pwEl) { pwEl.value = ''; pwEl.focus(); }
+  var totpEl = document.getElementById('adm-login-totp');
+  if (totpEl) totpEl.value = '';
 }
 
 function _adminShowPanel() {
@@ -28,34 +64,86 @@ function _adminShowPanel() {
   if (contentEl) contentEl.style.display = 'block';
 }
 
+function _adminCompleteLogin(token) {
+  sessionStorage.setItem(_ADMIN_TOKEN_STORAGE, token);
+  _admin2faChallenge = '';
+  _adminShowPanel();
+  switchAdminTab('miniapp');
+}
+
+function adminLoginBackToPassword() {
+  _admin2faChallenge = '';
+  _adminShowLoginError('');
+  _adminShowLoginStep('password');
+}
+
 function adminLogin() {
   var pwEl  = document.getElementById('adm-login-password');
   var btnEl = document.getElementById('adm-login-btn');
-  var errEl = document.getElementById('adm-login-error');
   if (!pwEl) return;
   var pw = pwEl.value.trim();
   if (!pw) return;
 
-  if (errEl) errEl.style.display = 'none';
+  _adminShowLoginError('');
   if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Verificando...'; }
 
-  fetch((window.MOTOR_URL_LOGIN || 'https://api.activosdigitales.click') + '/api/admin/login', {
+  fetch(_adminMotorLoginUrl() + '/api/admin/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ password: pw })
   })
     .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
     .then(function (res) {
-      if (!res.data.ok || !res.data.token) throw new Error(res.data.error || 'Credenciales incorrectas');
-      sessionStorage.setItem(_ADMIN_TOKEN_STORAGE, res.data.token);
-      _adminShowPanel();
-      switchAdminTab('miniapp');
+      if (!res.data.ok) throw new Error(res.data.error || 'Credenciales incorrectas');
+      if (res.data.requiere_2fa && res.data.challenge_token) {
+        _admin2faChallenge = res.data.challenge_token;
+        _adminShowLoginStep('2fa');
+        return;
+      }
+      if (!res.data.token) throw new Error(res.data.error || 'Credenciales incorrectas');
+      _adminCompleteLogin(res.data.token);
     })
     .catch(function (e) {
-      if (errEl) { errEl.textContent = e.message || 'Error al conectar'; errEl.style.display = 'block'; }
+      _adminShowLoginError(e.message || 'Error al conectar');
     })
     .finally(function () {
-      if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Entrar al panel'; }
+      if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Continuar'; }
+    });
+}
+
+function adminLogin2fa() {
+  var totpEl = document.getElementById('adm-login-totp');
+  var btnEl  = document.getElementById('adm-login-2fa-btn');
+  if (!totpEl) return;
+  var codigo = String(totpEl.value || '').replace(/\s+/g, '');
+  if (!/^\d{6}$/.test(codigo)) {
+    _adminShowLoginError('Ingresa el codigo de 6 digitos.');
+    return;
+  }
+  if (!_admin2faChallenge) {
+    _adminShowLoginError('Sesion de verificacion expirada. Vuelve a iniciar sesion.');
+    _adminShowLoginStep('password');
+    return;
+  }
+
+  _adminShowLoginError('');
+  if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Verificando...'; }
+
+  fetch(_adminMotorLoginUrl() + '/api/admin/login/2fa', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ challenge_token: _admin2faChallenge, codigo: codigo })
+  })
+    .then(function (r) { return r.json().then(function (d) { return { status: r.status, data: d }; }); })
+    .then(function (res) {
+      if (!res.data.ok || !res.data.token) throw new Error(res.data.error || 'Codigo incorrecto');
+      _adminCompleteLogin(res.data.token);
+    })
+    .catch(function (e) {
+      _adminShowLoginError(e.message || 'Error al verificar');
+    })
+    .finally(function () {
+      if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Verificar'; }
     });
 }
 

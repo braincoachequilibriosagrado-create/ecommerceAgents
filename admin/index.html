@@ -18,11 +18,29 @@
       <img src="assets/img/logo-activos.png?v=10" alt="AGORATUM · Activos Digitales" class="adm-login-logo" />
       <div class="adm-login-tag">Panel de Administrador</div>
       <div id="adm-login-error" class="adm-login-error" style="display:none;"></div>
-      <input type="password" id="adm-login-password" class="adm-login-input" placeholder="Contraseña de administrador"
-        onkeydown="if(event.key==='Enter')adminLogin()" />
-      <button onclick="adminLogin()" id="adm-login-btn" class="adm-login-btn premium-btn" type="button">
-        Entrar al panel
-      </button>
+
+      <div id="adm-login-step-password">
+        <input type="password" id="adm-login-password" class="adm-login-input" placeholder="Contraseña de administrador"
+          autocomplete="current-password"
+          onkeydown="if(event.key==='Enter')adminLogin()" />
+        <button onclick="adminLogin()" id="adm-login-btn" class="adm-login-btn premium-btn" type="button">
+          Continuar
+        </button>
+      </div>
+
+      <div id="adm-login-step-2fa" style="display:none;">
+        <p class="adm-login-tag" style="margin-bottom:12px;">Codigo de autenticacion (Google Authenticator)</p>
+        <input type="text" id="adm-login-totp" class="adm-login-input" placeholder="Codigo de 6 digitos"
+          inputmode="numeric" autocomplete="one-time-code" maxlength="8"
+          onkeydown="if(event.key==='Enter')adminLogin2fa()" />
+        <button onclick="adminLogin2fa()" id="adm-login-2fa-btn" class="adm-login-btn premium-btn" type="button">
+          Verificar
+        </button>
+        <button type="button" class="adm-login-btn" id="adm-login-2fa-back" onclick="adminLoginBackToPassword()"
+          style="margin-top:10px;background:transparent;border:1px solid rgba(255,255,255,.25);">
+          Volver
+        </button>
+      </div>
     </div>
   </div>
 
@@ -595,7 +613,7 @@
   </div><!-- /adm-main-content -->
 
   <script src="assets/js/premium-hero.js?v=6"></script>
-  <script src="assets/js/admin.js?v=34"></script>
+  <script src="assets/js/admin.js?v=35"></script>
   <script>
     (function () {
       function bootShader() {

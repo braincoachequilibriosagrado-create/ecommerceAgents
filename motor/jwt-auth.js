@@ -40,6 +40,22 @@ function signAdminToken() {
   return signToken({ sub: 'admin', role: ROLES.ADMIN }, JWT_EXPIRES.admin);
 }
 
+/** JWT corto post-password; NO tiene role admin (no sirve como sesion). */
+function signAdmin2faChallenge() {
+  return signToken({ sub: 'admin', purpose: 'admin_2fa' }, '3m');
+}
+
+function verifyAdmin2faChallenge(token) {
+  try {
+    const decoded = verifyToken(String(token || ''));
+    if (!decoded || decoded.purpose !== 'admin_2fa' || decoded.sub !== 'admin') return null;
+    if (decoded.role) return null; // rechazar si alguien firma role por error
+    return decoded;
+  } catch (_) {
+    return null;
+  }
+}
+
 function verifyToken(token) {
   assertJwtConfigured();
   return jwt.verify(token, JWT_SECRET);
@@ -69,6 +85,8 @@ module.exports = {
   signVendedorToken,
   signCreadorToken,
   signAdminToken,
+  signAdmin2faChallenge,
+  verifyAdmin2faChallenge,
   verifyToken,
   extractBearer,
   decodeAuth,

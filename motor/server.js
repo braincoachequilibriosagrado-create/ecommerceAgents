@@ -302,9 +302,34 @@ function _forbidUnlessSelf(req, res, targetId) {
 
 const ADMIN_PASSWORD      = process.env.ADMIN_PASSWORD || ''; // legacy: ignorado en login; borrar del .env
 const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH || '';
+const ADMIN_TOTP_SECRET   = String(process.env.ADMIN_TOTP_SECRET || '').trim();
 const LOGIN_MSG_INVALIDO  = 'Credenciales invalidas. Verifica tus datos o contacta al administrador si el problema continua.';
 
 let _bcryptDummyHashPromise = bcrypt.hash('__dummy_timing_pad__', 12);
+let _otplibVerifySync = null;
+
+function _getOtplibVerifySync() {
+  if (!_otplibVerifySync) {
+    _otplibVerifySync = require('otplib').verifySync;
+  }
+  return _otplibVerifySync;
+}
+
+function _verificarAdminTotp(codigo) {
+  if (!ADMIN_TOTP_SECRET) return false;
+  const token = String(codigo || '').replace(/\s+/g, '');
+  if (!/^\d{6}$/.test(token)) return false;
+  try {
+    const result = _getOtplibVerifySync()({
+      token: token,
+      secret: ADMIN_TOTP_SECRET,
+      epochTolerance: 30 // ±1 step (30s)
+    });
+    return !!(result && result.valid);
+  } catch (_) {
+    return false;
+  }
+}
 
 function _timingSafeEqualStr(a, b) {
   const ba = Buffer.from(String(a));
@@ -2188,7 +2213,7 @@ app.post('/api/ventas/probar-telegram', requireAdmin, async (req, res) => {
 
 // POST /api/login
 // Valida codigo + codigoSeguridad contra Supabase tabla `usuarios`.
-// POST /api/admin/login — verifica la contraseña de admin y devuelve JWT
+// POST /api/admin/login — password; si hay TOTP → challenge; si no → JWT final
 app.post('/api/admin/login', authRateLimiter, async (req, res) => {
   if (!ADMIN_PASSWORD_HASH) {
     return res.status(503).json({ ok: false, error: 'Servidor de autenticacion no configurado.' });
@@ -2199,11 +2224,40 @@ app.post('/api/admin/login', authRateLimiter, async (req, res) => {
     return res.status(401).json({ ok: false, error: LOGIN_MSG_INVALIDO });
   }
   try {
+    if (ADMIN_TOTP_SECRET) {
+      const challenge_token = jwtAuth.signAdmin2faChallenge();
+      console.log('[admin/login] password ok — requiere 2FA');
+      return res.json({ ok: true, requiere_2fa: true, challenge_token: challenge_token });
+    }
     const token = jwtAuth.signAdminToken();
-    console.log('[admin/login] Acceso concedido (JWT)');
-    res.json({ ok: true, token });
+    console.log('[admin/login] Acceso concedido (JWT, sin 2FA)');
+    return res.json({ ok: true, token: token });
   } catch (e) {
     console.error('[admin/login]', e.message);
+    res.status(500).json({ ok: false, error: 'Error de autenticacion en el servidor.' });
+  }
+});
+
+// POST /api/admin/login/2fa — challenge + codigo TOTP → JWT admin
+app.post('/api/admin/login/2fa', authRateLimiter, async (req, res) => {
+  if (!ADMIN_TOTP_SECRET) {
+    return res.status(503).json({ ok: false, error: '2FA no configurado en el servidor.' });
+  }
+  const challenge_token = String((req.body && req.body.challenge_token) || '');
+  const codigo = (req.body && req.body.codigo) || '';
+  const challenge = jwtAuth.verifyAdmin2faChallenge(challenge_token);
+  if (!challenge) {
+    return res.status(401).json({ ok: false, error: 'Sesion de verificacion expirada. Vuelve a iniciar sesion.' });
+  }
+  if (!_verificarAdminTotp(codigo)) {
+    return res.status(401).json({ ok: false, error: LOGIN_MSG_INVALIDO });
+  }
+  try {
+    const token = jwtAuth.signAdminToken();
+    console.log('[admin/login/2fa] Acceso concedido (JWT)');
+    res.json({ ok: true, token: token });
+  } catch (e) {
+    console.error('[admin/login/2fa]', e.message);
     res.status(500).json({ ok: false, error: 'Error de autenticacion en el servidor.' });
   }
 });
@@ -7889,6 +7943,11 @@ app.listen(PORT, () => {
   }
   if (ADMIN_PASSWORD) {
     console.warn('[motor] ADVERTENCIA: ADMIN_PASSWORD (texto plano) sigue en .env — ya no se usa; borralo del VPS');
+  }
+  if (ADMIN_TOTP_SECRET) {
+    console.log('[motor] Admin 2FA TOTP activo');
+  } else {
+    console.log('[motor] Admin 2FA TOTP inactivo (define ADMIN_TOTP_SECRET para activarlo)');
   }
   console.log('[motor] ASSET_VERSION=' + ASSET_VERSION + ' (cache-buster JS/CSS/HTML)');
   console.log(`[motor] Servidor corriendo en http://localhost:${PORT}`);
