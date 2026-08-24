@@ -300,7 +300,7 @@ function _forbidUnlessSelf(req, res, targetId) {
   return true;
 }
 
-const ADMIN_PASSWORD      = process.env.ADMIN_PASSWORD || '';
+const ADMIN_PASSWORD      = process.env.ADMIN_PASSWORD || ''; // legacy: ignorado en login; borrar del .env
 const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH || '';
 const LOGIN_MSG_INVALIDO  = 'Credenciales invalidas. Verifica tus datos o contacta al administrador si el problema continua.';
 
@@ -321,17 +321,14 @@ async function _dummyBcryptCompare(plain) {
   return bcrypt.compare(String(plain || ''), hash);
 }
 
+/** Solo ADMIN_PASSWORD_HASH (bcrypt). ADMIN_PASSWORD en texto plano se ignora. */
 async function _verificarAdminPassword(password) {
   const pass = String(password || '');
-  if (!pass) return false;
-  if (ADMIN_PASSWORD_HASH) {
-    return bcrypt.compare(pass, ADMIN_PASSWORD_HASH);
+  if (!pass || !ADMIN_PASSWORD_HASH) {
+    await _dummyBcryptCompare(pass);
+    return false;
   }
-  if (ADMIN_PASSWORD) {
-    return _timingSafeEqualStr(pass, ADMIN_PASSWORD);
-  }
-  await _dummyBcryptCompare(pass);
-  return false;
+  return bcrypt.compare(pass, ADMIN_PASSWORD_HASH);
 }
 
 // Verifica y descuenta créditos de Supabase.
@@ -2193,13 +2190,13 @@ app.post('/api/ventas/probar-telegram', requireAdmin, async (req, res) => {
 // Valida codigo + codigoSeguridad contra Supabase tabla `usuarios`.
 // POST /api/admin/login — verifica la contraseña de admin y devuelve JWT
 app.post('/api/admin/login', authRateLimiter, async (req, res) => {
+  if (!ADMIN_PASSWORD_HASH) {
+    return res.status(503).json({ ok: false, error: 'Servidor de autenticacion no configurado.' });
+  }
   const { password } = req.body || {};
   const ok = await _verificarAdminPassword(password);
   if (!ok) {
     return res.status(401).json({ ok: false, error: LOGIN_MSG_INVALIDO });
-  }
-  if (!ADMIN_PASSWORD_HASH && !ADMIN_PASSWORD) {
-    return res.status(503).json({ ok: false, error: 'Servidor de autenticacion no configurado.' });
   }
   try {
     const token = jwtAuth.signAdminToken();
@@ -7884,6 +7881,14 @@ app.listen(PORT, () => {
     console.warn('[motor] ADVERTENCIA: JWT_SECRET no configurado — los logins fallaran hasta configurarlo en .env');
   } else {
     console.log('[motor] Autenticacion JWT activa');
+  }
+  if (!ADMIN_PASSWORD_HASH) {
+    console.warn('[motor] ADVERTENCIA: ADMIN_PASSWORD_HASH no configurado — el login admin devolvera 503 hasta configurarlo');
+  } else {
+    console.log('[motor] Admin auth: solo ADMIN_PASSWORD_HASH (bcrypt)');
+  }
+  if (ADMIN_PASSWORD) {
+    console.warn('[motor] ADVERTENCIA: ADMIN_PASSWORD (texto plano) sigue en .env — ya no se usa; borralo del VPS');
   }
   console.log('[motor] ASSET_VERSION=' + ASSET_VERSION + ' (cache-buster JS/CSS/HTML)');
   console.log(`[motor] Servidor corriendo en http://localhost:${PORT}`);
