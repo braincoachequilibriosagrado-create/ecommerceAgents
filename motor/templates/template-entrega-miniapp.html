@@ -177,6 +177,61 @@
   }
   .recuperar-hint a { color: var(--c2); font-weight: 600; text-decoration: none; }
   .recuperar-hint a:hover { text-decoration: underline; }
+
+  .codigo-alerta {
+    background: linear-gradient(135deg, #fff8e6 0%, #fff3d6 100%);
+    border: 2px solid #f0c040;
+    border-radius: 16px;
+    padding: 24px 22px;
+    margin-bottom: 24px;
+    text-align: center;
+  }
+  .codigo-alerta-icon {
+    width: 44px; height: 44px;
+    margin: 0 auto 12px;
+    background: rgba(240, 192, 64, 0.25);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .codigo-alerta-icon svg { width: 24px; height: 24px; }
+  .codigo-alerta h2 {
+    font-size: 20px;
+    font-weight: 800;
+    color: #7a5800;
+    margin-bottom: 10px;
+    line-height: 1.3;
+  }
+  .codigo-alerta > p {
+    font-size: 15px;
+    color: #6b5200;
+    margin-bottom: 16px;
+    line-height: 1.55;
+  }
+  .codigo-grande {
+    display: inline-block;
+    background: var(--white);
+    border: 2px dashed var(--c2);
+    border-radius: 12px;
+    padding: 14px 24px;
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: 3px;
+    color: var(--ink);
+    margin-bottom: 16px;
+    font-family: ui-monospace, Consolas, monospace;
+  }
+  .codigo-alerta-recuperar {
+    font-size: 14px;
+    color: #6b5200;
+    line-height: 1.55;
+    margin: 0;
+  }
+  .codigo-alerta-recuperar a {
+    color: var(--c2);
+    font-weight: 700;
+    text-decoration: underline;
+  }
+  .codigo-alerta-recuperar a:hover { filter: brightness(0.9); }
   .footer { text-align: center; padding: 22px; font-size: 12.5px; color: var(--mist); border-top: 1px solid var(--line); }
   .footer b { background: var(--grad); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
   .toast {
@@ -243,10 +298,20 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </div>
       <h1>¡Compra exitosa!</h1>
-      <p>Tu acceso está listo. Guarda esta página.</p>
+      <p>Tu acceso esta listo. Guarda tu codigo y enlace antes de salir.</p>
     </div>
 
     <div class="body">
+      <div class="codigo-alerta">
+        <div class="codigo-alerta-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#7a5800" stroke-width="2"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <h2>Guarda tu codigo de acceso</h2>
+        <p>Es tu <strong>unica forma</strong> de volver a tu compra si pierdes este enlace. Anotalo, copialo o haz captura de pantalla ahora.</p>
+        <div class="codigo-grande" id="codigoAcceso">{{CODIGO}}</div>
+        <p class="codigo-alerta-recuperar">Si pierdes esta pagina, entra a <a href="{{RECUPERAR_URL}}">Recuperar compra</a> e ingresa el codigo de arriba.</p>
+      </div>
+
       <div class="product-name">{{PRODUCTO_ETIQUETA}}</div>
       <div class="product-title">{{NOMBRE}}</div>
 
@@ -314,16 +379,11 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="var(--c2)" stroke-width="2"><path d="M10 13a5 5 0 007 0l3-3a5 5 0 00-7-7l-1 1M14 11a5 5 0 00-7 0l-3 3a5 5 0 007 7l1-1" stroke-linecap="round" stroke-linejoin="round"/></svg>
           Tu enlace personal
         </h3>
-        <p>Este es tu acceso privado. Guárdalo para volver a entrar cuando quieras, sin registrarte.</p>
+        <p>Este es tu acceso privado. Copialo y guardalo junto con tu codigo.</p>
         <div class="link-row">
           <input class="link-input" id="linkUnico" value="{{LINK_UNICO}}" readonly />
           <button class="btn btn-copy" onclick="copiarLink()">Copiar</button>
         </div>
-        <div class="note">
-          <svg viewBox="0 0 24 24" fill="none" stroke="#8a6d1a" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01" stroke-linecap="round"/></svg>
-          <span>Tu código de acceso es <b style="color:#8a6d1a;">{{CODIGO}}</b>. Guarda este enlace en un lugar seguro: es tu única llave para acceder.</span>
-        </div>
-        <p class="recuperar-hint">Guarda tu codigo. Puedes recuperar tu acceso en cualquier momento en <a href="{{RECUPERAR_URL}}">{{RECUPERAR_URL}}</a>.</p>
       </div>
     </div>
 

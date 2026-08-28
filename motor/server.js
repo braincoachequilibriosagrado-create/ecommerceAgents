@@ -5366,12 +5366,6 @@ app.get('/checkout-miniapp.js', (req, res) => {
 '"use strict";\n' +
 'var _slug="", _ref="", _precio=0, _stripeActivo=false;\n' +
 '\n' +
-'function _coEmailOk(v){\n' +
-'  var s=String(v||"").trim();\n' +
-'  var at=s.indexOf("@");\n' +
-'  return at>0 && s.indexOf(".", at)>at+1 && s.indexOf(" ")===-1;\n' +
-'}\n' +
-'\n' +
 'function _coFmtPrecio(){\n' +
 '  return _precio>0 ? "$"+Number(_precio).toLocaleString("en-US") : "Gratis";\n' +
 '}\n' +
@@ -5397,20 +5391,7 @@ app.get('/checkout-miniapp.js', (req, res) => {
 '}\n' +
 '\n' +
 'function _coPayload(){\n' +
-'  var emailEl=document.getElementById("co-email");\n' +
-'  var email=emailEl?String(emailEl.value||"").trim():"";\n' +
-'  var payload={slug_pagina:_slug,ref:_ref||undefined};\n' +
-'  if(email) payload.email=email;\n' +
-'  return { payload:payload, email:email, emailEl:emailEl };\n' +
-'}\n' +
-'\n' +
-'function _coValidarEmail(email, emailEl){\n' +
-'  if(email&&!_coEmailOk(email)){\n' +
-'    _coMostrarErr("Email invalido.");\n' +
-'    if(emailEl) emailEl.focus();\n' +
-'    return false;\n' +
-'  }\n' +
-'  return true;\n' +
+'  return { slug_pagina:_slug, ref:_ref||undefined };\n' +
 '}\n' +
 '\n' +
 'function _coPagarStripe(btn, payload){\n' +
@@ -5435,9 +5416,8 @@ app.get('/checkout-miniapp.js', (req, res) => {
 '  if(ev&&ev.preventDefault) ev.preventDefault();\n' +
 '  if(ev&&ev.stopPropagation) ev.stopPropagation();\n' +
 '  var btn=document.getElementById("co-btn-pagar");\n' +
-'  var pack=_coPayload();\n' +
+'  var payload=_coPayload();\n' +
 '  _coMostrarErr("");\n' +
-'  if(!_coValidarEmail(pack.email,pack.emailEl)) return false;\n' +
 '  if(!btn||btn.disabled) return false;\n' +
 '  if(!_stripeActivo){\n' +
 '    _coMostrarErr("Pagos no disponibles en este momento.");\n' +
@@ -5445,7 +5425,7 @@ app.get('/checkout-miniapp.js', (req, res) => {
 '  }\n' +
 '  btn.disabled=true;\n' +
 '  btn.textContent="Procesando...";\n' +
-'  _coPagarStripe(btn,pack.payload);\n' +
+'  _coPagarStripe(btn,payload);\n' +
 '  return false;\n' +
 '}\n' +
 'window.eaCoPagar=eaCoPagar;\n' +
@@ -5579,14 +5559,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;co
       <div class="price" id="precio">—</div>
     </div>
     <div class="co-card-body">
-      <div class="co-field">
-        <label for="co-email">Tu email (opcional — te enviamos una copia de tu acceso)</label>
-        <input type="email" id="co-email" name="email" autocomplete="email" placeholder="tu@email.com" />
-      </div>
       <p id="co-pay-err" role="alert"></p>
       <button type="button" id="co-btn-pagar">Pagar —</button>
       <p class="co-legal">Al comprar aceptas nuestros <a href="/terminos" target="_blank" rel="noopener">Terminos y Condiciones</a> y la <a href="/terminos#no-devoluciones" target="_blank" rel="noopener">Politica de No Devoluciones</a> (productos digitales de descarga inmediata). <a href="/privacidad" target="_blank" rel="noopener">Politica de Privacidad</a>.</p>
-      <p class="co-note">Al pagar accedes al instante a tu producto en pantalla. No necesitas esperar correo ni registrarte.</p>
+      <p class="co-note">Tras pagar veras tu enlace y codigo de acceso en pantalla. Guardalos: son tu unica forma de volver a tu compra.</p>
     </div>
   </div>
 </div>
