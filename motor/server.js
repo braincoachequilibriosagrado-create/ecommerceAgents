@@ -101,6 +101,14 @@ const compraRateLimiter = rateLimit({
   message: { ok: false, error: RATE_LIMIT_MSG }
 });
 
+const reclamoRateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { ok: false, error: 'Demasiados reclamos enviados. Intenta mas tarde.' }
+});
+
 // URL pública base del motor (API, checkout, páginas /p/, entrega, emails)
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || 'https://api.activosdigitales.click').replace(/\/$/, '');
 const MARKETPLACE_PUBLIC_URL = (process.env.MARKETPLACE_PUBLIC_URL || 'https://activosdigitales.click').replace(/\/$/, '');
@@ -114,6 +122,8 @@ const STRIPE_PUBLISHABLE_KEY  = process.env.STRIPE_PUBLISHABLE_KEY || '';
 const RESEND_API_KEY          = process.env.RESEND_API_KEY || '';
 const RESEND_FROM_EMAIL       = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
 const CREADORES_PANEL_URL     = (process.env.CREADORES_PANEL_URL || 'https://app.activosdigitales.click').replace(/\/$/, '');
+const DERECHOS_CONTACT_EMAIL    = process.env.DERECHOS_CONTACT_EMAIL || 'derechos@activosdigitales.click';
+const ADMIN_NOTIFY_EMAIL        = process.env.ADMIN_NOTIFY_EMAIL || 'hola@agoratum.com';
 
 let _resendClient = null;
 function _getResend() {
@@ -187,6 +197,8 @@ function _setNoCacheJson(res) {
 const ENTREGA_MINIAPP_TEMPLATE = path.join(__dirname, 'templates', 'template-entrega-miniapp.html');
 const LEGAL_TERMINOS_TEMPLATE    = path.join(__dirname, 'templates', 'template-terminos.html');
 const LEGAL_PRIVACIDAD_TEMPLATE  = path.join(__dirname, 'templates', 'template-privacidad.html');
+const LEGAL_DERECHOS_TEMPLATE    = path.join(__dirname, 'templates', 'template-derechos.html');
+const LEGAL_REPORTAR_TEMPLATE    = path.join(__dirname, 'templates', 'template-reportar-contenido.html');
 const MOTOR_ASSETS_DIR           = path.join(__dirname, 'assets');
 const DEFAULT_MINIAPP_COLORS = { color_1: '#2f86ff', color_2: '#7c3aed', color_3: '#ff5a3c' };
 // Cambia en cada deploy/restart → cache-buster para JS/CSS/HTML del motor
@@ -674,7 +686,7 @@ function _aplicarCspPorRuta(req, res, next) {
       "worker-src 'self' blob:",
       "frame-src 'self'"
     ].join('; '));
-  } else if (p === '/terminos' || p === '/privacidad') {
+  } else if (p === '/terminos' || p === '/privacidad' || p === '/derechos' || p === '/reportar-contenido') {
     res.setHeader('Content-Security-Policy', [
       "default-src 'self'",
       _CSP_SCRIPT_PREMIUM,
@@ -3126,6 +3138,12 @@ app.post('/api/creador/miniapps/subir', requireCreador, function (req, res, next
   if (!foto1) {
     return res.status(400).json({ ok: false, error: 'La foto 1 del producto es obligatoria.' });
   }
+  if (!_boolForm(body.derechos_confirmados)) {
+    return res.status(400).json({
+      ok: false,
+      error: 'Debes confirmar que tienes los derechos sobre el contenido para publicar.'
+    });
+  }
 
   try {
     if (await _creadorTieneNombreDuplicado(req.creador_id, nombreVal.nombre)) {
@@ -3292,7 +3310,9 @@ app.post('/api/creador/miniapps/subir', requireCreador, function (req, res, next
         parte_plataforma:      CREADOR_PARTE_PLATAFORMA_DEFAULT,
         estado:                'activo',
         estado_aprobacion:     'pendiente',
-        creado_en:             new Date().toISOString()
+        creado_en:             new Date().toISOString(),
+        derechos_confirmados:    true,
+        derechos_confirmados_en: new Date().toISOString()
       };
 
     if (categoria === 'miniapp' && escaneoHtml) {
@@ -3338,6 +3358,19 @@ app.post('/api/creador/miniapps/subir', requireCreador, function (req, res, next
         .single());
       if (!error) {
         console.warn('[creador/miniapps/subir] subcategoria no guardada: falta migracion SQL miniapps-subcategoria.sql');
+      }
+    }
+
+    if (error && /derechos_confirmados|column|schema cache/.test(String(error.message || ''))) {
+      delete insertRow.derechos_confirmados;
+      delete insertRow.derechos_confirmados_en;
+      ({ data, error } = await supabase
+        .from('miniapps')
+        .insert(insertRow)
+        .select('id, nombre, slug, categoria, precio, precio_promocion, tipo_producto, usa_ia, disponible_vendedores, comision_vendedor, estado, creado_en, r2_key, foto1_key, pack_key')
+        .single());
+      if (!error) {
+        console.warn('[creador/miniapps/subir] derechos_confirmados no guardado: falta migracion SQL miniapps-derechos-autor.sql');
       }
     }
 
@@ -3937,7 +3970,7 @@ function _serveMarketplace(req, res) {
 
   <footer class="vt-footer">
     <p>Parte de <a href="https://agoratum.com" target="_blank" rel="noopener noreferrer">AGORATUM</a> · Marketplace de activos digitales</p>
-    <p class="vt-footer-legal"><a href="/terminos">Terminos y Condiciones</a> · <a href="/privacidad">Politica de Privacidad</a></p>
+    <p class="vt-footer-legal"><a href="/terminos">Terminos y Condiciones</a> · <a href="/privacidad">Politica de Privacidad</a> · <a href="/derechos">Derechos de autor</a> · <a href="/reportar-contenido">Reportar contenido</a></p>
   </footer>
 </div>
 <script>window.VT_API_BASE='${PUBLIC_BASE_URL.replace(/'/g, "\\'")}';</script>
@@ -3959,6 +3992,136 @@ app.get('/terminos', function (req, res) {
 });
 app.get('/privacidad', function (req, res) {
   _serveLegalPage(res, LEGAL_PRIVACIDAD_TEMPLATE);
+});
+app.get('/derechos', function (req, res) {
+  _serveLegalPage(res, LEGAL_DERECHOS_TEMPLATE);
+});
+app.get('/reportar-contenido', function (req, res) {
+  _serveLegalPage(res, LEGAL_REPORTAR_TEMPLATE);
+});
+
+function _emailBasicoValido(email) {
+  const s = String(email || '').trim();
+  const at = s.indexOf('@');
+  return at > 0 && s.indexOf('.', at) > at + 1 && s.indexOf(' ') === -1 && s.length <= 200;
+}
+
+function _extraerSlugProductoReclamo(texto) {
+  const s = String(texto || '').trim();
+  if (!s) return null;
+  const urlMatch = s.match(/\/p\/([a-z0-9-]+)/i) || s.match(/\/miniapps\/([a-z0-9-]+)/i);
+  if (urlMatch) return String(urlMatch[1]).toLowerCase();
+  if (/^[a-z0-9][a-z0-9-]{0,59}$/i.test(s)) return s.toLowerCase();
+  return null;
+}
+
+async function _resolverMiniappReclamo(productoTexto) {
+  const slug = _extraerSlugProductoReclamo(productoTexto);
+  if (!slug) return null;
+  const { data, error } = await supabase
+    .from('miniapps')
+    .select('id, nombre, slug, pagina_venta_slug')
+    .or('slug.eq.' + slug + ',pagina_venta_slug.eq.' + slug)
+    .neq('estado', 'eliminado')
+    .maybeSingle();
+  if (error) throw error;
+  return data || null;
+}
+
+async function _notificarAdminReclamoDerechos(reclamo) {
+  const resend = _getResend();
+  if (!resend || !ADMIN_NOTIFY_EMAIL) return;
+  const adminUrl = (process.env.ADMIN_PANEL_URL || 'https://admin.activosdigitales.click').replace(/\/$/, '');
+  const subject = '[Activos Digitales] Nuevo reclamo de derechos';
+  const html =
+    '<p>Se recibio un nuevo reclamo de derechos de autor.</p>' +
+    '<p><strong>Producto:</strong> ' + String(reclamo.producto_texto || '').replace(/</g, '&lt;') + '</p>' +
+    '<p><strong>Reclamante:</strong> ' + String(reclamo.quien_reclama || '').replace(/</g, '&lt;') +
+    ' (' + String(reclamo.email || '').replace(/</g, '&lt;') + ')</p>' +
+    '<p><strong>Motivo:</strong><br>' + String(reclamo.motivo || '').replace(/</g, '&lt;').replace(/\n/g, '<br>') + '</p>' +
+    (reclamo.prueba ? ('<p><strong>Prueba:</strong><br>' + String(reclamo.prueba).replace(/</g, '&lt;').replace(/\n/g, '<br>') + '</p>') : '') +
+    '<p>Revisa en el panel admin → Reclamos o en ' + adminUrl + '</p>';
+  try {
+    const { error } = await resend.emails.send({
+      from:    RESEND_FROM_EMAIL,
+      to:      ADMIN_NOTIFY_EMAIL,
+      subject: subject,
+      html:    html
+    });
+    if (error) console.warn('[reclamos-derechos/email]', error.message || error);
+  } catch (e) {
+    console.warn('[reclamos-derechos/email]', e.message);
+  }
+}
+
+const RECLAMOS_ESTADOS_VALIDOS = ['pendiente', 'revisado', 'descartado', 'accion_tomada'];
+
+// POST /api/reclamos-derechos — formulario publico de reclamo (no baja producto)
+app.post('/api/reclamos-derechos', reclamoRateLimiter, async (req, res) => {
+  const body = req.body || {};
+  const producto_texto = String(body.producto || body.producto_texto || '').trim().slice(0, 500);
+  const quien_reclama  = String(body.quien_reclama || body.nombre || '').trim().slice(0, 200);
+  const email          = String(body.email || '').trim().slice(0, 200);
+  const motivo         = String(body.motivo || '').trim().slice(0, 5000);
+  const prueba         = String(body.prueba || '').trim().slice(0, 5000);
+
+  if (!producto_texto) {
+    return res.status(400).json({ ok: false, error: 'Indica el producto que quieres reportar.' });
+  }
+  if (!quien_reclama) {
+    return res.status(400).json({ ok: false, error: 'Indica tu nombre o el titular de los derechos.' });
+  }
+  if (!_emailBasicoValido(email)) {
+    return res.status(400).json({ ok: false, error: 'Indica un correo electronico valido.' });
+  }
+  if (!motivo || motivo.length < 20) {
+    return res.status(400).json({ ok: false, error: 'Describe el reclamo con al menos 20 caracteres.' });
+  }
+
+  try {
+    let miniapp_id = null;
+    try {
+      const mini = await _resolverMiniappReclamo(producto_texto);
+      if (mini) miniapp_id = mini.id;
+    } catch (e) {
+      console.warn('[reclamos-derechos] lookup producto:', e.message);
+    }
+
+    const payload = {
+      miniapp_id,
+      producto_texto,
+      quien_reclama,
+      email,
+      motivo,
+      prueba: prueba || null,
+      estado: 'pendiente',
+      creado_en: new Date().toISOString()
+    };
+
+    const { data, error } = await supabase
+      .from('reclamos_derechos')
+      .insert(payload)
+      .select('id, producto_texto, quien_reclama, email, motivo, prueba, estado, creado_en')
+      .single();
+
+    if (error) {
+      if (/reclamos_derechos|relation|schema cache|does not exist/i.test(String(error.message || ''))) {
+        return res.status(503).json({
+          ok: false,
+          error: 'Servicio de reclamos no disponible. Ejecuta motor/sql/reclamos-derechos.sql en Supabase.'
+        });
+      }
+      throw error;
+    }
+
+    console.log('[reclamos-derechos] nuevo id=' + data.id + ' producto=' + producto_texto.slice(0, 80));
+    _notificarAdminReclamoDerechos(data).catch(function () {});
+
+    res.json({ ok: true, reclamo_id: data.id });
+  } catch (e) {
+    console.error('[reclamos-derechos POST]', e.message);
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
+  }
 });
 
 // ── Catalogo mini apps (activos digitales para vendedores) ────────────────────
@@ -4130,6 +4293,85 @@ function _slugify(nombre) {
 // Middleware de autenticación para TODOS los endpoints /api/admin/*
 // (el endpoint /api/admin/login ya fue registrado antes, así que no pasa por aquí)
 app.use('/api/admin', requireAdmin);
+
+// GET /api/admin/reclamos-derechos
+app.get('/api/admin/reclamos-derechos', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('reclamos_derechos')
+      .select('id, miniapp_id, producto_texto, quien_reclama, email, motivo, prueba, estado, creado_en, actualizado_en')
+      .order('creado_en', { ascending: false })
+      .limit(200);
+    if (error) {
+      if (/reclamos_derechos|relation|schema cache|does not exist/i.test(String(error.message || ''))) {
+        return res.status(503).json({
+          ok: false,
+          error: 'Falta migracion SQL: ejecuta motor/sql/reclamos-derechos.sql en Supabase.'
+        });
+      }
+      throw error;
+    }
+
+    const miniIds = (data || []).map(function (r) { return r.miniapp_id; }).filter(Boolean);
+    const miniMap = {};
+    if (miniIds.length) {
+      const { data: minis, error: mErr } = await supabase
+        .from('miniapps')
+        .select('id, nombre, slug, pagina_venta_slug')
+        .in('id', miniIds);
+      if (mErr) throw mErr;
+      (minis || []).forEach(function (m) { miniMap[m.id] = m; });
+    }
+
+    const reclamos = (data || []).map(function (r) {
+      const mini = r.miniapp_id ? miniMap[r.miniapp_id] : null;
+      return {
+        id:              r.id,
+        miniapp_id:      r.miniapp_id,
+        miniapp_nombre:  mini ? mini.nombre : null,
+        miniapp_slug:    mini ? (mini.pagina_venta_slug || mini.slug) : null,
+        producto_texto:  r.producto_texto,
+        quien_reclama:   r.quien_reclama,
+        email:           r.email,
+        motivo:          r.motivo,
+        prueba:          r.prueba,
+        estado:          r.estado,
+        creado_en:       r.creado_en,
+        actualizado_en:  r.actualizado_en
+      };
+    });
+
+    res.json({ ok: true, reclamos: reclamos });
+  } catch (e) {
+    console.error('[admin/reclamos-derechos GET]', e.message);
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
+  }
+});
+
+// POST /api/admin/reclamos-derechos/actualizar
+app.post('/api/admin/reclamos-derechos/actualizar', async (req, res) => {
+  const { id, estado } = req.body || {};
+  if (!id || !estado) {
+    return res.status(400).json({ ok: false, error: 'Se requiere id y estado.' });
+  }
+  if (RECLAMOS_ESTADOS_VALIDOS.indexOf(String(estado)) === -1) {
+    return res.status(400).json({ ok: false, error: 'Estado invalido.' });
+  }
+  try {
+    const { data, error } = await supabase
+      .from('reclamos_derechos')
+      .update({ estado: String(estado), actualizado_en: new Date().toISOString() })
+      .eq('id', id)
+      .select('id, estado')
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return res.status(404).json({ ok: false, error: 'Reclamo no encontrado.' });
+    res.json({ ok: true, reclamo: data });
+  } catch (e) {
+    console.error('[admin/reclamos-derechos/actualizar]', e.message);
+    res.status(500).json({ ok: false, error: CLIENT_ERROR_MSG });
+  }
+});
 
 // GET /api/admin/productos
 app.get('/api/admin/productos', async (req, res) => {
@@ -7983,6 +8225,9 @@ app.listen(PORT, () => {
   console.log(`[motor]   GET  http://localhost:${PORT}/recuperar-compra`);
   console.log(`[motor]   GET  http://localhost:${PORT}/terminos`);
   console.log(`[motor]   GET  http://localhost:${PORT}/privacidad`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/derechos`);
+  console.log(`[motor]   GET  http://localhost:${PORT}/reportar-contenido`);
+  console.log(`[motor]   POST http://localhost:${PORT}/api/reclamos-derechos`);
   console.log(`[motor]   GET  http://localhost:${PORT}/  (marketplace en activosdigitales.click; JSON neutro en api)`);
   console.log(`[motor]   GET  http://localhost:${PORT}/marketplace`);
   console.log(`[motor]   GET  http://localhost:${PORT}/vitrina  (redirect → /marketplace)`);

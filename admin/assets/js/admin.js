@@ -284,7 +284,7 @@ function _setHtml(id, html) {
    TAB SWITCHING — admin digital-only (fisicos archivados en DOM)
    ============================================================ */
 
-var ADMIN_TABS_DIGITAL = ['miniapp', 'infoproducto', 'contenido_digital', 'creadores', 'ventas', 'cuenta'];
+var ADMIN_TABS_DIGITAL = ['miniapp', 'infoproducto', 'contenido_digital', 'creadores', 'ventas', 'cuenta', 'reclamos'];
 var ADMIN_TABS_ARCHIVED = ['inventario', 'catalogo', 'paginas', 'usuarios', 'cuentas', 'pedidos'];
 var ADMIN_PRODUCT_TABS = {
   miniapp: {
@@ -329,6 +329,7 @@ function switchAdminTab(tabId) {
   var panelCr = document.getElementById('adm-panel-creadores');
   var panelVe = document.getElementById('adm-panel-ventas');
   var panelCu = document.getElementById('adm-panel-cuenta');
+  var panelRe = document.getElementById('adm-panel-reclamos');
 
   if (panelMa) {
     panelMa.hidden = !isProduct;
@@ -345,6 +346,10 @@ function switchAdminTab(tabId) {
   if (panelCu) {
     panelCu.hidden = tabId !== 'cuenta';
     panelCu.classList.toggle('active', tabId === 'cuenta');
+  }
+  if (panelRe) {
+    panelRe.hidden = tabId !== 'reclamos';
+    panelRe.classList.toggle('active', tabId === 'reclamos');
   }
 
   // Mantener archivados siempre ocultos
@@ -364,6 +369,8 @@ function switchAdminTab(tabId) {
     renderVentasDigitales();
   } else if (tabId === 'cuenta') {
     renderCuentaResumen();
+  } else if (tabId === 'reclamos') {
+    renderReclamosDerechos();
   }
 }
 
@@ -2970,6 +2977,96 @@ function maGenerarPagina(id) {
 }
 
 // Close modal on overlay click
+/* ============================================================
+   RECLAMOS DE DERECHOS
+   ============================================================ */
+
+var _reclamosCache = null;
+
+function _reclamoEstadoBadge(estado) {
+  var map = {
+    pendiente: 'adm-badge--warn',
+    revisado: 'adm-badge--proceso',
+    descartado: 'adm-badge--inactivo',
+    accion_tomada: 'adm-badge--ok'
+  };
+  var label = String(estado || 'pendiente');
+  return '<span class="adm-badge ' + (map[label] || 'adm-badge--inactivo') + '">' + _esc(label) + '</span>';
+}
+
+function renderReclamosDerechos() {
+  var wrap = document.getElementById('reclamos-table-wrap');
+  var sum = document.getElementById('reclamos-summary-row');
+  if (wrap) wrap.innerHTML = '<p class="adm-empty">Cargando reclamos...</p>';
+  if (sum) sum.innerHTML = _statCard('...', 'Cargando');
+
+  _adminFetch(MOTOR_URL + '/api/admin/reclamos-derechos')
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d.ok) throw new Error(d.error || 'Error al cargar reclamos.');
+      _reclamosCache = d.reclamos || [];
+      var pendientes = _reclamosCache.filter(function (x) { return x.estado === 'pendiente'; }).length;
+      if (sum) {
+        sum.innerHTML =
+          _statCard(_reclamosCache.length, 'Total reclamos') +
+          _statCard(pendientes, 'Pendientes');
+      }
+      if (!wrap) return;
+      if (!_reclamosCache.length) {
+        wrap.innerHTML = '<p class="adm-empty">No hay reclamos registrados.</p>';
+        return;
+      }
+      var rows = _reclamosCache.map(function (r) {
+        var prod = r.miniapp_nombre
+          ? _esc(r.miniapp_nombre) + ' <span class="adm-muted">(' + _esc(r.miniapp_slug || '') + ')</span>'
+          : _esc(r.producto_texto || '—');
+        var prueba = r.prueba
+          ? '<details><summary>Ver prueba</summary><p class="adm-muted">' + _esc(r.prueba) + '</p></details>'
+          : '—';
+        var acciones = '<select class="adm-form-input adm-form-input--sm" onchange="reclamoCambiarEstado(\'' + r.id + '\', this.value)">' +
+          ['pendiente', 'revisado', 'descartado', 'accion_tomada'].map(function (st) {
+            return '<option value="' + st + '"' + (r.estado === st ? ' selected' : '') + '>' + st + '</option>';
+          }).join('') +
+          '</select>';
+        return '<tr>' +
+          '<td>' + _fmtFecha(r.creado_en) + '</td>' +
+          '<td>' + prod + '</td>' +
+          '<td>' + _esc(r.quien_reclama || '') + '<br><a href="mailto:' + _esc(r.email || '') + '">' + _esc(r.email || '') + '</a></td>' +
+          '<td><details><summary>Ver motivo</summary><p class="adm-muted">' + _esc(r.motivo || '') + '</p></details></td>' +
+          '<td>' + prueba + '</td>' +
+          '<td>' + _reclamoEstadoBadge(r.estado) + '</td>' +
+          '<td>' + acciones + '</td>' +
+          '</tr>';
+      }).join('');
+      wrap.innerHTML =
+        '<table class="adm-table"><thead><tr>' +
+        '<th>Fecha</th><th>Producto</th><th>Reclamante</th><th>Motivo</th><th>Prueba</th><th>Estado</th><th>Accion</th>' +
+        '</tr></thead><tbody>' + rows + '</tbody></table>';
+    })
+    .catch(function (e) {
+      if (wrap) wrap.innerHTML = '<p class="adm-empty adm-empty--err">' + _esc(e.message || 'Error') + '</p>';
+      if (sum) sum.innerHTML = _statCard('—', 'Reclamos');
+    });
+}
+
+function reclamoCambiarEstado(id, estado) {
+  if (!id || !estado) return;
+  _adminFetch(MOTOR_URL + '/api/admin/reclamos-derechos/actualizar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: id, estado: estado })
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d.ok) throw new Error(d.error || 'No se pudo actualizar.');
+      renderReclamosDerechos();
+    })
+    .catch(function (e) {
+      alert(e.message || 'Error al actualizar reclamo.');
+      renderReclamosDerechos();
+    });
+}
+
 document.addEventListener('DOMContentLoaded', function () {
   var overlay = document.getElementById('adm-modal');
   if (overlay) {

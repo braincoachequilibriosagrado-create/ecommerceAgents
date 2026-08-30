@@ -997,6 +997,8 @@ function _resetSubirForm() {
   document.getElementById('cr-ma-desc').value = '';
   document.getElementById('cr-ma-usa-ia').checked = false;
   document.getElementById('cr-ma-vendedores').checked = false;
+  var derechosChk = document.getElementById('cr-ma-derechos');
+  if (derechosChk) derechosChk.checked = false;
   document.getElementById('cr-ma-comision').value = '';
   _htmlFromFile = '';
   var htmlFile = document.getElementById('cr-html-file');
@@ -1106,6 +1108,11 @@ async function publicarMiniapp() {
     _showMsg('cr-subir-msg', 'La Foto 2 no es valida. Debe ser horizontal (16:9) o quitala.', false);
     return;
   }
+  var derechosChk = document.getElementById('cr-ma-derechos');
+  if (!derechosChk || !derechosChk.checked) {
+    _showMsg('cr-subir-msg', 'Debes confirmar que tienes los derechos sobre el contenido para publicar.', false);
+    return;
+  }
 
   var fd = new FormData();
   fd.append('categoria', _categoriaActiva);
@@ -1118,6 +1125,7 @@ async function publicarMiniapp() {
   fd.append('precio', String(precio));
   if (precioPromo > 0) fd.append('precio_promocion', String(precioPromo));
   fd.append('usa_ia', usa_ia ? 'true' : 'false');
+  fd.append('derechos_confirmados', 'true');
   fd.append('disponible_vendedores', disponible_vendedores ? 'true' : 'false');
   if (disponible_vendedores) fd.append('comision_vendedor', String(comision_vendedor));
   fd.append('foto1', foto1Input.files[0]);

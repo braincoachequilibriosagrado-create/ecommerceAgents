@@ -1627,6 +1627,23 @@ a.cr-dash-tab {
   transition: border-color 0.15s, background 0.15s;
 }
 
+.cr-upload-card--legal {
+  border-color: rgba(26, 107, 255, 0.22);
+  background: rgba(26, 107, 255, 0.03);
+}
+
+.cr-option-item--legal {
+  margin: 0;
+  border: none;
+  padding: 0;
+  background: transparent;
+}
+
+.cr-option-item--legal:hover {
+  background: transparent;
+  border-color: transparent;
+}
+
 .cr-option-item:hover {
   border-color: var(--cr-accent-border);
   background: var(--cr-bg);

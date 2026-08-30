@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reportar contenido — AGORATUM · Activos Digitales</title>
+  <link rel="icon" type="image/png" href="{{FAVICON_URL}}">
+  <meta name="description" content="Formulario para reportar un producto digital que infringe derechos de autor en Activos Digitales.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{CSS_URL}}">
+  <link rel="stylesheet" href="{{PREMIUM_CSS_URL}}">
+  <style>
+    .report-form { max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+    .report-field label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 6px; color: #0d1117; }
+    .report-field input, .report-field textarea {
+      width: 100%; box-sizing: border-box; padding: 11px 14px; border: 1px solid #e4e7eb;
+      border-radius: 10px; font: inherit; font-size: 14px; background: #fff;
+    }
+    .report-field textarea { min-height: 110px; resize: vertical; }
+    .report-hint { font-size: 12.5px; color: #5f6571; margin-top: 4px; line-height: 1.45; }
+    .report-btn {
+      margin-top: 8px; padding: 13px 20px; border: none; border-radius: 10px;
+      background: #1a6bff; color: #fff; font-size: 15px; font-weight: 700; cursor: pointer;
+    }
+    .report-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .report-msg { padding: 12px 14px; border-radius: 10px; font-size: 14px; display: none; }
+    .report-msg--ok { display: block; background: #ecfdf3; color: #166534; border: 1px solid #bbf7d0; }
+    .report-msg--err { display: block; background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+    .report-note { font-size: 13px; color: #5f6571; line-height: 1.55; margin-bottom: 8px; }
+  </style>
+</head>
+<body class="ea-shader-page">
+  <header class="legal-header">
+    <div class="legal-header-inner">
+      <a href="{{MARKETPLACE_URL}}" class="legal-brand">
+        <img src="{{LOGO_URL}}" alt="AGORATUM · Activos Digitales">
+      </a>
+      <nav class="legal-nav" aria-label="Legal">
+        <a href="/terminos">Terminos</a>
+        <a href="/privacidad">Privacidad</a>
+        <a href="/derechos">Derechos</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="legal-main">
+    <div class="legal-hero">
+      <h1>Reportar contenido</h1>
+      <p class="legal-updated">Reclamo de derechos de autor</p>
+    </div>
+
+    <article class="legal-card">
+      <p class="report-note">Usa este formulario si crees que un producto publicado en Activos Digitales infringe tus derechos de autor, conforme a la legislacion colombiana (<a href="/derechos">politica de derechos</a>: Ley 23 de 1982 y Ley 1915 de 2018). Tras verificar el reclamo, la plataforma retirara el contenido si resulta fundado. El retiro no es automatico al enviar este formulario.</p>
+
+      <div id="report-msg" class="report-msg" role="alert"></div>
+
+      <form id="report-form" class="report-form" novalidate>
+        <div class="report-field">
+          <label for="producto">Producto *</label>
+          <input type="text" id="producto" name="producto" required maxlength="500"
+            placeholder="Nombre del producto, slug o URL de la pagina de venta" />
+          <p class="report-hint">Ej: &quot;Guia de macros&quot; o https://activosdigitales.click/p/mi-producto</p>
+        </div>
+        <div class="report-field">
+          <label for="quien_reclama">Tu nombre o titular de los derechos *</label>
+          <input type="text" id="quien_reclama" name="quien_reclama" required maxlength="200" />
+        </div>
+        <div class="report-field">
+          <label for="email">Tu correo electronico *</label>
+          <input type="email" id="email" name="email" required maxlength="200" autocomplete="email" />
+        </div>
+        <div class="report-field">
+          <label for="motivo">Descripcion del reclamo *</label>
+          <textarea id="motivo" name="motivo" required maxlength="5000"
+            placeholder="Explica que contenido consideras infringido y por que..."></textarea>
+        </div>
+        <div class="report-field">
+          <label for="prueba">Prueba de titularidad</label>
+          <textarea id="prueba" name="prueba" maxlength="5000"
+            placeholder="Enlaces a tu obra original, registro, licencia, etc."></textarea>
+        </div>
+        <label class="report-field" style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
+          <input type="checkbox" id="declaracion" required style="width:18px;height:18px;margin-top:3px;" />
+          <span style="font-size:13px;line-height:1.5;color:#3a4560;">Declaro que la informacion es veraz, que actuo de buena fe y que soy el titular de los derechos o estoy autorizado para presentar este reclamo.</span>
+        </label>
+        <button type="submit" class="report-btn" id="report-btn">Enviar reclamo</button>
+      </form>
+    </article>
+  </main>
+
+  <footer class="legal-footer">
+    <p>&copy; 2026 <strong>AGORATUM · Activos Digitales</strong> · <a href="/derechos">Politica de derechos</a> · <a href="{{MARKETPLACE_URL}}">Marketplace</a></p>
+  </footer>
+  <script src="{{HERO_JS_URL}}"></script>
+  <script>
+    if (typeof initPremiumPageBg === 'function') initPremiumPageBg();
+
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+      var pre = params.get('producto') || params.get('slug') || '';
+      if (pre) {
+        var inp = document.getElementById('producto');
+        if (inp) inp.value = pre;
+      }
+
+      var form = document.getElementById('report-form');
+      var msg = document.getElementById('report-msg');
+      var btn = document.getElementById('report-btn');
+
+      function showMsg(text, ok) {
+        if (!msg) return;
+        msg.textContent = text;
+        msg.className = 'report-msg ' + (ok ? 'report-msg--ok' : 'report-msg--err');
+      }
+
+      if (!form) return;
+
+      form.addEventListener('submit', function (ev) {
+        ev.preventDefault();
+        if (!form.checkValidity()) {
+          form.reportValidity();
+          return;
+        }
+        var payload = {
+          producto: document.getElementById('producto').value.trim(),
+          quien_reclama: document.getElementById('quien_reclama').value.trim(),
+          email: document.getElementById('email').value.trim(),
+          motivo: document.getElementById('motivo').value.trim(),
+          prueba: document.getElementById('prueba').value.trim()
+        };
+        btn.disabled = true;
+        btn.textContent = 'Enviando...';
+        fetch('/api/reclamos-derechos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        })
+          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+          .then(function (res) {
+            if (!res.d || !res.d.ok) throw new Error((res.d && res.d.error) || 'No se pudo enviar el reclamo.');
+            showMsg('Reclamo recibido. Lo revisaremos y te contactaremos por correo si hace falta.', true);
+            form.reset();
+          })
+          .catch(function (e) {
+            showMsg(e.message || 'Error de conexion.', false);
+          })
+          .finally(function () {
+            btn.disabled = false;
+            btn.textContent = 'Enviar reclamo';
+          });
+      });
+    })();
+  </script>
+</body>
+</html>
