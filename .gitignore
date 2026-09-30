@@ -41,6 +41,9 @@ motor/outputs/*
 # LOGS Y CACHÉS
 # ============================================================
 *.log
+
+# Logs del motor (keepalive de Supabase, etc.)
+motor/logs/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
